@@ -3,42 +3,43 @@ package wallelib
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/binary"
+	"time"
 
 	walle_pb "github.com/zviadm/walle/proto/walle"
 )
 
-type client struct {
-	c walle_pb.WalleClient
-}
-
-func (c *client) ClaimWriter(ctx context.Context, streamURI string) error {
+func ClaimWriter(
+	ctx context.Context,
+	c walle_pb.WalleClient,
+	streamURI string) (*Writer, error) {
 	writerId := makeWriterId()
-	resp, err := c.c.NewWriter(ctx, &walle_pb.NewWriterRequest{
+	resp, err := c.NewWriter(ctx, &walle_pb.NewWriterRequest{
 		StreamUri: streamURI,
 		WriterId:  writerId,
 	})
-
 	if err != nil {
-		return err
+		return nil, err
 	}
+
 	var entries map[string][]*walle_pb.Entry
 	for {
 		entries = make(map[string][]*walle_pb.Entry, len(resp.SuccessIds))
 		for _, serverId := range resp.SuccessIds {
-			// TODO(zviad): use proper client, for serverId.
-			r, err := c.c.LastEntry(ctx, &walle_pb.LastEntryRequest{
+			r, err := c.LastEntry(ctx, &walle_pb.LastEntryRequest{
 				TargetServerId:     serverId,
 				StreamUri:          streamURI,
 				IncludeUncommitted: true,
 			})
 			if err != nil {
-				return err
+				return nil, err
 			}
 			entries[serverId] = r.Entries
 		}
-		committed, err := c.commitMaxEntry(ctx, entries)
+		committed, err := commitMaxEntry(ctx, c, entries)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if !committed {
 			break // Nothing to commit, thus all servers are at the same committed entry.
@@ -56,12 +57,12 @@ func (c *client) ClaimWriter(ctx context.Context, streamURI string) error {
 		}
 	}
 	maxEntry.WriterId = writerId
-	_, err = c.c.PutEntry(ctx, &walle_pb.PutEntryRequest{
+	_, err = c.PutEntry(ctx, &walle_pb.PutEntryRequest{
 		TargetServerId: maxWriterServerId,
 		Entry:          maxEntry,
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	maxEntries := entries[maxWriterServerId]
 	for serverId, es := range entries {
@@ -78,30 +79,33 @@ func (c *client) ClaimWriter(ctx context.Context, streamURI string) error {
 		for idx := startIdx; idx < len(maxEntries); idx++ {
 			entry := maxEntries[idx]
 			entry.WriterId = writerId
-			_, err = c.c.PutEntry(ctx, &walle_pb.PutEntryRequest{
+			_, err = c.PutEntry(ctx, &walle_pb.PutEntryRequest{
 				TargetServerId: serverId,
 				Entry:          entry,
 			})
 			if err != nil {
-				return err
+				return nil, err
 			}
 		}
 	}
 	for serverId, _ := range entries {
-		_, err = c.c.PutEntry(ctx, &walle_pb.PutEntryRequest{
+		_, err = c.PutEntry(ctx, &walle_pb.PutEntryRequest{
 			TargetServerId:   serverId,
 			Entry:            maxEntry,
 			CommittedEntryId: maxEntry.EntryId,
 		})
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return nil
+	w := newWriter(c, writerId, maxEntry)
+	return w, nil
 }
 
-func (c *client) commitMaxEntry(
-	ctx context.Context, entries map[string][]*walle_pb.Entry) (bool, error) {
+func commitMaxEntry(
+	ctx context.Context,
+	c walle_pb.WalleClient,
+	entries map[string][]*walle_pb.Entry) (bool, error) {
 	var maxEntry *walle_pb.Entry
 	committed := false
 	for _, es := range entries {
@@ -113,7 +117,7 @@ func (c *client) commitMaxEntry(
 	for serverId, es := range entries {
 		if es[0].EntryId < maxEntry.EntryId {
 			committed = true
-			_, err := c.c.PutEntry(ctx, &walle_pb.PutEntryRequest{
+			_, err := c.PutEntry(ctx, &walle_pb.PutEntryRequest{
 				TargetServerId:   serverId,
 				Entry:            maxEntry,
 				CommittedEntryId: maxEntry.EntryId,
@@ -127,5 +131,8 @@ func (c *client) commitMaxEntry(
 }
 
 func makeWriterId() string {
-	return ""
+	writerId := make([]byte, 16)
+	binary.BigEndian.PutUint64(writerId[0:8], uint64(time.Now().UnixNano()))
+	rand.Read(writerId[8:15])
+	return string(writerId)
 }
