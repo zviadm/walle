@@ -1,4 +1,44 @@
 syntax = "proto3";
 
 service Walle {
+	rpc NewWriter(NewWriterRequest) returns (BaseResponse) {}
+	rpc PutEntry(PutEntryRequest) returns (BaseResponse) {}
+	rpc LastEntry(LastEntryRequest) returns (LastEntryResponse) {}
+}
+
+message Entry {
+	int64 entry_id = 1;
+	string writer_id = 2;
+	bytes data = 3;
+	// checksum_md5 is a rolling md5 for all `data`.
+	bytes checksum_md5 = 4;
+}
+
+message NewWriterRequest {
+	// if `target` is set, message is only for that specific `server`. Otherwise, it is a majority request
+	// that should be forwarded to all known `server`-s.
+	string target_server_id = 1;
+	string stream_uri = 2;
+	string writer_id = 3;
+}
+message PutEntryRequest {
+	string target_server_id = 1;
+	Entry entry = 2;
+	int64 committed_entry_id = 3;
+	// TODO(zviad): committed_entry_md5? for safety?
+}
+
+message BaseResponse {
+	repeated string success_ids = 1;
+	int32 fails = 2;
+}
+
+message LastEntryRequest {
+	string target_server_id = 1;
+	string stream_uri = 2;
+	bool include_uncommitted = 3;
+}
+
+message LastEntryResponse {
+	repeated Entry entries = 1;
 }
