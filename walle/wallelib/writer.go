@@ -97,6 +97,9 @@ func (w *Writer) PutEntry(data []byte) (*walle_pb.Entry, <-chan error) {
 		defer cancel()
 		for {
 			_, committedEntryId := w.safeCommittedEntryId()
+			if committedEntryId > entry.EntryId {
+				committedEntryId = entry.EntryId
+			}
 			_, err := w.c.PutEntry(ctx, &walle_pb.PutEntryRequest{
 				Entry:            entry,
 				CommittedEntryId: committedEntryId,
