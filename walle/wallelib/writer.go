@@ -21,7 +21,7 @@ const (
 // Writer retries PutEntry calls internally indefinitely, until an unrecoverable error happens.
 // Once an error happens, writer is completely closed and can no longer be used to write any new entries.
 type Writer struct {
-	c         walle_pb.WalleClient
+	c         Client
 	streamURI string
 	writerId  string
 	lastEntry *walle_pb.Entry
@@ -36,7 +36,7 @@ type Writer struct {
 }
 
 func newWriter(
-	c walle_pb.WalleClient,
+	c Client,
 	streamURI string,
 	writerId string,
 	lastEntry *walle_pb.Entry) *Writer {
@@ -83,7 +83,7 @@ func (w *Writer) heartbeat() {
 		err := KeepTryingWithBackoff(
 			w.rootCtx, shortBeat, longBeat,
 			func(retryN uint) (bool, error) {
-				_, err := w.c.PutEntry(w.rootCtx, &walle_pb.PutEntryRequest{
+				_, err := w.c.Preferred(w.streamURI).PutEntry(w.rootCtx, &walle_pb.PutEntryRequest{
 					StreamUri:         w.streamURI,
 					Entry:             &walle_pb.Entry{WriterId: w.writerId},
 					CommittedEntryId:  entryId,
@@ -120,7 +120,7 @@ func (w *Writer) PutEntry(data []byte) (*walle_pb.Entry, <-chan error) {
 				if committedEntryId > entry.EntryId {
 					committedEntryId = entry.EntryId
 				}
-				_, err := w.c.PutEntry(ctx, &walle_pb.PutEntryRequest{
+				_, err := w.c.Preferred(w.streamURI).PutEntry(ctx, &walle_pb.PutEntryRequest{
 					StreamUri:         w.streamURI,
 					Entry:             entry,
 					CommittedEntryId:  committedEntryId,

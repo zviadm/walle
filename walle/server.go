@@ -3,10 +3,12 @@ package walle
 import (
 	"context"
 	"encoding/hex"
-	"errors"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/golang/glog"
+	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
+	"github.com/zviadm/walle/walle/wallelib"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -14,12 +16,14 @@ import (
 type Server struct {
 	serverId string
 	s        Storage
+	c        wallelib.Client
 }
 
-func NewServer(serverId string, s Storage) *Server {
+func NewServer(serverId string, s Storage, c wallelib.Client) *Server {
 	r := &Server{
 		serverId: serverId,
 		s:        s,
+		c:        c,
 	}
 	return r
 }
@@ -50,12 +54,19 @@ func (s *Server) NewWriter(
 	ctx context.Context,
 	req *walle_pb.NewWriterRequest) (*walle_pb.BaseResponse, error) {
 	if req.TargetServerId == "" {
-		// TODO(zviad): Forward request.
-		return nil, errors.New("not implemented")
+		return s.broadcastRequest(ctx, func(c walle_pb.WalleClient, serverId string) error {
+			reqC := proto.Clone(req).(*walle_pb.NewWriterRequest)
+			reqC.TargetServerId = serverId
+			_, err := c.NewWriter(ctx, reqC)
+			return err
+		})
 	}
 	if !s.checkServerId(req.TargetServerId) {
-		// TODO(zviad): Forward request instead.
-		return nil, errors.New("not implemented")
+		c, err := s.c.ForServerNoFallback(req.TargetServerId)
+		if err != nil {
+			return nil, err
+		}
+		return c.NewWriter(ctx, req)
 	}
 	ss, ok := s.s.Stream(req.StreamUri)
 	if !ok {
@@ -71,8 +82,11 @@ func (s *Server) LastEntry(
 	ctx context.Context,
 	req *walle_pb.LastEntryRequest) (*walle_pb.LastEntryResponse, error) {
 	if !s.checkServerId(req.TargetServerId) {
-		// TODO(zviad): Forward request instead.
-		return nil, errors.New("not implemented")
+		c, err := s.c.ForServerNoFallback(req.TargetServerId)
+		if err != nil {
+			return nil, err
+		}
+		return c.LastEntry(ctx, req)
 	}
 	ss, ok := s.s.Stream(req.StreamUri)
 	if !ok {
@@ -86,12 +100,19 @@ func (s *Server) PutEntry(
 	ctx context.Context,
 	req *walle_pb.PutEntryRequest) (*walle_pb.BaseResponse, error) {
 	if req.TargetServerId == "" {
-		// TODO(zviad): Forward request.
-		return nil, errors.New("not implemented")
+		return s.broadcastRequest(ctx, func(c walle_pb.WalleClient, serverId string) error {
+			reqC := proto.Clone(req).(*walle_pb.PutEntryRequest)
+			reqC.TargetServerId = serverId
+			_, err := c.PutEntry(ctx, reqC)
+			return err
+		})
 	}
 	if !s.checkServerId(req.TargetServerId) {
-		// TODO(zviad): Forward request instead.
-		return nil, errors.New("not implemented")
+		c, err := s.c.ForServerNoFallback(req.TargetServerId)
+		if err != nil {
+			return nil, err
+		}
+		return c.PutEntry(ctx, req)
 	}
 	ss, ok := s.s.Stream(req.StreamUri)
 	if !ok {
@@ -118,4 +139,30 @@ func (s *Server) PutEntry(
 		return nil, status.Errorf(codes.OutOfRange, "TODO(zviad): error message")
 	}
 	return &walle_pb.BaseResponse{SuccessIds: []string{s.serverId}}, nil
+}
+
+func (s *Server) broadcastRequest(
+	ctx context.Context,
+	call func(c walle_pb.WalleClient, serverId string) error) (*walle_pb.BaseResponse, error) {
+	var successIds []string
+	var errs []error
+	// TODO(zviad): needs to be parallel/asynchronous
+	// TODO(zviad): This needs to be dynamic, but part of consenus protocol of who the serverIds are.
+	for _, serverId := range []string{"1", "2", "3"} {
+		c, err := s.c.ForServerNoFallback(serverId)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		err = call(c, serverId)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		successIds = append(successIds, serverId)
+	}
+	if len(successIds) <= len(errs) {
+		return nil, errors.Errorf("not enough success: %s <= %d\nerrs: %v", successIds, len(errs), errs)
+	}
+	return &walle_pb.BaseResponse{SuccessIds: successIds, Fails: int32(len(errs))}, nil
 }

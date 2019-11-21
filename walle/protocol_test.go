@@ -11,8 +11,8 @@ import (
 
 func TestProtocolBasicNewWriter(t *testing.T) {
 	ctx := context.Background()
-	m := newMockSystem([]string{"1", "2", "3"})
-	w, err := wallelib.ClaimWriter(ctx, m, "/mock/1")
+	_, c := newMockSystem([]string{"1", "2", "3"})
+	w, err := wallelib.ClaimWriter(ctx, c, "/mock/1")
 	require.NoError(t, err)
 	defer w.Close()
 
@@ -36,7 +36,7 @@ func TestProtocolBasicNewWriter(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, serverId := range []string{"1", "2", "3"} {
-		resp, err := m.servers[serverId].LastEntry(
+		resp, err := c.Preferred("/mock/1").LastEntry(
 			ctx, &walle_pb.LastEntryRequest{TargetServerId: serverId, StreamUri: "/mock/1"})
 		require.NoError(t, err)
 		require.EqualValues(t, resp.Entries[0].EntryId, 2)

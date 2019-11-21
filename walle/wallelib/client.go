@@ -12,10 +12,10 @@ import (
 
 func ClaimWriter(
 	ctx context.Context,
-	c walle_pb.WalleClient,
+	c Client,
 	streamURI string) (*Writer, error) {
 	writerId := makeWriterId()
-	resp, err := c.NewWriter(ctx, &walle_pb.NewWriterRequest{
+	resp, err := c.Preferred(streamURI).NewWriter(ctx, &walle_pb.NewWriterRequest{
 		StreamUri: streamURI,
 		WriterId:  writerId,
 	})
@@ -27,7 +27,7 @@ func ClaimWriter(
 	for {
 		entries = make(map[string][]*walle_pb.Entry, len(resp.SuccessIds))
 		for _, serverId := range resp.SuccessIds {
-			r, err := c.LastEntry(ctx, &walle_pb.LastEntryRequest{
+			r, err := c.ForServer(serverId).LastEntry(ctx, &walle_pb.LastEntryRequest{
 				TargetServerId:     serverId,
 				StreamUri:          streamURI,
 				IncludeUncommitted: true,
@@ -57,7 +57,7 @@ func ClaimWriter(
 		}
 	}
 	maxEntry.WriterId = writerId
-	_, err = c.PutEntry(ctx, &walle_pb.PutEntryRequest{
+	_, err = c.ForServer(maxWriterServerId).PutEntry(ctx, &walle_pb.PutEntryRequest{
 		TargetServerId: maxWriterServerId,
 		StreamUri:      streamURI,
 		Entry:          maxEntry,
@@ -80,7 +80,7 @@ func ClaimWriter(
 		for idx := startIdx; idx < len(maxEntries); idx++ {
 			entry := maxEntries[idx]
 			entry.WriterId = writerId
-			_, err = c.PutEntry(ctx, &walle_pb.PutEntryRequest{
+			_, err = c.ForServer(serverId).PutEntry(ctx, &walle_pb.PutEntryRequest{
 				TargetServerId: serverId,
 				StreamUri:      streamURI,
 				Entry:          entry,
@@ -91,7 +91,7 @@ func ClaimWriter(
 		}
 	}
 	for serverId, _ := range entries {
-		_, err = c.PutEntry(ctx, &walle_pb.PutEntryRequest{
+		_, err = c.ForServer(serverId).PutEntry(ctx, &walle_pb.PutEntryRequest{
 			TargetServerId:    serverId,
 			StreamUri:         streamURI,
 			Entry:             maxEntry,
@@ -108,7 +108,7 @@ func ClaimWriter(
 
 func commitMaxEntry(
 	ctx context.Context,
-	c walle_pb.WalleClient,
+	c Client,
 	streamURI string,
 	entries map[string][]*walle_pb.Entry) (bool, error) {
 	var maxEntry *walle_pb.Entry
@@ -122,7 +122,7 @@ func commitMaxEntry(
 	for serverId, es := range entries {
 		if es[0].EntryId < maxEntry.EntryId {
 			committed = true
-			_, err := c.PutEntry(ctx, &walle_pb.PutEntryRequest{
+			_, err := c.ForServer(serverId).PutEntry(ctx, &walle_pb.PutEntryRequest{
 				TargetServerId:    serverId,
 				StreamUri:         streamURI,
 				Entry:             maxEntry,

@@ -3,9 +3,9 @@ package walle
 import (
 	"context"
 
-	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 
+	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 )
 
@@ -14,67 +14,29 @@ type mockSystem struct {
 	servers map[string]*Server
 }
 
-func newMockSystem(serverIds []string) *mockSystem {
-	servers := make(map[string]*Server, len(serverIds))
+func newMockSystem(serverIds []string) (*mockSystem, *mockClient) {
+	mSystem := &mockSystem{servers: make(map[string]*Server, len(serverIds))}
+	mClient := &mockClient{mSystem}
 	for _, serverId := range serverIds {
 		m := newMockStorage([]string{"/mock/1"})
-		servers[serverId] = NewServer(serverId, m)
+		mSystem.servers[serverId] = NewServer(serverId, m, mClient)
 	}
-	return &mockSystem{servers: servers}
+	mSystem.servers[""] = mSystem.servers[serverIds[0]]
+	return mSystem, mClient
 }
 
 func (m *mockSystem) PutEntry(
 	ctx context.Context,
 	in *walle_pb.PutEntryRequest,
 	opts ...grpc.CallOption) (*walle_pb.BaseResponse, error) {
-
-	// TODO(zviad): This forwarding logic will move directly inside 'Server' object.
-	if in.TargetServerId != "" {
-		return m.servers[in.TargetServerId].PutEntry(ctx, in)
-	} else {
-		var successIds []string
-		var errs []error
-		for serverId, s := range m.servers {
-			in.TargetServerId = serverId
-			_, err := s.PutEntry(ctx, in)
-			if err != nil {
-				errs = append(errs, err)
-			} else {
-				successIds = append(successIds, serverId)
-			}
-		}
-		if len(successIds) <= len(errs) {
-			return nil, errors.Errorf("not enough success: %s vs fails: %d\nerrs: %v", successIds, len(errs), errs)
-		}
-		return &walle_pb.BaseResponse{SuccessIds: successIds, Fails: int32(len(errs))}, nil
-	}
+	return m.servers[in.TargetServerId].PutEntry(ctx, in)
 }
 
 func (m *mockSystem) NewWriter(
 	ctx context.Context,
 	in *walle_pb.NewWriterRequest,
 	opts ...grpc.CallOption) (*walle_pb.BaseResponse, error) {
-
-	// TODO(zviad): This forwarding logic will move directly inside 'Server' object.
-	if in.TargetServerId != "" {
-		return m.servers[in.TargetServerId].NewWriter(ctx, in)
-	} else {
-		var successIds []string
-		var errs []error
-		for serverId, s := range m.servers {
-			in.TargetServerId = serverId
-			_, err := s.NewWriter(ctx, in)
-			if err != nil {
-				errs = append(errs, err)
-			} else {
-				successIds = append(successIds, serverId)
-			}
-		}
-		if len(successIds) <= len(errs) {
-			return nil, errors.Errorf("not enough success: %s vs errs: %d\nerrs: %v", successIds, len(errs), errs)
-		}
-		return &walle_pb.BaseResponse{SuccessIds: successIds, Fails: int32(len(errs))}, nil
-	}
+	return m.servers[in.TargetServerId].NewWriter(ctx, in)
 }
 
 func (m *mockSystem) LastEntry(
@@ -82,4 +44,22 @@ func (m *mockSystem) LastEntry(
 	in *walle_pb.LastEntryRequest,
 	opts ...grpc.CallOption) (*walle_pb.LastEntryResponse, error) {
 	return m.servers[in.TargetServerId].LastEntry(ctx, in)
+}
+
+type mockClient struct {
+	m *mockSystem
+}
+
+func (m *mockClient) Preferred(streamURI string) walle_pb.WalleClient {
+	return m.m
+}
+func (m *mockClient) ForServer(serverId string) walle_pb.WalleClient {
+	return m.m
+}
+func (m *mockClient) ForServerNoFallback(serverId string) (walle_pb.WalleClient, error) {
+	_, ok := m.m.servers[serverId]
+	if !ok {
+		return nil, errors.Errorf("unknown serverId: %s", serverId)
+	}
+	return m.m, nil
 }
