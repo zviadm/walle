@@ -37,7 +37,7 @@ func ClaimWriter(
 			}
 			entries[serverId] = r.Entries
 		}
-		committed, err := commitMaxEntry(ctx, c, entries)
+		committed, err := commitMaxEntry(ctx, c, streamURI, entries)
 		if err != nil {
 			return nil, err
 		}
@@ -59,6 +59,7 @@ func ClaimWriter(
 	maxEntry.WriterId = writerId
 	_, err = c.PutEntry(ctx, &walle_pb.PutEntryRequest{
 		TargetServerId: maxWriterServerId,
+		StreamUri:      streamURI,
 		Entry:          maxEntry,
 	})
 	if err != nil {
@@ -81,6 +82,7 @@ func ClaimWriter(
 			entry.WriterId = writerId
 			_, err = c.PutEntry(ctx, &walle_pb.PutEntryRequest{
 				TargetServerId: serverId,
+				StreamUri:      streamURI,
 				Entry:          entry,
 			})
 			if err != nil {
@@ -90,21 +92,24 @@ func ClaimWriter(
 	}
 	for serverId, _ := range entries {
 		_, err = c.PutEntry(ctx, &walle_pb.PutEntryRequest{
-			TargetServerId:   serverId,
-			Entry:            maxEntry,
-			CommittedEntryId: maxEntry.EntryId,
+			TargetServerId:    serverId,
+			StreamUri:         streamURI,
+			Entry:             maxEntry,
+			CommittedEntryId:  maxEntry.EntryId,
+			CommittedEntryMd5: maxEntry.ChecksumMd5,
 		})
 		if err != nil {
 			return nil, err
 		}
 	}
-	w := newWriter(c, writerId, maxEntry)
+	w := newWriter(c, streamURI, writerId, maxEntry)
 	return w, nil
 }
 
 func commitMaxEntry(
 	ctx context.Context,
 	c walle_pb.WalleClient,
+	streamURI string,
 	entries map[string][]*walle_pb.Entry) (bool, error) {
 	var maxEntry *walle_pb.Entry
 	committed := false
@@ -118,9 +123,11 @@ func commitMaxEntry(
 		if es[0].EntryId < maxEntry.EntryId {
 			committed = true
 			_, err := c.PutEntry(ctx, &walle_pb.PutEntryRequest{
-				TargetServerId:   serverId,
-				Entry:            maxEntry,
-				CommittedEntryId: maxEntry.EntryId,
+				TargetServerId:    serverId,
+				StreamUri:         streamURI,
+				Entry:             maxEntry,
+				CommittedEntryId:  maxEntry.EntryId,
+				CommittedEntryMd5: maxEntry.ChecksumMd5,
 			})
 			if err != nil {
 				return false, err

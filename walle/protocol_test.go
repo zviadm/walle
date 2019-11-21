@@ -1,21 +1,27 @@
-package wallelib
+package walle
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	walle_pb "github.com/zviadm/walle/proto/walle"
+	"github.com/zviadm/walle/walle/wallelib"
 )
 
-func TestWriterSimple(t *testing.T) {
+func TestProtocolBasicNewWriter(t *testing.T) {
+	ctx := context.Background()
 	m := newMockSystem([]string{"1", "2", "3"})
-	w := newWriter(m, "w1", m.servers["1"].entries[0])
+	w, err := wallelib.ClaimWriter(ctx, m, "/mock/1")
+	require.NoError(t, err)
 	defer w.Close()
+
 	e1, c1 := w.PutEntry([]byte("d1"))
 	e2, c2 := w.PutEntry([]byte("d2"))
 	require.EqualValues(t, e1.EntryId, 1, "e1: %+v", e1)
 	require.EqualValues(t, e2.EntryId, 2, "e2: %+v", e2)
 
-	err := <-c2
+	err = <-c2
 	require.NoError(t, err)
 	select {
 	case err := <-c1:
@@ -29,7 +35,10 @@ func TestWriterSimple(t *testing.T) {
 	err = <-c3
 	require.NoError(t, err)
 
-	require.EqualValues(t, m.servers["1"].committed, 2)
-	require.EqualValues(t, m.servers["2"].committed, 2)
-	require.EqualValues(t, m.servers["3"].committed, 2)
+	for _, serverId := range []string{"1", "2", "3"} {
+		resp, err := m.servers[serverId].LastEntry(
+			ctx, &walle_pb.LastEntryRequest{TargetServerId: serverId, StreamUri: "/mock/1"})
+		require.NoError(t, err)
+		require.EqualValues(t, resp.Entries[0].EntryId, 2)
+	}
 }

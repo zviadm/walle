@@ -6,9 +6,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/golang/glog"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+)
+
+const (
+	shortBeat = time.Millisecond
+	longBeat  = 100 * time.Millisecond // TODO(zviad): This should be configurable.
 )
 
 // Writer is not thread safe. PutEntry calls must be issued serially.
@@ -16,12 +22,14 @@ import (
 // Once an error happens, writer is completely closed and can no longer be used to write any new entries.
 type Writer struct {
 	c         walle_pb.WalleClient
+	streamURI string
 	writerId  string
 	lastEntry *walle_pb.Entry
 
-	committedEntryMx sync.Mutex
-	committedEntryId int64
-	commitTime       time.Time
+	committedEntryMx  sync.Mutex
+	committedEntryId  int64
+	committedEntryMd5 []byte
+	commitTime        time.Time
 
 	rootCtx    context.Context
 	rootCancel context.CancelFunc
@@ -29,11 +37,13 @@ type Writer struct {
 
 func newWriter(
 	c walle_pb.WalleClient,
+	streamURI string,
 	writerId string,
 	lastEntry *walle_pb.Entry) *Writer {
 	ctx, cancel := context.WithCancel(context.Background())
 	w := &Writer{
 		c:                c,
+		streamURI:        streamURI,
 		writerId:         writerId,
 		lastEntry:        lastEntry,
 		committedEntryId: lastEntry.EntryId,
@@ -58,8 +68,6 @@ func (w *Writer) Close() {
 func (w *Writer) heartbeat() {
 	var heartbeatTime time.Time
 	var heartbeatEntryId int64
-	shortBeat := time.Millisecond
-	longBeat := 100 * time.Millisecond // TODO(zviad): This should be configurable.
 	for {
 		select {
 		case <-w.rootCtx.Done():
@@ -67,15 +75,25 @@ func (w *Writer) heartbeat() {
 		case <-time.After(shortBeat):
 		}
 		now := time.Now()
-		ts, entryId := w.safeCommittedEntryId()
+		ts, entryId, entryMd5 := w.safeCommittedEntryId()
 		if ts.Add(shortBeat).After(now) ||
 			(heartbeatEntryId == entryId && heartbeatTime.Add(longBeat).After(now)) {
 			continue
 		}
-		_, err := w.c.PutEntry(w.rootCtx, &walle_pb.PutEntryRequest{
-			Entry:            &walle_pb.Entry{WriterId: w.writerId},
-			CommittedEntryId: entryId,
-		})
+		err := KeepTryingWithBackoff(
+			w.rootCtx, shortBeat, longBeat,
+			func(retryN uint) (bool, error) {
+				_, err := w.c.PutEntry(w.rootCtx, &walle_pb.PutEntryRequest{
+					StreamUri:         w.streamURI,
+					Entry:             &walle_pb.Entry{WriterId: w.writerId},
+					CommittedEntryId:  entryId,
+					CommittedEntryMd5: entryMd5,
+				})
+				if err != nil && retryN > 5 {
+					glog.Warningf("[%s:%d] Heartbeat: %s...", w.streamURI, entryId, err)
+				}
+				return err == nil, err
+			})
 		if err == nil {
 			heartbeatEntryId = entryId
 			heartbeatTime = now
@@ -90,48 +108,53 @@ func (w *Writer) PutEntry(data []byte) (*walle_pb.Entry, <-chan error) {
 		WriterId: w.writerId,
 		Data:     data,
 	}
-	entry.ChecksumMd5 = calculateChecksumMd5(w.lastEntry.ChecksumMd5, data)
+	entry.ChecksumMd5 = CalculateChecksumMd5(w.lastEntry.ChecksumMd5, data)
 	w.lastEntry = entry
 	go func() {
 		ctx, cancel := context.WithCancel(w.rootCtx)
 		defer cancel()
-		for {
-			_, committedEntryId := w.safeCommittedEntryId()
-			if committedEntryId > entry.EntryId {
-				committedEntryId = entry.EntryId
-			}
-			_, err := w.c.PutEntry(ctx, &walle_pb.PutEntryRequest{
-				Entry:            entry,
-				CommittedEntryId: committedEntryId,
-			})
-			if err == nil {
-				w.updateCommittedEntryId(time.Now(), entry.EntryId)
-				r <- nil
-				return
-			}
+		err := KeepTryingWithBackoff(
+			ctx, shortBeat, longBeat,
+			func(retryN uint) (bool, error) {
+				_, committedEntryId, committedEntryMd5 := w.safeCommittedEntryId()
+				if committedEntryId > entry.EntryId {
+					committedEntryId = entry.EntryId
+				}
+				_, err := w.c.PutEntry(ctx, &walle_pb.PutEntryRequest{
+					StreamUri:         w.streamURI,
+					Entry:             entry,
+					CommittedEntryId:  committedEntryId,
+					CommittedEntryMd5: committedEntryMd5,
+				})
+				if err == nil {
+					w.updateCommittedEntryId(time.Now(), entry.EntryId, entry.ChecksumMd5)
+					return true, nil
+				}
 
-			errStatus, _ := status.FromError(err)
-			if err == context.Canceled ||
-				errStatus.Code() == codes.Canceled ||
-				errStatus.Code() == codes.FailedPrecondition {
-				w.Close() // If there is an urecoverable error, close the writer.
-				r <- err
-				return
-			}
-			// continue retrying all other errors forever.
-			// TODO(zviad): maybe add a backoff?
-		}
+				errStatus, _ := status.FromError(err)
+				if err == context.Canceled ||
+					errStatus.Code() == codes.Canceled ||
+					errStatus.Code() == codes.FailedPrecondition {
+					w.Close() // If there is an urecoverable error, close the writer.
+					return true, err
+				}
+				if retryN > 5 {
+					glog.Warningf("[%s:%d] PutEntry: %s, will retry...", w.streamURI, entry.EntryId, err)
+				}
+				return false, err
+			})
+		r <- err
 	}()
 	return entry, r
 }
 
-func (w *Writer) safeCommittedEntryId() (time.Time, int64) {
+func (w *Writer) safeCommittedEntryId() (time.Time, int64, []byte) {
 	w.committedEntryMx.Lock()
 	defer w.committedEntryMx.Unlock()
-	return w.commitTime, w.committedEntryId
+	return w.commitTime, w.committedEntryId, w.committedEntryMd5
 }
 
-func (w *Writer) updateCommittedEntryId(ts time.Time, entryId int64) {
+func (w *Writer) updateCommittedEntryId(ts time.Time, entryId int64, entryMd5 []byte) {
 	w.committedEntryMx.Lock()
 	defer w.committedEntryMx.Unlock()
 	if ts.After(w.commitTime) {
@@ -139,10 +162,11 @@ func (w *Writer) updateCommittedEntryId(ts time.Time, entryId int64) {
 	}
 	if entryId > w.committedEntryId {
 		w.committedEntryId = entryId
+		w.committedEntryMd5 = entryMd5
 	}
 }
 
-func calculateChecksumMd5(prevMd5 []byte, data []byte) []byte {
+func CalculateChecksumMd5(prevMd5 []byte, data []byte) []byte {
 	h := md5.New()
 	h.Write(prevMd5)
 	h.Write(data)

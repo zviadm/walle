@@ -23,9 +23,10 @@ message NewWriterRequest {
 }
 message PutEntryRequest {
 	string target_server_id = 1;
-	Entry entry = 2;
-	int64 committed_entry_id = 3;
-	// TODO(zviad): committed_entry_md5? for safety?
+	string stream_uri = 2;
+	Entry entry = 3;
+	int64 committed_entry_id = 4;
+	bytes committed_entry_md5 = 5;
 }
 
 message BaseResponse {
