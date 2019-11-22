@@ -22,6 +22,7 @@ func ClaimWriter(
 	if err != nil {
 		return nil, err
 	}
+	streamVersion := resp.StreamVersion
 
 	var entries map[string][]*walle_pb.Entry
 	for {
@@ -30,6 +31,7 @@ func ClaimWriter(
 			r, err := c.ForServer(serverId).LastEntry(ctx, &walle_pb.LastEntryRequest{
 				TargetServerId:     serverId,
 				StreamUri:          streamURI,
+				StreamVersion:      streamVersion,
 				IncludeUncommitted: true,
 			})
 			if err != nil {
@@ -37,7 +39,7 @@ func ClaimWriter(
 			}
 			entries[serverId] = r.Entries
 		}
-		committed, err := commitMaxEntry(ctx, c, streamURI, entries)
+		committed, err := commitMaxEntry(ctx, c, streamURI, streamVersion, entries)
 		if err != nil {
 			return nil, err
 		}
@@ -60,6 +62,7 @@ func ClaimWriter(
 	_, err = c.ForServer(maxWriterServerId).PutEntry(ctx, &walle_pb.PutEntryRequest{
 		TargetServerId: maxWriterServerId,
 		StreamUri:      streamURI,
+		StreamVersion:  streamVersion,
 		Entry:          maxEntry,
 	})
 	if err != nil {
@@ -83,6 +86,7 @@ func ClaimWriter(
 			_, err = c.ForServer(serverId).PutEntry(ctx, &walle_pb.PutEntryRequest{
 				TargetServerId: serverId,
 				StreamUri:      streamURI,
+				StreamVersion:  streamVersion,
 				Entry:          entry,
 			})
 			if err != nil {
@@ -94,6 +98,7 @@ func ClaimWriter(
 		_, err = c.ForServer(serverId).PutEntry(ctx, &walle_pb.PutEntryRequest{
 			TargetServerId:    serverId,
 			StreamUri:         streamURI,
+			StreamVersion:     streamVersion,
 			Entry:             maxEntry,
 			CommittedEntryId:  maxEntry.EntryId,
 			CommittedEntryMd5: maxEntry.ChecksumMd5,
@@ -110,6 +115,7 @@ func commitMaxEntry(
 	ctx context.Context,
 	c Client,
 	streamURI string,
+	streamVersion int64,
 	entries map[string][]*walle_pb.Entry) (bool, error) {
 	var maxEntry *walle_pb.Entry
 	committed := false
@@ -125,6 +131,7 @@ func commitMaxEntry(
 			_, err := c.ForServer(serverId).PutEntry(ctx, &walle_pb.PutEntryRequest{
 				TargetServerId:    serverId,
 				StreamUri:         streamURI,
+				StreamVersion:     streamVersion,
 				Entry:             maxEntry,
 				CommittedEntryId:  maxEntry.EntryId,
 				CommittedEntryMd5: maxEntry.ChecksumMd5,

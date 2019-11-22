@@ -28,6 +28,150 @@ func NewServer(serverId string, s Storage, c wallelib.Client) *Server {
 	return r
 }
 
+func (s *Server) NewWriter(
+	ctx context.Context,
+	req *walle_pb.NewWriterRequest) (*walle_pb.BaseResponse, error) {
+	ss, ok := s.s.Stream(req.StreamUri)
+	if !ok {
+		return nil, status.Errorf(codes.FailedPrecondition, "streamURI: %s not found", req.StreamUri)
+	}
+	ssTopology := ss.Topology()
+	if req.TargetServerId == "" {
+		return s.broadcastRequest(ctx, ssTopology.ServerIds,
+			func(c walle_pb.WalleClient, serverId string) (*walle_pb.BaseResponse, error) {
+				reqC := proto.Clone(req).(*walle_pb.NewWriterRequest)
+				reqC.StreamVersion = ssTopology.Version
+				reqC.TargetServerId = serverId
+				return c.NewWriter(ctx, reqC)
+			})
+	}
+	if !s.checkServerId(req.TargetServerId) {
+		c, err := s.c.ForServerNoFallback(req.TargetServerId)
+		if err != nil {
+			return nil, err
+		}
+		return c.NewWriter(ctx, req)
+	}
+	if err := s.checkStreamVersion(req.StreamUri, req.StreamVersion, ss); err != nil {
+		return nil, err
+	}
+	if err := s.checkAndUpdateWriterId(req.StreamUri, req.WriterId, ss); err != nil {
+		return nil, err
+	}
+	return &walle_pb.BaseResponse{
+		SuccessIds:    []string{s.serverId},
+		StreamVersion: ssTopology.Version,
+	}, nil
+}
+
+func (s *Server) LastEntry(
+	ctx context.Context,
+	req *walle_pb.LastEntryRequest) (*walle_pb.LastEntryResponse, error) {
+	ss, ok := s.s.Stream(req.StreamUri)
+	if !ok {
+		return nil, status.Errorf(codes.FailedPrecondition, "streamURI: %s not found", req.StreamUri)
+	}
+	if !s.checkServerId(req.TargetServerId) {
+		c, err := s.c.ForServerNoFallback(req.TargetServerId)
+		if err != nil {
+			return nil, err
+		}
+		return c.LastEntry(ctx, req)
+	}
+	if err := s.checkStreamVersion(req.StreamUri, req.StreamVersion, ss); err != nil {
+		return nil, err
+	}
+	entries := ss.LastEntry(req.IncludeUncommitted)
+	return &walle_pb.LastEntryResponse{Entries: entries}, nil
+}
+
+func (s *Server) PutEntry(
+	ctx context.Context,
+	req *walle_pb.PutEntryRequest) (*walle_pb.BaseResponse, error) {
+	ss, ok := s.s.Stream(req.StreamUri)
+	if !ok {
+		return nil, status.Errorf(codes.FailedPrecondition, "streamURI: %s not found", req.StreamUri)
+	}
+	ssTopology := ss.Topology()
+	if req.TargetServerId == "" {
+		return s.broadcastRequest(ctx, ssTopology.ServerIds,
+			func(c walle_pb.WalleClient, serverId string) (*walle_pb.BaseResponse, error) {
+				reqC := proto.Clone(req).(*walle_pb.PutEntryRequest)
+				reqC.StreamVersion = ssTopology.Version
+				reqC.TargetServerId = serverId
+				return c.PutEntry(ctx, reqC)
+			})
+	}
+	if !s.checkServerId(req.TargetServerId) {
+		c, err := s.c.ForServerNoFallback(req.TargetServerId)
+		if err != nil {
+			return nil, err
+		}
+		return c.PutEntry(ctx, req)
+	}
+	if err := s.checkStreamVersion(req.StreamUri, req.StreamVersion, ss); err != nil {
+		return nil, err
+	}
+	if err := s.checkAndUpdateWriterId(req.StreamUri, req.Entry.WriterId, ss); err != nil {
+		return nil, err
+	}
+
+	if req.Entry.EntryId == 0 || req.Entry.EntryId > req.CommittedEntryId {
+		// Perform commit first. If commit can't happen, there is no point in trying to perform the put.
+		ok := ss.CommitEntry(req.CommittedEntryId, req.CommittedEntryMd5)
+		if !ok {
+			return nil, status.Errorf(codes.OutOfRange, "TODO(zviad): error message")
+		}
+	}
+	if req.Entry.EntryId == 0 {
+		return &walle_pb.BaseResponse{SuccessIds: []string{s.serverId}}, nil
+	}
+	isCommitted := req.CommittedEntryId >= req.Entry.EntryId
+	ok = ss.PutEntry(req.Entry, isCommitted)
+	// TODO(zviad): Should we wait a bit before letting client retry?
+	if !ok {
+		return nil, status.Errorf(codes.OutOfRange, "TODO(zviad): error message")
+	}
+	return &walle_pb.BaseResponse{
+		SuccessIds:    []string{s.serverId},
+		StreamVersion: ssTopology.Version,
+	}, nil
+}
+
+func (s *Server) broadcastRequest(
+	ctx context.Context,
+	serverIds []string,
+	call func(c walle_pb.WalleClient, serverId string) (*walle_pb.BaseResponse, error)) (*walle_pb.BaseResponse, error) {
+	var successIds []string
+	var errs []error
+	var maxVersion int64
+	// TODO(zviad): needs to be parallel/asynchronous
+	for _, serverId := range serverIds {
+		c, err := s.c.ForServerNoFallback(serverId)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		resp, err := call(c, serverId)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		successIds = append(successIds, serverId)
+		if resp.StreamVersion > maxVersion {
+			maxVersion = resp.StreamVersion
+		}
+	}
+	if len(successIds) <= len(errs) {
+		return nil, errors.Errorf("not enough success: %s <= %d\nerrs: %v", successIds, len(errs), errs)
+	}
+	return &walle_pb.BaseResponse{
+		SuccessIds:    successIds,
+		Fails:         int32(len(errs)),
+		StreamVersion: maxVersion,
+	}, nil
+}
+
 func (s *Server) checkServerId(serverId string) bool {
 	return serverId == s.serverId
 }
@@ -50,119 +194,10 @@ func (s *Server) checkAndUpdateWriterId(streamURI string, writerId string, ss St
 	return nil
 }
 
-func (s *Server) NewWriter(
-	ctx context.Context,
-	req *walle_pb.NewWriterRequest) (*walle_pb.BaseResponse, error) {
-	if req.TargetServerId == "" {
-		return s.broadcastRequest(ctx, func(c walle_pb.WalleClient, serverId string) error {
-			reqC := proto.Clone(req).(*walle_pb.NewWriterRequest)
-			reqC.TargetServerId = serverId
-			_, err := c.NewWriter(ctx, reqC)
-			return err
-		})
+func (s *Server) checkStreamVersion(streamURI string, reqStreamVersion int64, ss StreamMetadata) error {
+	version := ss.Topology().Version
+	if reqStreamVersion == version-1 || reqStreamVersion == version || reqStreamVersion == version+1 {
+		return nil
 	}
-	if !s.checkServerId(req.TargetServerId) {
-		c, err := s.c.ForServerNoFallback(req.TargetServerId)
-		if err != nil {
-			return nil, err
-		}
-		return c.NewWriter(ctx, req)
-	}
-	ss, ok := s.s.Stream(req.StreamUri)
-	if !ok {
-		return nil, status.Errorf(codes.FailedPrecondition, "streamURI: %s not found", req.StreamUri)
-	}
-	if err := s.checkAndUpdateWriterId(req.StreamUri, req.WriterId, ss); err != nil {
-		return nil, err
-	}
-	return &walle_pb.BaseResponse{SuccessIds: []string{s.serverId}}, nil
-}
-
-func (s *Server) LastEntry(
-	ctx context.Context,
-	req *walle_pb.LastEntryRequest) (*walle_pb.LastEntryResponse, error) {
-	if !s.checkServerId(req.TargetServerId) {
-		c, err := s.c.ForServerNoFallback(req.TargetServerId)
-		if err != nil {
-			return nil, err
-		}
-		return c.LastEntry(ctx, req)
-	}
-	ss, ok := s.s.Stream(req.StreamUri)
-	if !ok {
-		return nil, status.Errorf(codes.FailedPrecondition, "streamURI: %s not found", req.StreamUri)
-	}
-	entries := ss.LastEntry(req.IncludeUncommitted)
-	return &walle_pb.LastEntryResponse{Entries: entries}, nil
-}
-
-func (s *Server) PutEntry(
-	ctx context.Context,
-	req *walle_pb.PutEntryRequest) (*walle_pb.BaseResponse, error) {
-	if req.TargetServerId == "" {
-		return s.broadcastRequest(ctx, func(c walle_pb.WalleClient, serverId string) error {
-			reqC := proto.Clone(req).(*walle_pb.PutEntryRequest)
-			reqC.TargetServerId = serverId
-			_, err := c.PutEntry(ctx, reqC)
-			return err
-		})
-	}
-	if !s.checkServerId(req.TargetServerId) {
-		c, err := s.c.ForServerNoFallback(req.TargetServerId)
-		if err != nil {
-			return nil, err
-		}
-		return c.PutEntry(ctx, req)
-	}
-	ss, ok := s.s.Stream(req.StreamUri)
-	if !ok {
-		return nil, status.Errorf(codes.FailedPrecondition, "streamURI: %s not found", req.StreamUri)
-	}
-	if err := s.checkAndUpdateWriterId(req.StreamUri, req.Entry.WriterId, ss); err != nil {
-		return nil, err
-	}
-
-	if req.Entry.EntryId == 0 || req.Entry.EntryId > req.CommittedEntryId {
-		// Perform commit first. If commit can't happen, there is no point in trying to perform the put.
-		ok := ss.CommitEntry(req.CommittedEntryId, req.CommittedEntryMd5)
-		if !ok {
-			return nil, status.Errorf(codes.OutOfRange, "TODO(zviad): error message")
-		}
-	}
-	if req.Entry.EntryId == 0 {
-		return &walle_pb.BaseResponse{SuccessIds: []string{s.serverId}}, nil
-	}
-	isCommitted := req.CommittedEntryId >= req.Entry.EntryId
-	ok = ss.PutEntry(req.Entry, isCommitted)
-	// TODO(zviad): Should we wait a bit before letting client retry?
-	if !ok {
-		return nil, status.Errorf(codes.OutOfRange, "TODO(zviad): error message")
-	}
-	return &walle_pb.BaseResponse{SuccessIds: []string{s.serverId}}, nil
-}
-
-func (s *Server) broadcastRequest(
-	ctx context.Context,
-	call func(c walle_pb.WalleClient, serverId string) error) (*walle_pb.BaseResponse, error) {
-	var successIds []string
-	var errs []error
-	// TODO(zviad): needs to be parallel/asynchronous
-	// TODO(zviad): This needs to be dynamic, but part of consenus protocol of who the serverIds are.
-	for _, serverId := range []string{"1", "2", "3"} {
-		c, err := s.c.ForServerNoFallback(serverId)
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-		err = call(c, serverId)
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-		successIds = append(successIds, serverId)
-	}
-	if len(successIds) <= len(errs) {
-		return nil, errors.Errorf("not enough success: %s <= %d\nerrs: %v", successIds, len(errs), errs)
-	}
-	return &walle_pb.BaseResponse{SuccessIds: successIds, Fails: int32(len(errs))}, nil
+	return errors.Errorf("stream[%s] incompatible version: %d vs %d", streamURI, reqStreamVersion, version)
 }

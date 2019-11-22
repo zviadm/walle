@@ -16,7 +16,9 @@ type mockStorage struct {
 }
 
 type mockStream struct {
-	mx             sync.Mutex
+	mx       sync.Mutex
+	topology *walle_pb.StreamTopology
+
 	writerId       string
 	entries        []*walle_pb.Entry
 	committed      int64
@@ -25,11 +27,12 @@ type mockStream struct {
 
 var _ Storage = &mockStorage{}
 
-func newMockStorage(streamURIs []string) *mockStorage {
+func newMockStorage(streamURIs []string, serverIds []string) *mockStorage {
 	streams := make(map[string]*mockStream, len(streamURIs))
 	for _, streamURI := range streamURIs {
 		streams[streamURI] = &mockStream{
-			entries: []*walle_pb.Entry{&walle_pb.Entry{ChecksumMd5: make([]byte, md5.Size)}},
+			topology: &walle_pb.StreamTopology{Version: 3, ServerIds: serverIds},
+			entries:  []*walle_pb.Entry{&walle_pb.Entry{ChecksumMd5: make([]byte, md5.Size)}},
 		}
 	}
 	return &mockStorage{streams: streams}
@@ -50,6 +53,12 @@ func (m *mockStorage) Stream(streamURI string) (StreamStorage, bool) {
 	defer m.mx.Unlock()
 	r, ok := m.streams[streamURI]
 	return r, ok
+}
+
+func (m *mockStream) Topology() *walle_pb.StreamTopology {
+	m.mx.Lock()
+	defer m.mx.Unlock()
+	return m.topology
 }
 
 func (m *mockStream) WriterId() string {

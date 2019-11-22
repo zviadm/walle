@@ -23,6 +23,8 @@ type StreamMetadata interface {
 	WriterId() string
 	// Expected to have internal check to make sure stored writerId never decreases.
 	UpdateWriterId(writerId string)
+
+	Topology() *walle_pb.StreamTopology
 }
 
 // StreamData is expected to be thread-safe.

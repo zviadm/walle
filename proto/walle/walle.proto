@@ -19,27 +19,36 @@ message NewWriterRequest {
 	// that should be forwarded to all known `server`-s.
 	string target_server_id = 1;
 	string stream_uri = 2;
-	string writer_id = 3;
+	int64 stream_version = 3;
+	string writer_id = 4;
 }
 message PutEntryRequest {
 	string target_server_id = 1;
 	string stream_uri = 2;
-	Entry entry = 3;
-	int64 committed_entry_id = 4;
-	bytes committed_entry_md5 = 5;
+	int64 stream_version = 3;
+	Entry entry = 4;
+	int64 committed_entry_id = 5;
+	bytes committed_entry_md5 = 6;
 }
 
 message BaseResponse {
 	repeated string success_ids = 1;
 	int32 fails = 2;
+	int64 stream_version = 3;
 }
 
 message LastEntryRequest {
 	string target_server_id = 1;
 	string stream_uri = 2;
-	bool include_uncommitted = 3;
+	int64 stream_version = 3;
+	bool include_uncommitted = 4;
 }
 
 message LastEntryResponse {
 	repeated Entry entries = 1;
+}
+
+message StreamTopology {
+	int64 version = 1;
+	repeated string server_ids = 2;
 }

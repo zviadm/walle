@@ -18,7 +18,7 @@ func newMockSystem(serverIds []string) (*mockSystem, *mockClient) {
 	mSystem := &mockSystem{servers: make(map[string]*Server, len(serverIds))}
 	mClient := &mockClient{mSystem}
 	for _, serverId := range serverIds {
-		m := newMockStorage([]string{"/mock/1"})
+		m := newMockStorage([]string{"/mock/1"}, serverIds)
 		mSystem.servers[serverId] = NewServer(serverId, m, mClient)
 	}
 	mSystem.servers[""] = mSystem.servers[serverIds[0]]
