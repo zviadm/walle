@@ -3,7 +3,9 @@ syntax = "proto3";
 service Walle {
 	rpc NewWriter(NewWriterRequest) returns (BaseResponse) {}
 	rpc PutEntry(PutEntryRequest) returns (BaseResponse) {}
+
 	rpc LastEntry(LastEntryRequest) returns (LastEntryResponse) {}
+	rpc ReadEntries(ReadEntriesRequest) returns (stream Entry) {}
 }
 
 message Entry {
@@ -15,17 +17,19 @@ message Entry {
 }
 
 message NewWriterRequest {
+	string stream_uri = 1;
 	// if `target` is set, message is only for that specific `server`. Otherwise, it is a majority request
-	// that should be forwarded to all known `server`-s.
-	string target_server_id = 1;
-	string stream_uri = 2;
+	// that should be forwarded to all known `server`-s. If `target` is set, stream_version must be set too.
+	string target_server_id = 2;
 	int64 stream_version = 3;
+
 	string writer_id = 4;
 }
 message PutEntryRequest {
-	string target_server_id = 1;
-	string stream_uri = 2;
+	string stream_uri = 1;
+	string target_server_id = 2;
 	int64 stream_version = 3;
+
 	Entry entry = 4;
 	int64 committed_entry_id = 5;
 	bytes committed_entry_md5 = 6;
@@ -38,14 +42,24 @@ message BaseResponse {
 }
 
 message LastEntryRequest {
-	string target_server_id = 1;
-	string stream_uri = 2;
+	string stream_uri = 1;
+	string target_server_id = 2;
 	int64 stream_version = 3;
+
 	bool include_uncommitted = 4;
 }
 
 message LastEntryResponse {
 	repeated Entry entries = 1;
+}
+
+message ReadEntriesRequest {
+	string stream_uri = 1;
+	string target_server_id = 2;
+	int64 stream_version = 3;
+
+	// if from_entry_id is <0, will start streaming latest entries.
+	int64 from_entry_id = 4;
 }
 
 message StreamTopology {

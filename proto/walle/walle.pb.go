@@ -96,10 +96,10 @@ func (m *Entry) GetChecksumMd5() []byte {
 }
 
 type NewWriterRequest struct {
+	StreamUri string `protobuf:"bytes,1,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
 	// if `target` is set, message is only for that specific `server`. Otherwise, it is a majority request
-	// that should be forwarded to all known `server`-s.
-	TargetServerId       string   `protobuf:"bytes,1,opt,name=target_server_id,json=targetServerId,proto3" json:"target_server_id,omitempty"`
-	StreamUri            string   `protobuf:"bytes,2,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
+	// that should be forwarded to all known `server`-s. If `target` is set, stream_version must be set too.
+	TargetServerId       string   `protobuf:"bytes,2,opt,name=target_server_id,json=targetServerId,proto3" json:"target_server_id,omitempty"`
 	StreamVersion        int64    `protobuf:"varint,3,opt,name=stream_version,json=streamVersion,proto3" json:"stream_version,omitempty"`
 	WriterId             string   `protobuf:"bytes,4,opt,name=writer_id,json=writerId,proto3" json:"writer_id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -140,16 +140,16 @@ func (m *NewWriterRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_NewWriterRequest proto.InternalMessageInfo
 
-func (m *NewWriterRequest) GetTargetServerId() string {
+func (m *NewWriterRequest) GetStreamUri() string {
 	if m != nil {
-		return m.TargetServerId
+		return m.StreamUri
 	}
 	return ""
 }
 
-func (m *NewWriterRequest) GetStreamUri() string {
+func (m *NewWriterRequest) GetTargetServerId() string {
 	if m != nil {
-		return m.StreamUri
+		return m.TargetServerId
 	}
 	return ""
 }
@@ -169,8 +169,8 @@ func (m *NewWriterRequest) GetWriterId() string {
 }
 
 type PutEntryRequest struct {
-	TargetServerId       string   `protobuf:"bytes,1,opt,name=target_server_id,json=targetServerId,proto3" json:"target_server_id,omitempty"`
-	StreamUri            string   `protobuf:"bytes,2,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
+	StreamUri            string   `protobuf:"bytes,1,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
+	TargetServerId       string   `protobuf:"bytes,2,opt,name=target_server_id,json=targetServerId,proto3" json:"target_server_id,omitempty"`
 	StreamVersion        int64    `protobuf:"varint,3,opt,name=stream_version,json=streamVersion,proto3" json:"stream_version,omitempty"`
 	Entry                *Entry   `protobuf:"bytes,4,opt,name=entry,proto3" json:"entry,omitempty"`
 	CommittedEntryId     int64    `protobuf:"varint,5,opt,name=committed_entry_id,json=committedEntryId,proto3" json:"committed_entry_id,omitempty"`
@@ -213,16 +213,16 @@ func (m *PutEntryRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_PutEntryRequest proto.InternalMessageInfo
 
-func (m *PutEntryRequest) GetTargetServerId() string {
+func (m *PutEntryRequest) GetStreamUri() string {
 	if m != nil {
-		return m.TargetServerId
+		return m.StreamUri
 	}
 	return ""
 }
 
-func (m *PutEntryRequest) GetStreamUri() string {
+func (m *PutEntryRequest) GetTargetServerId() string {
 	if m != nil {
-		return m.StreamUri
+		return m.TargetServerId
 	}
 	return ""
 }
@@ -319,8 +319,8 @@ func (m *BaseResponse) GetStreamVersion() int64 {
 }
 
 type LastEntryRequest struct {
-	TargetServerId       string   `protobuf:"bytes,1,opt,name=target_server_id,json=targetServerId,proto3" json:"target_server_id,omitempty"`
-	StreamUri            string   `protobuf:"bytes,2,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
+	StreamUri            string   `protobuf:"bytes,1,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
+	TargetServerId       string   `protobuf:"bytes,2,opt,name=target_server_id,json=targetServerId,proto3" json:"target_server_id,omitempty"`
 	StreamVersion        int64    `protobuf:"varint,3,opt,name=stream_version,json=streamVersion,proto3" json:"stream_version,omitempty"`
 	IncludeUncommitted   bool     `protobuf:"varint,4,opt,name=include_uncommitted,json=includeUncommitted,proto3" json:"include_uncommitted,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -361,16 +361,16 @@ func (m *LastEntryRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_LastEntryRequest proto.InternalMessageInfo
 
-func (m *LastEntryRequest) GetTargetServerId() string {
+func (m *LastEntryRequest) GetStreamUri() string {
 	if m != nil {
-		return m.TargetServerId
+		return m.StreamUri
 	}
 	return ""
 }
 
-func (m *LastEntryRequest) GetStreamUri() string {
+func (m *LastEntryRequest) GetTargetServerId() string {
 	if m != nil {
-		return m.StreamUri
+		return m.TargetServerId
 	}
 	return ""
 }
@@ -436,6 +436,78 @@ func (m *LastEntryResponse) GetEntries() []*Entry {
 	return nil
 }
 
+type ReadEntriesRequest struct {
+	StreamUri      string `protobuf:"bytes,1,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
+	TargetServerId string `protobuf:"bytes,2,opt,name=target_server_id,json=targetServerId,proto3" json:"target_server_id,omitempty"`
+	StreamVersion  int64  `protobuf:"varint,3,opt,name=stream_version,json=streamVersion,proto3" json:"stream_version,omitempty"`
+	// if from_entry_id is <0, will start streaming latest entries.
+	FromEntryId          int64    `protobuf:"varint,4,opt,name=from_entry_id,json=fromEntryId,proto3" json:"from_entry_id,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ReadEntriesRequest) Reset()         { *m = ReadEntriesRequest{} }
+func (m *ReadEntriesRequest) String() string { return proto.CompactTextString(m) }
+func (*ReadEntriesRequest) ProtoMessage()    {}
+func (*ReadEntriesRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_827f2b64ddfdb030, []int{6}
+}
+func (m *ReadEntriesRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ReadEntriesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ReadEntriesRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ReadEntriesRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ReadEntriesRequest.Merge(m, src)
+}
+func (m *ReadEntriesRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *ReadEntriesRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_ReadEntriesRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ReadEntriesRequest proto.InternalMessageInfo
+
+func (m *ReadEntriesRequest) GetStreamUri() string {
+	if m != nil {
+		return m.StreamUri
+	}
+	return ""
+}
+
+func (m *ReadEntriesRequest) GetTargetServerId() string {
+	if m != nil {
+		return m.TargetServerId
+	}
+	return ""
+}
+
+func (m *ReadEntriesRequest) GetStreamVersion() int64 {
+	if m != nil {
+		return m.StreamVersion
+	}
+	return 0
+}
+
+func (m *ReadEntriesRequest) GetFromEntryId() int64 {
+	if m != nil {
+		return m.FromEntryId
+	}
+	return 0
+}
+
 type StreamTopology struct {
 	Version              int64    `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
 	ServerIds            []string `protobuf:"bytes,2,rep,name=server_ids,json=serverIds,proto3" json:"server_ids,omitempty"`
@@ -448,7 +520,7 @@ func (m *StreamTopology) Reset()         { *m = StreamTopology{} }
 func (m *StreamTopology) String() string { return proto.CompactTextString(m) }
 func (*StreamTopology) ProtoMessage()    {}
 func (*StreamTopology) Descriptor() ([]byte, []int) {
-	return fileDescriptor_827f2b64ddfdb030, []int{6}
+	return fileDescriptor_827f2b64ddfdb030, []int{7}
 }
 func (m *StreamTopology) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -498,45 +570,49 @@ func init() {
 	proto.RegisterType((*BaseResponse)(nil), "BaseResponse")
 	proto.RegisterType((*LastEntryRequest)(nil), "LastEntryRequest")
 	proto.RegisterType((*LastEntryResponse)(nil), "LastEntryResponse")
+	proto.RegisterType((*ReadEntriesRequest)(nil), "ReadEntriesRequest")
 	proto.RegisterType((*StreamTopology)(nil), "StreamTopology")
 }
 
 func init() { proto.RegisterFile("walle/walle.proto", fileDescriptor_827f2b64ddfdb030) }
 
 var fileDescriptor_827f2b64ddfdb030 = []byte{
-	// 512 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xc4, 0x54, 0x4d, 0x6e, 0xd3, 0x40,
-	0x14, 0xce, 0x90, 0x38, 0x8d, 0x5f, 0xd2, 0xe0, 0xbc, 0xb2, 0x08, 0x05, 0x42, 0xb0, 0x84, 0x94,
-	0x05, 0x38, 0x52, 0x21, 0x17, 0xa8, 0xd4, 0x45, 0x24, 0x40, 0xc8, 0xa5, 0x74, 0x69, 0x19, 0xcf,
-	0x50, 0x46, 0x38, 0x71, 0x98, 0x19, 0x27, 0xea, 0x4d, 0xd8, 0x20, 0x0e, 0xc1, 0x25, 0x58, 0x72,
-	0x04, 0x14, 0xce, 0x81, 0x84, 0xfc, 0xc6, 0x71, 0x9b, 0x74, 0xc3, 0xae, 0x1b, 0x6b, 0xe6, 0x7b,
-	0xa3, 0x79, 0xdf, 0xcf, 0x3c, 0x43, 0x6f, 0x15, 0xa7, 0xa9, 0x18, 0xd3, 0x37, 0x58, 0xa8, 0xcc,
-	0x64, 0xfe, 0x12, 0x9c, 0x93, 0xb9, 0x51, 0x97, 0x78, 0x1f, 0x5a, 0xa2, 0x58, 0x44, 0x92, 0xf7,
-	0xd9, 0x90, 0x8d, 0xea, 0xe1, 0x1e, 0xed, 0xa7, 0x1c, 0x1f, 0x80, 0xbb, 0x52, 0xd2, 0x08, 0x55,
-	0xd4, 0xee, 0x0c, 0xd9, 0xc8, 0x0d, 0x5b, 0x16, 0x98, 0x72, 0x44, 0x68, 0xf0, 0xd8, 0xc4, 0xfd,
-	0xfa, 0x90, 0x8d, 0x3a, 0x21, 0xad, 0xf1, 0x09, 0x74, 0x92, 0x4f, 0x22, 0xf9, 0xac, 0xf3, 0x59,
-	0x34, 0xe3, 0x93, 0x7e, 0x83, 0x6a, 0xed, 0x0d, 0xf6, 0x9a, 0x4f, 0xfc, 0xef, 0x0c, 0xbc, 0x37,
-	0x62, 0x75, 0x4e, 0xd7, 0x84, 0xe2, 0x4b, 0x2e, 0xb4, 0xc1, 0x11, 0x78, 0x26, 0x56, 0x17, 0xc2,
-	0x44, 0x5a, 0xa8, 0xa5, 0xed, 0xc7, 0xa8, 0x5f, 0xd7, 0xe2, 0xa7, 0x04, 0x4f, 0x39, 0x3e, 0x02,
-	0xd0, 0x46, 0x89, 0x78, 0x16, 0xe5, 0x4a, 0x96, 0x9c, 0x5c, 0x8b, 0x9c, 0x29, 0x89, 0x4f, 0xa1,
-	0x5b, 0x96, 0x97, 0x42, 0x69, 0x99, 0xcd, 0x89, 0x5e, 0x3d, 0xdc, 0xb7, 0xe8, 0x7b, 0x0b, 0x6e,
-	0x0b, 0x6b, 0x6c, 0x0b, 0xf3, 0xff, 0x32, 0xb8, 0xfb, 0x36, 0x37, 0xe4, 0xce, 0x6d, 0x11, 0x7c,
-	0x08, 0x0e, 0x85, 0x40, 0xe4, 0xda, 0x47, 0xcd, 0xc0, 0xb2, 0xb1, 0x20, 0x3e, 0x03, 0x4c, 0xb2,
-	0xd9, 0x4c, 0x1a, 0x23, 0x78, 0x54, 0x85, 0xe7, 0xd0, 0x45, 0x5e, 0x55, 0x39, 0x29, 0x53, 0x0c,
-	0xe0, 0x60, 0xf7, 0x74, 0x91, 0x4d, 0x93, 0xb2, 0xe9, 0x6d, 0x1f, 0x2f, 0x12, 0x4a, 0xa1, 0x73,
-	0x1c, 0x6b, 0x11, 0x0a, 0xbd, 0xc8, 0xe6, 0x5a, 0xe0, 0x63, 0x68, 0xeb, 0x3c, 0x49, 0x84, 0xd6,
-	0x91, 0xe4, 0xba, 0xcf, 0x86, 0xf5, 0x91, 0x1b, 0x42, 0x09, 0x4d, 0xb9, 0xc6, 0x7b, 0xe0, 0x7c,
-	0x8c, 0x65, 0xaa, 0x49, 0xad, 0x13, 0xda, 0xcd, 0x7f, 0x2a, 0xf5, 0x7f, 0x30, 0xf0, 0x5e, 0xc5,
-	0xfa, 0x76, 0xed, 0x1e, 0xc3, 0x81, 0x9c, 0x27, 0x69, 0xce, 0x45, 0x94, 0xcf, 0x2b, 0x47, 0xc8,
-	0xfc, 0x56, 0x88, 0x65, 0xe9, 0xec, 0xaa, 0xe2, 0x4f, 0xa0, 0x77, 0x8d, 0x74, 0x69, 0xd4, 0x10,
-	0x68, 0x72, 0xa4, 0xb0, 0x26, 0x5d, 0xc5, 0xb6, 0x81, 0xfd, 0x29, 0x74, 0x4f, 0xa9, 0xf1, 0xbb,
-	0x6c, 0x91, 0xa5, 0xd9, 0xc5, 0x25, 0xf6, 0x61, 0x6f, 0xc3, 0xac, 0x1c, 0xbe, 0x72, 0x4b, 0xca,
-	0x36, 0xe2, 0x0b, 0x6b, 0xeb, 0xa4, 0xac, 0xd4, 0xad, 0x8f, 0xbe, 0x31, 0x70, 0xce, 0x8b, 0x79,
-	0xc6, 0x31, 0xb8, 0xd5, 0x40, 0x61, 0x2f, 0xd8, 0x1d, 0xae, 0xc3, 0xfd, 0xe0, 0x7a, 0x9c, 0x7e,
-	0x0d, 0x9f, 0x43, 0x6b, 0xf3, 0xbe, 0xd1, 0x0b, 0x76, 0x9e, 0xfa, 0xcd, 0xe3, 0x2f, 0xc1, 0xad,
-	0xb4, 0x62, 0x2f, 0xd8, 0x0d, 0xeb, 0x10, 0x83, 0x1b, 0x56, 0xf8, 0xb5, 0x63, 0xef, 0xe7, 0x7a,
-	0xc0, 0x7e, 0xad, 0x07, 0xec, 0xf7, 0x7a, 0xc0, 0xbe, 0xfe, 0x19, 0xd4, 0x3e, 0x34, 0xe9, 0xc7,
-	0xf3, 0xe2, 0x5f, 0x00, 0x00, 0x00, 0xff, 0xff, 0x17, 0x98, 0x93, 0x4d, 0x8d, 0x04, 0x00, 0x00,
+	// 557 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xc4, 0x54, 0x4d, 0x8e, 0xd3, 0x4c,
+	0x10, 0x4d, 0x7f, 0x89, 0x33, 0x71, 0xe5, 0xe7, 0x73, 0x2a, 0x2c, 0x42, 0x80, 0x10, 0x2c, 0x21,
+	0x65, 0x01, 0x0e, 0x1a, 0xc8, 0x05, 0x46, 0x9a, 0x45, 0x24, 0x40, 0xc8, 0xc3, 0x30, 0x4b, 0xcb,
+	0xd8, 0x3d, 0x43, 0x0b, 0x3b, 0x0e, 0xdd, 0xed, 0x44, 0x73, 0x13, 0x76, 0x6c, 0xd9, 0x73, 0x09,
+	0x36, 0x48, 0x1c, 0x01, 0x85, 0x73, 0x20, 0x21, 0x97, 0x9d, 0xff, 0x0d, 0xbb, 0x6c, 0x22, 0xf7,
+	0xab, 0x4a, 0xe9, 0xd5, 0x7b, 0x55, 0x05, 0xed, 0x85, 0x1f, 0x45, 0x7c, 0x44, 0xbf, 0xce, 0x4c,
+	0x26, 0x3a, 0xb1, 0xe7, 0x60, 0x9c, 0x4f, 0xb5, 0xbc, 0xc5, 0xbb, 0x50, 0xe3, 0xd9, 0x87, 0x27,
+	0xc2, 0x2e, 0x1b, 0xb0, 0x61, 0xd9, 0x3d, 0xa1, 0xf7, 0x24, 0xc4, 0x7b, 0x60, 0x2e, 0xa4, 0xd0,
+	0x5c, 0x66, 0xb1, 0xff, 0x06, 0x6c, 0x68, 0xba, 0xb5, 0x1c, 0x98, 0x84, 0x88, 0x50, 0x09, 0x7d,
+	0xed, 0x77, 0xcb, 0x03, 0x36, 0x6c, 0xb8, 0xf4, 0x8d, 0x8f, 0xa0, 0x11, 0x7c, 0xe0, 0xc1, 0x47,
+	0x95, 0xc6, 0x5e, 0x1c, 0x8e, 0xbb, 0x15, 0x8a, 0xd5, 0x57, 0xd8, 0xab, 0x70, 0x6c, 0x7f, 0x61,
+	0x60, 0xbd, 0xe6, 0x8b, 0x2b, 0x2a, 0xe3, 0xf2, 0x4f, 0x29, 0x57, 0x1a, 0x1f, 0x00, 0x28, 0x2d,
+	0xb9, 0x1f, 0x7b, 0xa9, 0x14, 0xc4, 0xc2, 0x74, 0xcd, 0x1c, 0xb9, 0x94, 0x02, 0x87, 0x60, 0x69,
+	0x5f, 0xde, 0x70, 0xed, 0x29, 0x2e, 0xe7, 0xdb, 0x74, 0x5a, 0x39, 0x7e, 0x41, 0xf0, 0x24, 0xc4,
+	0xc7, 0xd0, 0x2a, 0x0a, 0xcd, 0xb9, 0x54, 0x22, 0x99, 0x12, 0xbd, 0xb2, 0xdb, 0xcc, 0xd1, 0x77,
+	0x39, 0xb8, 0xdb, 0x58, 0x65, 0xb7, 0x31, 0xfb, 0x0f, 0x83, 0xff, 0xdf, 0xa4, 0x9a, 0xd4, 0x39,
+	0x16, 0xc1, 0xfb, 0x60, 0x90, 0x09, 0x44, 0xae, 0x7e, 0x5a, 0x75, 0x72, 0x36, 0x39, 0x88, 0x4f,
+	0x00, 0x83, 0x24, 0x8e, 0x85, 0xd6, 0x3c, 0xf4, 0xd6, 0xe6, 0x19, 0x54, 0xc8, 0x5a, 0x47, 0xce,
+	0x0b, 0x17, 0x1d, 0xe8, 0xec, 0x67, 0x67, 0xde, 0x54, 0xc9, 0x9b, 0xf6, 0x6e, 0x7a, 0xe6, 0x50,
+	0x04, 0x8d, 0x33, 0x5f, 0x71, 0x97, 0xab, 0x59, 0x32, 0x55, 0x1c, 0x1f, 0x42, 0x5d, 0xa5, 0x41,
+	0xc0, 0x95, 0xf2, 0x44, 0xa8, 0xba, 0x6c, 0x50, 0x1e, 0x9a, 0x2e, 0x14, 0xd0, 0x24, 0x54, 0x78,
+	0x07, 0x8c, 0x6b, 0x5f, 0x44, 0x8a, 0x5a, 0x36, 0xdc, 0xfc, 0xf1, 0x8f, 0x9d, 0xda, 0xdf, 0x18,
+	0x58, 0x2f, 0x7d, 0x75, 0x5c, 0xb9, 0x47, 0xd0, 0x11, 0xd3, 0x20, 0x4a, 0x43, 0xee, 0xa5, 0xd3,
+	0xb5, 0x22, 0x24, 0x7e, 0xcd, 0xc5, 0x22, 0x74, 0xb9, 0x89, 0xd8, 0x63, 0x68, 0x6f, 0x91, 0x2e,
+	0x84, 0x1a, 0x00, 0x6d, 0x8e, 0xe0, 0xb9, 0x48, 0x1b, 0xdb, 0x56, 0xb0, 0xfd, 0x95, 0x01, 0xba,
+	0xdc, 0x27, 0xad, 0x05, 0x57, 0xc7, 0x6a, 0xd7, 0x86, 0xe6, 0xb5, 0x4c, 0xe2, 0xcd, 0xe8, 0x54,
+	0x28, 0xab, 0x9e, 0x81, 0xc5, 0xd4, 0xd8, 0x13, 0x68, 0x5d, 0xd0, 0x9f, 0xde, 0x26, 0xb3, 0x24,
+	0x4a, 0x6e, 0x6e, 0xb1, 0x0b, 0x27, 0xab, 0xaa, 0xc5, 0x9d, 0x28, 0x9e, 0xc4, 0x7f, 0xc5, 0x2c,
+	0x9b, 0x82, 0x32, 0xf1, 0x2f, 0x48, 0xa9, 0xd3, 0x1f, 0x0c, 0x8c, 0xab, 0xec, 0xf4, 0xe0, 0x08,
+	0xcc, 0xf5, 0xee, 0x63, 0xdb, 0xd9, 0xbf, 0x03, 0xbd, 0xa6, 0xb3, 0x3d, 0x79, 0x76, 0x09, 0x9f,
+	0x42, 0x6d, 0xb5, 0x8a, 0x68, 0x39, 0x7b, 0x5b, 0x79, 0x98, 0xfe, 0x02, 0xcc, 0xb5, 0x2d, 0xd8,
+	0x76, 0xf6, 0xe7, 0xaa, 0x87, 0xce, 0x81, 0x6b, 0x76, 0x09, 0x1d, 0xa8, 0x6f, 0x99, 0x82, 0x1d,
+	0xe7, 0xd0, 0xa2, 0x5e, 0x61, 0xa5, 0x5d, 0x7a, 0xc6, 0xce, 0xac, 0xef, 0xcb, 0x3e, 0xfb, 0xb9,
+	0xec, 0xb3, 0x5f, 0xcb, 0x3e, 0xfb, 0xfc, 0xbb, 0x5f, 0x7a, 0x5f, 0xa5, 0x9b, 0xfa, 0xfc, 0x6f,
+	0x00, 0x00, 0x00, 0xff, 0xff, 0x1c, 0x7e, 0xd6, 0x35, 0x68, 0x05, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -554,6 +630,7 @@ type WalleClient interface {
 	NewWriter(ctx context.Context, in *NewWriterRequest, opts ...grpc.CallOption) (*BaseResponse, error)
 	PutEntry(ctx context.Context, in *PutEntryRequest, opts ...grpc.CallOption) (*BaseResponse, error)
 	LastEntry(ctx context.Context, in *LastEntryRequest, opts ...grpc.CallOption) (*LastEntryResponse, error)
+	ReadEntries(ctx context.Context, in *ReadEntriesRequest, opts ...grpc.CallOption) (Walle_ReadEntriesClient, error)
 }
 
 type walleClient struct {
@@ -591,11 +668,44 @@ func (c *walleClient) LastEntry(ctx context.Context, in *LastEntryRequest, opts 
 	return out, nil
 }
 
+func (c *walleClient) ReadEntries(ctx context.Context, in *ReadEntriesRequest, opts ...grpc.CallOption) (Walle_ReadEntriesClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_Walle_serviceDesc.Streams[0], "/Walle/ReadEntries", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &walleReadEntriesClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type Walle_ReadEntriesClient interface {
+	Recv() (*Entry, error)
+	grpc.ClientStream
+}
+
+type walleReadEntriesClient struct {
+	grpc.ClientStream
+}
+
+func (x *walleReadEntriesClient) Recv() (*Entry, error) {
+	m := new(Entry)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // WalleServer is the server API for Walle service.
 type WalleServer interface {
 	NewWriter(context.Context, *NewWriterRequest) (*BaseResponse, error)
 	PutEntry(context.Context, *PutEntryRequest) (*BaseResponse, error)
 	LastEntry(context.Context, *LastEntryRequest) (*LastEntryResponse, error)
+	ReadEntries(*ReadEntriesRequest, Walle_ReadEntriesServer) error
 }
 
 func RegisterWalleServer(s *grpc.Server, srv WalleServer) {
@@ -656,6 +766,27 @@ func _Walle_LastEntry_Handler(srv interface{}, ctx context.Context, dec func(int
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Walle_ReadEntries_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ReadEntriesRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(WalleServer).ReadEntries(m, &walleReadEntriesServer{stream})
+}
+
+type Walle_ReadEntriesServer interface {
+	Send(*Entry) error
+	grpc.ServerStream
+}
+
+type walleReadEntriesServer struct {
+	grpc.ServerStream
+}
+
+func (x *walleReadEntriesServer) Send(m *Entry) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 var _Walle_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "Walle",
 	HandlerType: (*WalleServer)(nil),
@@ -673,7 +804,13 @@ var _Walle_serviceDesc = grpc.ServiceDesc{
 			Handler:    _Walle_LastEntry_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "ReadEntries",
+			Handler:       _Walle_ReadEntries_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "walle/walle.proto",
 }
 
@@ -736,17 +873,17 @@ func (m *NewWriterRequest) MarshalTo(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if len(m.TargetServerId) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(len(m.TargetServerId)))
-		i += copy(dAtA[i:], m.TargetServerId)
-	}
 	if len(m.StreamUri) > 0 {
-		dAtA[i] = 0x12
+		dAtA[i] = 0xa
 		i++
 		i = encodeVarintWalle(dAtA, i, uint64(len(m.StreamUri)))
 		i += copy(dAtA[i:], m.StreamUri)
+	}
+	if len(m.TargetServerId) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintWalle(dAtA, i, uint64(len(m.TargetServerId)))
+		i += copy(dAtA[i:], m.TargetServerId)
 	}
 	if m.StreamVersion != 0 {
 		dAtA[i] = 0x18
@@ -780,17 +917,17 @@ func (m *PutEntryRequest) MarshalTo(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if len(m.TargetServerId) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(len(m.TargetServerId)))
-		i += copy(dAtA[i:], m.TargetServerId)
-	}
 	if len(m.StreamUri) > 0 {
-		dAtA[i] = 0x12
+		dAtA[i] = 0xa
 		i++
 		i = encodeVarintWalle(dAtA, i, uint64(len(m.StreamUri)))
 		i += copy(dAtA[i:], m.StreamUri)
+	}
+	if len(m.TargetServerId) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintWalle(dAtA, i, uint64(len(m.TargetServerId)))
+		i += copy(dAtA[i:], m.TargetServerId)
 	}
 	if m.StreamVersion != 0 {
 		dAtA[i] = 0x18
@@ -885,17 +1022,17 @@ func (m *LastEntryRequest) MarshalTo(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if len(m.TargetServerId) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(len(m.TargetServerId)))
-		i += copy(dAtA[i:], m.TargetServerId)
-	}
 	if len(m.StreamUri) > 0 {
-		dAtA[i] = 0x12
+		dAtA[i] = 0xa
 		i++
 		i = encodeVarintWalle(dAtA, i, uint64(len(m.StreamUri)))
 		i += copy(dAtA[i:], m.StreamUri)
+	}
+	if len(m.TargetServerId) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintWalle(dAtA, i, uint64(len(m.TargetServerId)))
+		i += copy(dAtA[i:], m.TargetServerId)
 	}
 	if m.StreamVersion != 0 {
 		dAtA[i] = 0x18
@@ -944,6 +1081,49 @@ func (m *LastEntryResponse) MarshalTo(dAtA []byte) (int, error) {
 			}
 			i += n
 		}
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *ReadEntriesRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ReadEntriesRequest) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.StreamUri) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintWalle(dAtA, i, uint64(len(m.StreamUri)))
+		i += copy(dAtA[i:], m.StreamUri)
+	}
+	if len(m.TargetServerId) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintWalle(dAtA, i, uint64(len(m.TargetServerId)))
+		i += copy(dAtA[i:], m.TargetServerId)
+	}
+	if m.StreamVersion != 0 {
+		dAtA[i] = 0x18
+		i++
+		i = encodeVarintWalle(dAtA, i, uint64(m.StreamVersion))
+	}
+	if m.FromEntryId != 0 {
+		dAtA[i] = 0x20
+		i++
+		i = encodeVarintWalle(dAtA, i, uint64(m.FromEntryId))
 	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
@@ -1034,11 +1214,11 @@ func (m *NewWriterRequest) Size() (n int) {
 	}
 	var l int
 	_ = l
-	l = len(m.TargetServerId)
+	l = len(m.StreamUri)
 	if l > 0 {
 		n += 1 + l + sovWalle(uint64(l))
 	}
-	l = len(m.StreamUri)
+	l = len(m.TargetServerId)
 	if l > 0 {
 		n += 1 + l + sovWalle(uint64(l))
 	}
@@ -1061,11 +1241,11 @@ func (m *PutEntryRequest) Size() (n int) {
 	}
 	var l int
 	_ = l
-	l = len(m.TargetServerId)
+	l = len(m.StreamUri)
 	if l > 0 {
 		n += 1 + l + sovWalle(uint64(l))
 	}
-	l = len(m.StreamUri)
+	l = len(m.TargetServerId)
 	if l > 0 {
 		n += 1 + l + sovWalle(uint64(l))
 	}
@@ -1119,11 +1299,11 @@ func (m *LastEntryRequest) Size() (n int) {
 	}
 	var l int
 	_ = l
-	l = len(m.TargetServerId)
+	l = len(m.StreamUri)
 	if l > 0 {
 		n += 1 + l + sovWalle(uint64(l))
 	}
-	l = len(m.StreamUri)
+	l = len(m.TargetServerId)
 	if l > 0 {
 		n += 1 + l + sovWalle(uint64(l))
 	}
@@ -1150,6 +1330,32 @@ func (m *LastEntryResponse) Size() (n int) {
 			l = e.Size()
 			n += 1 + l + sovWalle(uint64(l))
 		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *ReadEntriesRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.StreamUri)
+	if l > 0 {
+		n += 1 + l + sovWalle(uint64(l))
+	}
+	l = len(m.TargetServerId)
+	if l > 0 {
+		n += 1 + l + sovWalle(uint64(l))
+	}
+	if m.StreamVersion != 0 {
+		n += 1 + sovWalle(uint64(m.StreamVersion))
+	}
+	if m.FromEntryId != 0 {
+		n += 1 + sovWalle(uint64(m.FromEntryId))
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -1395,38 +1601,6 @@ func (m *NewWriterRequest) Unmarshal(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field TargetServerId", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowWalle
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthWalle
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthWalle
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.TargetServerId = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field StreamUri", wireType)
 			}
 			var stringLen uint64
@@ -1456,6 +1630,38 @@ func (m *NewWriterRequest) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.StreamUri = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TargetServerId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWalle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthWalle
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthWalle
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.TargetServerId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 3:
 			if wireType != 0 {
@@ -1564,38 +1770,6 @@ func (m *PutEntryRequest) Unmarshal(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field TargetServerId", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowWalle
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthWalle
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthWalle
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.TargetServerId = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field StreamUri", wireType)
 			}
 			var stringLen uint64
@@ -1625,6 +1799,38 @@ func (m *PutEntryRequest) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.StreamUri = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TargetServerId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWalle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthWalle
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthWalle
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.TargetServerId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 3:
 			if wireType != 0 {
@@ -1914,38 +2120,6 @@ func (m *LastEntryRequest) Unmarshal(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field TargetServerId", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowWalle
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthWalle
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthWalle
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.TargetServerId = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field StreamUri", wireType)
 			}
 			var stringLen uint64
@@ -1975,6 +2149,38 @@ func (m *LastEntryRequest) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.StreamUri = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TargetServerId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWalle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthWalle
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthWalle
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.TargetServerId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 3:
 			if wireType != 0 {
@@ -2103,6 +2309,162 @@ func (m *LastEntryResponse) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipWalle(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthWalle
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthWalle
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ReadEntriesRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowWalle
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ReadEntriesRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ReadEntriesRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StreamUri", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWalle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthWalle
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthWalle
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.StreamUri = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TargetServerId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWalle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthWalle
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthWalle
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.TargetServerId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StreamVersion", wireType)
+			}
+			m.StreamVersion = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWalle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.StreamVersion |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field FromEntryId", wireType)
+			}
+			m.FromEntryId = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWalle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.FromEntryId |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skipWalle(dAtA[iNdEx:])
