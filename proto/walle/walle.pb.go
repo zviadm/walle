@@ -315,28 +315,27 @@ func (m *PutEntryInternalResponse) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_PutEntryInternalResponse proto.InternalMessageInfo
 
-type LastEntryRequest struct {
+type LastEntriesRequest struct {
 	ServerId             string   `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
 	StreamUri            string   `protobuf:"bytes,2,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
 	StreamVersion        int64    `protobuf:"varint,3,opt,name=stream_version,json=streamVersion,proto3" json:"stream_version,omitempty"`
-	IncludeUncommitted   bool     `protobuf:"varint,4,opt,name=include_uncommitted,json=includeUncommitted,proto3" json:"include_uncommitted,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *LastEntryRequest) Reset()         { *m = LastEntryRequest{} }
-func (m *LastEntryRequest) String() string { return proto.CompactTextString(m) }
-func (*LastEntryRequest) ProtoMessage()    {}
-func (*LastEntryRequest) Descriptor() ([]byte, []int) {
+func (m *LastEntriesRequest) Reset()         { *m = LastEntriesRequest{} }
+func (m *LastEntriesRequest) String() string { return proto.CompactTextString(m) }
+func (*LastEntriesRequest) ProtoMessage()    {}
+func (*LastEntriesRequest) Descriptor() ([]byte, []int) {
 	return fileDescriptor_827f2b64ddfdb030, []int{5}
 }
-func (m *LastEntryRequest) XXX_Unmarshal(b []byte) error {
+func (m *LastEntriesRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *LastEntryRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *LastEntriesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_LastEntryRequest.Marshal(b, m, deterministic)
+		return xxx_messageInfo_LastEntriesRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalTo(b)
@@ -346,65 +345,58 @@ func (m *LastEntryRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, er
 		return b[:n], nil
 	}
 }
-func (m *LastEntryRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_LastEntryRequest.Merge(m, src)
+func (m *LastEntriesRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LastEntriesRequest.Merge(m, src)
 }
-func (m *LastEntryRequest) XXX_Size() int {
+func (m *LastEntriesRequest) XXX_Size() int {
 	return m.Size()
 }
-func (m *LastEntryRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_LastEntryRequest.DiscardUnknown(m)
+func (m *LastEntriesRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_LastEntriesRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_LastEntryRequest proto.InternalMessageInfo
+var xxx_messageInfo_LastEntriesRequest proto.InternalMessageInfo
 
-func (m *LastEntryRequest) GetServerId() string {
+func (m *LastEntriesRequest) GetServerId() string {
 	if m != nil {
 		return m.ServerId
 	}
 	return ""
 }
 
-func (m *LastEntryRequest) GetStreamUri() string {
+func (m *LastEntriesRequest) GetStreamUri() string {
 	if m != nil {
 		return m.StreamUri
 	}
 	return ""
 }
 
-func (m *LastEntryRequest) GetStreamVersion() int64 {
+func (m *LastEntriesRequest) GetStreamVersion() int64 {
 	if m != nil {
 		return m.StreamVersion
 	}
 	return 0
 }
 
-func (m *LastEntryRequest) GetIncludeUncommitted() bool {
-	if m != nil {
-		return m.IncludeUncommitted
-	}
-	return false
-}
-
-type LastEntryResponse struct {
+type LastEntriesResponse struct {
 	Entries              []*walleapi.Entry `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
 	XXX_unrecognized     []byte            `json:"-"`
 	XXX_sizecache        int32             `json:"-"`
 }
 
-func (m *LastEntryResponse) Reset()         { *m = LastEntryResponse{} }
-func (m *LastEntryResponse) String() string { return proto.CompactTextString(m) }
-func (*LastEntryResponse) ProtoMessage()    {}
-func (*LastEntryResponse) Descriptor() ([]byte, []int) {
+func (m *LastEntriesResponse) Reset()         { *m = LastEntriesResponse{} }
+func (m *LastEntriesResponse) String() string { return proto.CompactTextString(m) }
+func (*LastEntriesResponse) ProtoMessage()    {}
+func (*LastEntriesResponse) Descriptor() ([]byte, []int) {
 	return fileDescriptor_827f2b64ddfdb030, []int{6}
 }
-func (m *LastEntryResponse) XXX_Unmarshal(b []byte) error {
+func (m *LastEntriesResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *LastEntryResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *LastEntriesResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_LastEntryResponse.Marshal(b, m, deterministic)
+		return xxx_messageInfo_LastEntriesResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalTo(b)
@@ -414,19 +406,19 @@ func (m *LastEntryResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, e
 		return b[:n], nil
 	}
 }
-func (m *LastEntryResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_LastEntryResponse.Merge(m, src)
+func (m *LastEntriesResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LastEntriesResponse.Merge(m, src)
 }
-func (m *LastEntryResponse) XXX_Size() int {
+func (m *LastEntriesResponse) XXX_Size() int {
 	return m.Size()
 }
-func (m *LastEntryResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_LastEntryResponse.DiscardUnknown(m)
+func (m *LastEntriesResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_LastEntriesResponse.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_LastEntryResponse proto.InternalMessageInfo
+var xxx_messageInfo_LastEntriesResponse proto.InternalMessageInfo
 
-func (m *LastEntryResponse) GetEntries() []*walleapi.Entry {
+func (m *LastEntriesResponse) GetEntries() []*walleapi.Entry {
 	if m != nil {
 		return m.Entries
 	}
@@ -439,42 +431,41 @@ func init() {
 	proto.RegisterType((*NewWriterResponse)(nil), "NewWriterResponse")
 	proto.RegisterType((*PutEntryInternalRequest)(nil), "PutEntryInternalRequest")
 	proto.RegisterType((*PutEntryInternalResponse)(nil), "PutEntryInternalResponse")
-	proto.RegisterType((*LastEntryRequest)(nil), "LastEntryRequest")
-	proto.RegisterType((*LastEntryResponse)(nil), "LastEntryResponse")
+	proto.RegisterType((*LastEntriesRequest)(nil), "LastEntriesRequest")
+	proto.RegisterType((*LastEntriesResponse)(nil), "LastEntriesResponse")
 }
 
 func init() { proto.RegisterFile("walle/walle.proto", fileDescriptor_827f2b64ddfdb030) }
 
 var fileDescriptor_827f2b64ddfdb030 = []byte{
-	// 447 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x93, 0x41, 0x6e, 0xd3, 0x40,
-	0x14, 0x86, 0x33, 0x0d, 0x49, 0xeb, 0x07, 0x54, 0xf6, 0xcb, 0xa2, 0x83, 0x0b, 0x91, 0x65, 0x09,
-	0x29, 0x0b, 0x34, 0x91, 0x0a, 0xb9, 0x00, 0x12, 0x0b, 0x4b, 0x80, 0x90, 0xa1, 0x74, 0x19, 0x99,
-	0xce, 0x08, 0x8d, 0xe4, 0x78, 0xc2, 0xcc, 0xb8, 0x51, 0xaf, 0xc1, 0x8a, 0x13, 0x70, 0x0c, 0xd6,
-	0x2c, 0x39, 0x02, 0x0a, 0x97, 0x60, 0x89, 0x3c, 0x13, 0x9b, 0x34, 0x51, 0xb7, 0xdd, 0x44, 0x99,
-	0xff, 0x9f, 0x79, 0xef, 0x7b, 0xbf, 0x9e, 0x21, 0x5a, 0x15, 0x65, 0x29, 0xa6, 0xee, 0x97, 0x2d,
-	0xb5, 0xb2, 0x2a, 0x3e, 0x71, 0x87, 0x62, 0x29, 0xa7, 0xed, 0x1f, 0x6f, 0xa4, 0x19, 0x1c, 0xbf,
-	0xb7, 0x5a, 0x14, 0x8b, 0x0f, 0x6a, 0xa9, 0x4a, 0xf5, 0xf9, 0x1a, 0x29, 0x1c, 0x5e, 0x09, 0x6d,
-	0xa4, 0xaa, 0x28, 0x49, 0xc8, 0xa4, 0x9f, 0xb7, 0x47, 0x7c, 0x02, 0x60, 0x84, 0xbe, 0x12, 0x7a,
-	0x2e, 0xb9, 0xa1, 0x07, 0x49, 0x7f, 0x12, 0xe4, 0x81, 0x57, 0x32, 0x6e, 0xd2, 0xaf, 0x04, 0xc2,
-	0xb7, 0x62, 0x75, 0xa1, 0xa5, 0x15, 0x3a, 0x17, 0x5f, 0x6a, 0x61, 0x2c, 0x9e, 0x42, 0xd0, 0xbd,
-	0x71, 0xf5, 0x82, 0xfc, 0xa8, 0x7d, 0xe2, 0x0a, 0xba, 0xe6, 0xf3, 0x5a, 0x4b, 0x7a, 0xe0, 0xdc,
-	0xc0, 0x2b, 0xe7, 0x5a, 0xe2, 0x53, 0x38, 0xde, 0xd8, 0x2d, 0x50, 0xdf, 0x01, 0x3d, 0xf4, 0xea,
-	0xc7, 0x0d, 0xd6, 0x29, 0x04, 0x2b, 0xd7, 0xb3, 0x69, 0x71, 0xcf, 0xb7, 0xf0, 0x42, 0xc6, 0xd3,
-	0x11, 0x44, 0x5b, 0x4c, 0x66, 0xa9, 0x2a, 0x23, 0xd2, 0xbf, 0x04, 0x4e, 0xde, 0xd5, 0xf6, 0x55,
-	0x65, 0xf5, 0x75, 0x56, 0x59, 0xa1, 0xab, 0xa2, 0xbc, 0x43, 0xe0, 0xc7, 0x30, 0x10, 0x4d, 0x6b,
-	0x07, 0x7b, 0xff, 0x6c, 0xc8, 0x1c, 0x48, 0xee, 0x45, 0x7c, 0x06, 0x78, 0xa9, 0x16, 0x0b, 0x69,
-	0xad, 0xe0, 0x73, 0x27, 0x35, 0x24, 0x03, 0x57, 0x28, 0xec, 0x1c, 0xcf, 0xce, 0x91, 0xc1, 0x68,
-	0xf7, 0xf6, 0x82, 0xcf, 0xe8, 0x30, 0x21, 0x93, 0x07, 0x79, 0x74, 0xf3, 0xfa, 0x1b, 0x3e, 0x4b,
-	0x63, 0xa0, 0xfb, 0x93, 0x6f, 0x62, 0xf9, 0x4e, 0x20, 0x7c, 0x5d, 0x18, 0xef, 0xde, 0x61, 0x1e,
-	0x53, 0x18, 0xc9, 0xea, 0xb2, 0xac, 0xb9, 0x98, 0xd7, 0x55, 0x87, 0xec, 0xd2, 0x39, 0xca, 0x71,
-	0x63, 0x9d, 0xff, 0x77, 0xd2, 0x19, 0x44, 0x5b, 0x9c, 0x9e, 0x1e, 0x13, 0x38, 0x6c, 0xe6, 0x97,
-	0xc2, 0x50, 0x92, 0xf4, 0xb7, 0x72, 0x6d, 0xe5, 0xb3, 0x1f, 0x04, 0x06, 0x17, 0xcd, 0xfa, 0xe3,
-	0x0b, 0x08, 0xba, 0xad, 0xc0, 0x88, 0xed, 0x6e, 0x6d, 0x8c, 0x6c, 0x7f, 0x69, 0x7a, 0x98, 0x41,
-	0xb8, 0x9b, 0x1d, 0x52, 0x76, 0xcb, 0x22, 0xc5, 0x8f, 0xd8, 0xad, 0x41, 0xf7, 0x1a, 0x80, 0x6e,
-	0x02, 0x8c, 0xd8, 0x6e, 0xea, 0x31, 0xb2, 0xbd, 0x01, 0xd3, 0xde, 0xcb, 0xf0, 0xe7, 0x7a, 0x4c,
-	0x7e, 0xad, 0xc7, 0xe4, 0xf7, 0x7a, 0x4c, 0xbe, 0xfd, 0x19, 0xf7, 0x3e, 0x0d, 0xdd, 0x57, 0xfc,
-	0xfc, 0x5f, 0x00, 0x00, 0x00, 0xff, 0xff, 0xa3, 0xde, 0x71, 0xca, 0xf3, 0x03, 0x00, 0x00,
+	// 428 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x93, 0x4f, 0x6b, 0xd4, 0x40,
+	0x18, 0xc6, 0x77, 0xba, 0xee, 0xd6, 0xbc, 0xd5, 0x92, 0xbc, 0x11, 0x3a, 0xa6, 0x1a, 0x42, 0x40,
+	0xd8, 0x83, 0x4c, 0xa1, 0x5a, 0x04, 0x8f, 0x82, 0x87, 0x80, 0x8a, 0xc4, 0x3f, 0x3d, 0x2e, 0xd1,
+	0x0c, 0x32, 0x90, 0x64, 0xe2, 0xcc, 0x6c, 0x43, 0xbf, 0x86, 0x27, 0x3f, 0x90, 0x07, 0x8f, 0x7e,
+	0x04, 0x59, 0xbf, 0x84, 0x47, 0xc9, 0xcc, 0x66, 0xd9, 0xee, 0xda, 0x6b, 0x2f, 0x21, 0xf3, 0xbc,
+	0x33, 0xf3, 0xfc, 0xde, 0x27, 0x6f, 0x20, 0xe8, 0x8a, 0xaa, 0xe2, 0x27, 0xf6, 0xc9, 0x5a, 0x25,
+	0x8d, 0x8c, 0x8e, 0xec, 0xa2, 0x68, 0xc5, 0xc9, 0xf0, 0xe2, 0x0a, 0x69, 0x06, 0x87, 0xef, 0x8c,
+	0xe2, 0x45, 0xfd, 0x5e, 0xb6, 0xb2, 0x92, 0x5f, 0x2e, 0x91, 0xc2, 0xfe, 0x05, 0x57, 0x5a, 0xc8,
+	0x86, 0x92, 0x84, 0xcc, 0xc6, 0xf9, 0xb0, 0xc4, 0x87, 0x00, 0x9a, 0xab, 0x0b, 0xae, 0xe6, 0xa2,
+	0xd4, 0x74, 0x2f, 0x19, 0xcf, 0xbc, 0xdc, 0x73, 0x4a, 0x56, 0xea, 0xf4, 0x1b, 0x01, 0xff, 0x0d,
+	0xef, 0xce, 0x95, 0x30, 0x5c, 0xe5, 0xfc, 0xeb, 0x82, 0x6b, 0x83, 0xc7, 0xe0, 0xad, 0xcf, 0xd8,
+	0xfb, 0xbc, 0xfc, 0xf6, 0x70, 0xc4, 0x5e, 0x68, 0xcd, 0xe7, 0x0b, 0x25, 0xe8, 0x9e, 0xad, 0x7a,
+	0x4e, 0xf9, 0xa0, 0x04, 0x3e, 0x82, 0xc3, 0x55, 0x79, 0x00, 0x1a, 0x5b, 0xa0, 0xbb, 0x4e, 0xfd,
+	0xb8, 0xc2, 0x3a, 0x06, 0xaf, 0xb3, 0x9e, 0xbd, 0xc5, 0x2d, 0x67, 0xe1, 0x84, 0xac, 0x4c, 0x43,
+	0x08, 0x36, 0x98, 0x74, 0x2b, 0x1b, 0xcd, 0xd3, 0xbf, 0x04, 0x8e, 0xde, 0x2e, 0xcc, 0xcb, 0xc6,
+	0xa8, 0xcb, 0xac, 0x31, 0x5c, 0x35, 0x45, 0x75, 0x83, 0xc0, 0x0f, 0x60, 0xc2, 0x7b, 0x6b, 0x0b,
+	0x7b, 0x70, 0x3a, 0x65, 0x16, 0x24, 0x77, 0x22, 0x3e, 0x06, 0xfc, 0x2c, 0xeb, 0x5a, 0x18, 0xc3,
+	0xcb, 0xb9, 0x95, 0x7a, 0x92, 0x89, 0xbd, 0xc8, 0x5f, 0x57, 0x1c, 0x7b, 0x89, 0x0c, 0xc2, 0xed,
+	0xdd, 0x75, 0x79, 0x46, 0xa7, 0x09, 0x99, 0xdd, 0xc9, 0x83, 0xab, 0xdb, 0x5f, 0x97, 0x67, 0x69,
+	0x04, 0x74, 0xb7, 0xf3, 0x55, 0x2c, 0x1d, 0xe0, 0xab, 0x42, 0xdb, 0xa2, 0xe0, 0xfa, 0xe6, 0x02,
+	0x49, 0x9f, 0x41, 0x78, 0xc5, 0xd8, 0xf1, 0x60, 0x02, 0xfb, 0xdc, 0x49, 0x94, 0x24, 0xe3, 0x8d,
+	0xa4, 0x06, 0xf9, 0xf4, 0x07, 0x81, 0xc9, 0x79, 0x3f, 0xd0, 0xf8, 0x14, 0xbc, 0xf5, 0x77, 0xc6,
+	0x80, 0x6d, 0xcf, 0x61, 0x84, 0x6c, 0x77, 0x0c, 0x46, 0x98, 0x81, 0xbf, 0x9d, 0x06, 0x52, 0x76,
+	0xcd, 0x68, 0x44, 0xf7, 0xd9, 0xb5, 0xd1, 0x8d, 0xf0, 0x39, 0x1c, 0x6c, 0xf4, 0x80, 0x21, 0xdb,
+	0x8d, 0x32, 0xba, 0xc7, 0xfe, 0xd3, 0x66, 0x3a, 0x7a, 0xe1, 0xff, 0x5c, 0xc6, 0xe4, 0xd7, 0x32,
+	0x26, 0xbf, 0x97, 0x31, 0xf9, 0xfe, 0x27, 0x1e, 0x7d, 0x9a, 0xda, 0xbf, 0xf3, 0xc9, 0xbf, 0x00,
+	0x00, 0x00, 0xff, 0xff, 0xa7, 0x80, 0x73, 0x6d, 0xcb, 0x03, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -491,7 +482,7 @@ const _ = grpc.SupportPackageIsVersion4
 type WalleClient interface {
 	NewWriter(ctx context.Context, in *NewWriterRequest, opts ...grpc.CallOption) (*NewWriterResponse, error)
 	PutEntryInternal(ctx context.Context, in *PutEntryInternalRequest, opts ...grpc.CallOption) (*PutEntryInternalResponse, error)
-	LastEntry(ctx context.Context, in *LastEntryRequest, opts ...grpc.CallOption) (*LastEntryResponse, error)
+	LastEntries(ctx context.Context, in *LastEntriesRequest, opts ...grpc.CallOption) (*LastEntriesResponse, error)
 }
 
 type walleClient struct {
@@ -520,9 +511,9 @@ func (c *walleClient) PutEntryInternal(ctx context.Context, in *PutEntryInternal
 	return out, nil
 }
 
-func (c *walleClient) LastEntry(ctx context.Context, in *LastEntryRequest, opts ...grpc.CallOption) (*LastEntryResponse, error) {
-	out := new(LastEntryResponse)
-	err := c.cc.Invoke(ctx, "/Walle/LastEntry", in, out, opts...)
+func (c *walleClient) LastEntries(ctx context.Context, in *LastEntriesRequest, opts ...grpc.CallOption) (*LastEntriesResponse, error) {
+	out := new(LastEntriesResponse)
+	err := c.cc.Invoke(ctx, "/Walle/LastEntries", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -533,7 +524,7 @@ func (c *walleClient) LastEntry(ctx context.Context, in *LastEntryRequest, opts 
 type WalleServer interface {
 	NewWriter(context.Context, *NewWriterRequest) (*NewWriterResponse, error)
 	PutEntryInternal(context.Context, *PutEntryInternalRequest) (*PutEntryInternalResponse, error)
-	LastEntry(context.Context, *LastEntryRequest) (*LastEntryResponse, error)
+	LastEntries(context.Context, *LastEntriesRequest) (*LastEntriesResponse, error)
 }
 
 func RegisterWalleServer(s *grpc.Server, srv WalleServer) {
@@ -576,20 +567,20 @@ func _Walle_PutEntryInternal_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Walle_LastEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(LastEntryRequest)
+func _Walle_LastEntries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LastEntriesRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(WalleServer).LastEntry(ctx, in)
+		return srv.(WalleServer).LastEntries(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/Walle/LastEntry",
+		FullMethod: "/Walle/LastEntries",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(WalleServer).LastEntry(ctx, req.(*LastEntryRequest))
+		return srv.(WalleServer).LastEntries(ctx, req.(*LastEntriesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -607,8 +598,8 @@ var _Walle_serviceDesc = grpc.ServiceDesc{
 			Handler:    _Walle_PutEntryInternal_Handler,
 		},
 		{
-			MethodName: "LastEntry",
-			Handler:    _Walle_LastEntry_Handler,
+			MethodName: "LastEntries",
+			Handler:    _Walle_LastEntries_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -801,7 +792,7 @@ func (m *PutEntryInternalResponse) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
-func (m *LastEntryRequest) Marshal() (dAtA []byte, err error) {
+func (m *LastEntriesRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalTo(dAtA)
@@ -811,7 +802,7 @@ func (m *LastEntryRequest) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *LastEntryRequest) MarshalTo(dAtA []byte) (int, error) {
+func (m *LastEntriesRequest) MarshalTo(dAtA []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -833,23 +824,13 @@ func (m *LastEntryRequest) MarshalTo(dAtA []byte) (int, error) {
 		i++
 		i = encodeVarintWalle(dAtA, i, uint64(m.StreamVersion))
 	}
-	if m.IncludeUncommitted {
-		dAtA[i] = 0x20
-		i++
-		if m.IncludeUncommitted {
-			dAtA[i] = 1
-		} else {
-			dAtA[i] = 0
-		}
-		i++
-	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	return i, nil
 }
 
-func (m *LastEntryResponse) Marshal() (dAtA []byte, err error) {
+func (m *LastEntriesResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalTo(dAtA)
@@ -859,7 +840,7 @@ func (m *LastEntryResponse) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *LastEntryResponse) MarshalTo(dAtA []byte) (int, error) {
+func (m *LastEntriesResponse) MarshalTo(dAtA []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -997,7 +978,7 @@ func (m *PutEntryInternalResponse) Size() (n int) {
 	return n
 }
 
-func (m *LastEntryRequest) Size() (n int) {
+func (m *LastEntriesRequest) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -1014,16 +995,13 @@ func (m *LastEntryRequest) Size() (n int) {
 	if m.StreamVersion != 0 {
 		n += 1 + sovWalle(uint64(m.StreamVersion))
 	}
-	if m.IncludeUncommitted {
-		n += 2
-	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
 	return n
 }
 
-func (m *LastEntryResponse) Size() (n int) {
+func (m *LastEntriesResponse) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -1662,7 +1640,7 @@ func (m *PutEntryInternalResponse) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *LastEntryRequest) Unmarshal(dAtA []byte) error {
+func (m *LastEntriesRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1685,10 +1663,10 @@ func (m *LastEntryRequest) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: LastEntryRequest: wiretype end group for non-group")
+			return fmt.Errorf("proto: LastEntriesRequest: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: LastEntryRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: LastEntriesRequest: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -1774,26 +1752,6 @@ func (m *LastEntryRequest) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
-		case 4:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field IncludeUncommitted", wireType)
-			}
-			var v int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowWalle
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				v |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			m.IncludeUncommitted = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := skipWalle(dAtA[iNdEx:])
@@ -1819,7 +1777,7 @@ func (m *LastEntryRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *LastEntryResponse) Unmarshal(dAtA []byte) error {
+func (m *LastEntriesResponse) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1842,10 +1800,10 @@ func (m *LastEntryResponse) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: LastEntryResponse: wiretype end group for non-group")
+			return fmt.Errorf("proto: LastEntriesResponse: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: LastEntryResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: LastEntriesResponse: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:

@@ -6,7 +6,7 @@ service Walle {
 	rpc NewWriter(NewWriterRequest) returns (NewWriterResponse) {}
 	rpc PutEntryInternal(PutEntryInternalRequest) returns (PutEntryInternalResponse) {}
 
-	rpc LastEntry(LastEntryRequest) returns (LastEntryResponse) {}
+	rpc LastEntries(LastEntriesRequest) returns (LastEntriesResponse) {}
 	//rpc ReadEntries(ReadEntriesRequest) returns (stream Entry) {}
 }
 
@@ -35,14 +35,12 @@ message PutEntryInternalRequest {
 }
 message PutEntryInternalResponse{}
 
-message LastEntryRequest {
+message LastEntriesRequest {
 	string server_id = 1;
 	string stream_uri = 2;
 	int64 stream_version = 3;
-
-	bool include_uncommitted = 4;
 }
-message LastEntryResponse {
+message LastEntriesResponse {
 	repeated Entry entries = 1;
 }
 

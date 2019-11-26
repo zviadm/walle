@@ -72,15 +72,15 @@ func (s *Server) PutEntryInternal(
 	return &walle_pb.PutEntryInternalResponse{}, nil
 }
 
-func (s *Server) LastEntry(
+func (s *Server) LastEntries(
 	ctx context.Context,
-	req *walle_pb.LastEntryRequest) (*walle_pb.LastEntryResponse, error) {
+	req *walle_pb.LastEntriesRequest) (*walle_pb.LastEntriesResponse, error) {
 	ss, err := s.processRequestHeader(req)
 	if err != nil {
 		return nil, err
 	}
-	entries := ss.LastEntry(req.IncludeUncommitted)
-	return &walle_pb.LastEntryResponse{Entries: entries}, nil
+	entries := ss.LastEntries()
+	return &walle_pb.LastEntriesResponse{Entries: entries}, nil
 }
 
 // func (s *Server) ReadEntries(

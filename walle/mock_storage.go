@@ -77,14 +77,10 @@ func (m *mockStream) UpdateWriterId(writerId string) {
 	m.writerId = writerId
 }
 
-func (m *mockStream) LastEntry(includeUncommitted bool) []*walleapi.Entry {
+func (m *mockStream) LastEntries() []*walleapi.Entry {
 	m.mx.Lock()
 	defer m.mx.Unlock()
-	endIdx := int(m.committed) + 1
-	if includeUncommitted {
-		endIdx = len(m.entries)
-	}
-	r := m.entries[int(m.committed):endIdx]
+	r := m.entries[int(m.committed):len(m.entries)]
 	rCopy := make([]*walleapi.Entry, len(r))
 	for idx, entry := range r {
 		rCopy[idx] = proto.Clone(entry).(*walleapi.Entry)

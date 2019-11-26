@@ -45,11 +45,10 @@ func (s *Server) ClaimWriter(
 			if err != nil {
 				return nil, err
 			}
-			r, err := c.LastEntry(ctx, &walle_pb.LastEntryRequest{
-				ServerId:           serverId,
-				StreamUri:          req.StreamUri,
-				StreamVersion:      ssTopology.Version,
-				IncludeUncommitted: true,
+			r, err := c.LastEntries(ctx, &walle_pb.LastEntriesRequest{
+				ServerId:      serverId,
+				StreamUri:     req.StreamUri,
+				StreamVersion: ssTopology.Version,
 			})
 			if err != nil {
 				return nil, err

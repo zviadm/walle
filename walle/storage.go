@@ -30,7 +30,7 @@ type StreamMetadata interface {
 
 // StreamData is expected to be thread-safe.
 type StreamData interface {
-	LastEntry(includeUncommitted bool) []*walleapi.Entry
+	LastEntries() []*walleapi.Entry
 	CommitEntry(entryId int64, entryMd5 []byte) bool
 	PutEntry(entry *walleapi.Entry, isCommitted bool) bool
 }

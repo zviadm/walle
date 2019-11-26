@@ -51,11 +51,11 @@ func (m *mockClient) NewWriter(
 	return m.m.servers[in.ServerId].NewWriter(ctx, in)
 }
 
-func (m *mockClient) LastEntry(
+func (m *mockClient) LastEntries(
 	ctx context.Context,
-	in *walle_pb.LastEntryRequest,
-	opts ...grpc.CallOption) (*walle_pb.LastEntryResponse, error) {
-	return m.m.servers[in.ServerId].LastEntry(ctx, in)
+	in *walle_pb.LastEntriesRequest,
+	opts ...grpc.CallOption) (*walle_pb.LastEntriesResponse, error) {
+	return m.m.servers[in.ServerId].LastEntries(ctx, in)
 }
 
 type mockApiClient struct {
