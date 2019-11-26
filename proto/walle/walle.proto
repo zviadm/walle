@@ -2,7 +2,7 @@ syntax = "proto3";
 
 import "walleapi/walleapi.proto";
 
-service WalleProtocol {
+service Walle {
 	rpc NewWriter(NewWriterRequest) returns (BaseResponse) {}
 	rpc PutEntry(PutEntryInternalRequest) returns (BaseResponse) {}
 
