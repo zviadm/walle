@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+service WalleApi {
+	rpc ClaimWriter(ClaimWriterRequest) returns (ClaimWriterResponse) {}
+	rpc PutEntry(PutEntryRequest) returns (PutEntryResponse) {}
+}
+
+message Entry {
+	int64 entry_id = 1;
+	string writer_id = 2;
+	bytes data = 3;
+	// checksum_md5 is a rolling md5 for all `data`.
+	bytes checksum_md5 = 4;
+}
+
+message ClaimWriterRequest {
+	string stream_uri = 1;
+}
+message ClaimWriterResponse {
+	string writer_id = 1;
+	Entry last_entry = 4;
+}
+
+message PutEntryRequest {
+	string stream_uri = 1;
+	Entry entry = 2;
+	int64 committed_entry_id = 3;
+	bytes committed_entry_md5 = 4;
+}
+message PutEntryResponse {
+}

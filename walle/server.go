@@ -28,29 +28,6 @@ func NewServer(serverId string, s Storage, c wallelib.Client) *Server {
 	return r
 }
 
-type requestHeader interface {
-	GetStreamUri() string
-	GetTargetServerId() string
-	GetStreamVersion() int64
-}
-
-func (s *Server) processRequestHeader(req requestHeader) (ss StreamStorage, isTargeted bool, err error) {
-	ss, ok := s.s.Stream(req.GetStreamUri())
-	if !ok {
-		return nil, false, status.Errorf(codes.NotFound, "streamURI: %s not found", req.GetStreamUri())
-	}
-	if req.GetTargetServerId() == "" {
-		return ss, false, nil
-	}
-	if !s.checkServerId(req.GetTargetServerId()) {
-		return ss, false, status.Errorf(codes.NotFound, "invalid serverId: %s", req.GetTargetServerId())
-	}
-	if err := s.checkStreamVersion(req.GetStreamUri(), req.GetStreamVersion(), ss); err != nil {
-		return ss, false, err
-	}
-	return ss, true, nil
-}
-
 func (s *Server) NewWriter(
 	ctx context.Context,
 	req *walle_pb.NewWriterRequest) (*walle_pb.BaseResponse, error) {
@@ -76,21 +53,6 @@ func (s *Server) NewWriter(
 		SuccessIds:    []string{s.serverId},
 		StreamVersion: ssTopology.Version,
 	}, nil
-}
-
-func (s *Server) LastEntry(
-	ctx context.Context,
-	req *walle_pb.LastEntryRequest) (*walle_pb.LastEntryResponse, error) {
-	ss, isTargeted, err := s.processRequestHeader(req)
-	if err != nil {
-		return nil, err
-	}
-	if !isTargeted {
-		return nil, errors.Errorf("not implemented")
-	}
-
-	entries := ss.LastEntry(req.IncludeUncommitted)
-	return &walle_pb.LastEntryResponse{Entries: entries}, nil
 }
 
 func (s *Server) PutEntry(
@@ -134,6 +96,57 @@ func (s *Server) PutEntry(
 		SuccessIds:    []string{s.serverId},
 		StreamVersion: ssTopology.Version,
 	}, nil
+}
+
+func (s *Server) LastEntry(
+	ctx context.Context,
+	req *walle_pb.LastEntryRequest) (*walle_pb.LastEntryResponse, error) {
+	ss, isTargeted, err := s.processRequestHeader(req)
+	if err != nil {
+		return nil, err
+	}
+	if !isTargeted {
+		return nil, errors.Errorf("not implemented")
+	}
+
+	entries := ss.LastEntry(req.IncludeUncommitted)
+	return &walle_pb.LastEntryResponse{Entries: entries}, nil
+}
+
+func (s *Server) ReadEntries(
+	req *walle_pb.ReadEntriesRequest, stream walle_pb.Walle_ReadEntriesServer) error {
+	ss, isTargeted, err := s.processRequestHeader(req)
+	if err != nil {
+		return err
+	}
+	if !isTargeted {
+		return errors.Errorf("not implemented")
+	}
+
+	//return &walle_pb.LastEntryResponse{Entries: entries}, nil
+}
+
+type requestHeader interface {
+	GetStreamUri() string
+	GetTargetServerId() string
+	GetStreamVersion() int64
+}
+
+func (s *Server) processRequestHeader(req requestHeader) (ss StreamStorage, isTargeted bool, err error) {
+	ss, ok := s.s.Stream(req.GetStreamUri())
+	if !ok {
+		return nil, false, status.Errorf(codes.NotFound, "streamURI: %s not found", req.GetStreamUri())
+	}
+	if req.GetTargetServerId() == "" {
+		return ss, false, nil
+	}
+	if !s.checkServerId(req.GetTargetServerId()) {
+		return ss, false, status.Errorf(codes.NotFound, "invalid serverId: %s", req.GetTargetServerId())
+	}
+	if err := s.checkStreamVersion(req.GetStreamUri(), req.GetStreamVersion(), ss); err != nil {
+		return ss, false, err
+	}
+	return ss, true, nil
 }
 
 func (s *Server) broadcastRequest(
