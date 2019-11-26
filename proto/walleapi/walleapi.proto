@@ -15,6 +15,7 @@ message Entry {
 
 message ClaimWriterRequest {
 	string stream_uri = 1;
+	int64 lease_ms = 2;
 }
 message ClaimWriterResponse {
 	string writer_id = 1;

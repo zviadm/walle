@@ -4,11 +4,9 @@ import (
 	"context"
 	"encoding/hex"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
-	"github.com/zviadm/walle/walle/wallelib"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -16,10 +14,14 @@ import (
 type Server struct {
 	serverId string
 	s        Storage
-	c        wallelib.Client
+	c        Client
 }
 
-func NewServer(serverId string, s Storage, c wallelib.Client) *Server {
+type Client interface {
+	ForServer(serverId string) (walle_pb.WalleClient, error)
+}
+
+func NewServer(serverId string, s Storage, c Client) *Server {
 	r := &Server{
 		serverId: serverId,
 		s:        s,
@@ -30,49 +32,24 @@ func NewServer(serverId string, s Storage, c wallelib.Client) *Server {
 
 func (s *Server) NewWriter(
 	ctx context.Context,
-	req *walle_pb.NewWriterRequest) (*walle_pb.BaseResponse, error) {
-	ss, isTargeted, err := s.processRequestHeader(req)
+	req *walle_pb.NewWriterRequest) (*walle_pb.NewWriterResponse, error) {
+	ss, err := s.processRequestHeader(req)
 	if err != nil {
 		return nil, err
 	}
-	ssTopology := ss.Topology()
-	if !isTargeted {
-		return s.broadcastRequest(ctx, ssTopology.ServerIds,
-			func(c walle_pb.WalleClient, serverId string) (*walle_pb.BaseResponse, error) {
-				reqC := proto.Clone(req).(*walle_pb.NewWriterRequest)
-				reqC.StreamVersion = ssTopology.Version
-				reqC.TargetServerId = serverId
-				return c.NewWriter(ctx, reqC)
-			})
-	}
-
 	if err := s.checkAndUpdateWriterId(req.StreamUri, req.WriterId, ss); err != nil {
 		return nil, err
 	}
-	return &walle_pb.BaseResponse{
-		SuccessIds:    []string{s.serverId},
-		StreamVersion: ssTopology.Version,
-	}, nil
+	return &walle_pb.NewWriterResponse{}, nil
 }
 
-func (s *Server) PutEntry(
+func (s *Server) PutEntryInternal(
 	ctx context.Context,
-	req *walle_pb.PutEntryRequest) (*walle_pb.BaseResponse, error) {
-	ss, isTargeted, err := s.processRequestHeader(req)
+	req *walle_pb.PutEntryInternalRequest) (*walle_pb.PutEntryInternalResponse, error) {
+	ss, err := s.processRequestHeader(req)
 	if err != nil {
 		return nil, err
 	}
-	ssTopology := ss.Topology()
-	if !isTargeted {
-		return s.broadcastRequest(ctx, ssTopology.ServerIds,
-			func(c walle_pb.WalleClient, serverId string) (*walle_pb.BaseResponse, error) {
-				reqC := proto.Clone(req).(*walle_pb.PutEntryRequest)
-				reqC.StreamVersion = ssTopology.Version
-				reqC.TargetServerId = serverId
-				return c.PutEntry(ctx, reqC)
-			})
-	}
-
 	if err := s.checkAndUpdateWriterId(req.StreamUri, req.Entry.WriterId, ss); err != nil {
 		return nil, err
 	}
@@ -84,7 +61,7 @@ func (s *Server) PutEntry(
 		}
 	}
 	if req.Entry.EntryId == 0 {
-		return &walle_pb.BaseResponse{SuccessIds: []string{s.serverId}}, nil
+		return &walle_pb.PutEntryInternalResponse{}, nil
 	}
 	isCommitted := req.CommittedEntryId >= req.Entry.EntryId
 	ok := ss.PutEntry(req.Entry, isCommitted)
@@ -92,95 +69,51 @@ func (s *Server) PutEntry(
 	if !ok {
 		return nil, status.Errorf(codes.OutOfRange, "TODO(zviad): error message")
 	}
-	return &walle_pb.BaseResponse{
-		SuccessIds:    []string{s.serverId},
-		StreamVersion: ssTopology.Version,
-	}, nil
+	return &walle_pb.PutEntryInternalResponse{}, nil
 }
 
 func (s *Server) LastEntry(
 	ctx context.Context,
 	req *walle_pb.LastEntryRequest) (*walle_pb.LastEntryResponse, error) {
-	ss, isTargeted, err := s.processRequestHeader(req)
+	ss, err := s.processRequestHeader(req)
 	if err != nil {
 		return nil, err
 	}
-	if !isTargeted {
-		return nil, errors.Errorf("not implemented")
-	}
-
 	entries := ss.LastEntry(req.IncludeUncommitted)
 	return &walle_pb.LastEntryResponse{Entries: entries}, nil
 }
 
-func (s *Server) ReadEntries(
-	req *walle_pb.ReadEntriesRequest, stream walle_pb.Walle_ReadEntriesServer) error {
-	ss, isTargeted, err := s.processRequestHeader(req)
-	if err != nil {
-		return err
-	}
-	if !isTargeted {
-		return errors.Errorf("not implemented")
-	}
-
-	//return &walle_pb.LastEntryResponse{Entries: entries}, nil
-}
+// func (s *Server) ReadEntries(
+// 	req *walle_pb.ReadEntriesRequest, stream walle_pb.Walle_ReadEntriesServer) error {
+// 	ss, isTargeted, err := s.processRequestHeader(req)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	if !isTargeted {
+// 		return errors.Errorf("not implemented")
+// 	}
+//
+// 	//return &walle_pb.LastEntryResponse{Entries: entries}, nil
+// }
 
 type requestHeader interface {
+	GetServerId() string
 	GetStreamUri() string
-	GetTargetServerId() string
 	GetStreamVersion() int64
 }
 
-func (s *Server) processRequestHeader(req requestHeader) (ss StreamStorage, isTargeted bool, err error) {
+func (s *Server) processRequestHeader(req requestHeader) (ss StreamStorage, err error) {
+	if !s.checkServerId(req.GetServerId()) {
+		return nil, status.Errorf(codes.NotFound, "invalid serverId: %s", req.GetServerId())
+	}
 	ss, ok := s.s.Stream(req.GetStreamUri())
 	if !ok {
-		return nil, false, status.Errorf(codes.NotFound, "streamURI: %s not found", req.GetStreamUri())
-	}
-	if req.GetTargetServerId() == "" {
-		return ss, false, nil
-	}
-	if !s.checkServerId(req.GetTargetServerId()) {
-		return ss, false, status.Errorf(codes.NotFound, "invalid serverId: %s", req.GetTargetServerId())
+		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found", req.GetStreamUri())
 	}
 	if err := s.checkStreamVersion(req.GetStreamUri(), req.GetStreamVersion(), ss); err != nil {
-		return ss, false, err
+		return nil, err
 	}
-	return ss, true, nil
-}
-
-func (s *Server) broadcastRequest(
-	ctx context.Context,
-	serverIds []string,
-	call func(c walle_pb.WalleClient, serverId string) (*walle_pb.BaseResponse, error)) (*walle_pb.BaseResponse, error) {
-	var successIds []string
-	var errs []error
-	var maxVersion int64
-	// TODO(zviad): needs to be parallel/asynchronous
-	for _, serverId := range serverIds {
-		c, err := s.c.ForServerNoFallback(serverId)
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-		resp, err := call(c, serverId)
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-		successIds = append(successIds, serverId)
-		if resp.StreamVersion > maxVersion {
-			maxVersion = resp.StreamVersion
-		}
-	}
-	if len(successIds) <= len(errs) {
-		return nil, errors.Errorf("not enough success: %s <= %d\nerrs: %v", successIds, len(errs), errs)
-	}
-	return &walle_pb.BaseResponse{
-		SuccessIds:    successIds,
-		Fails:         int32(len(errs)),
-		StreamVersion: maxVersion,
-	}, nil
+	return ss, nil
 }
 
 func (s *Server) checkServerId(serverId string) bool {

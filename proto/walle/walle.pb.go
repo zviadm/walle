@@ -10,7 +10,7 @@ import (
 	grpc "google.golang.org/grpc"
 	io "io"
 	math "math"
-	walleapi "walleapi"
+	"github.com/zviadm/walle/proto/walleapi"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -80,8 +80,8 @@ func (m *StreamTopology) GetServerIds() []string {
 }
 
 type NewWriterRequest struct {
-	StreamUri            string   `protobuf:"bytes,1,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
-	TargetServerId       string   `protobuf:"bytes,2,opt,name=target_server_id,json=targetServerId,proto3" json:"target_server_id,omitempty"`
+	ServerId             string   `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	StreamUri            string   `protobuf:"bytes,2,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
 	StreamVersion        int64    `protobuf:"varint,3,opt,name=stream_version,json=streamVersion,proto3" json:"stream_version,omitempty"`
 	WriterId             string   `protobuf:"bytes,4,opt,name=writer_id,json=writerId,proto3" json:"writer_id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -122,16 +122,16 @@ func (m *NewWriterRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_NewWriterRequest proto.InternalMessageInfo
 
-func (m *NewWriterRequest) GetStreamUri() string {
+func (m *NewWriterRequest) GetServerId() string {
 	if m != nil {
-		return m.StreamUri
+		return m.ServerId
 	}
 	return ""
 }
 
-func (m *NewWriterRequest) GetTargetServerId() string {
+func (m *NewWriterRequest) GetStreamUri() string {
 	if m != nil {
-		return m.TargetServerId
+		return m.StreamUri
 	}
 	return ""
 }
@@ -150,9 +150,48 @@ func (m *NewWriterRequest) GetWriterId() string {
 	return ""
 }
 
+type NewWriterResponse struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *NewWriterResponse) Reset()         { *m = NewWriterResponse{} }
+func (m *NewWriterResponse) String() string { return proto.CompactTextString(m) }
+func (*NewWriterResponse) ProtoMessage()    {}
+func (*NewWriterResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_827f2b64ddfdb030, []int{2}
+}
+func (m *NewWriterResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *NewWriterResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_NewWriterResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *NewWriterResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_NewWriterResponse.Merge(m, src)
+}
+func (m *NewWriterResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *NewWriterResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_NewWriterResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_NewWriterResponse proto.InternalMessageInfo
+
 type PutEntryInternalRequest struct {
-	StreamUri            string          `protobuf:"bytes,1,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
-	TargetServerId       string          `protobuf:"bytes,2,opt,name=target_server_id,json=targetServerId,proto3" json:"target_server_id,omitempty"`
+	ServerId             string          `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	StreamUri            string          `protobuf:"bytes,2,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
 	StreamVersion        int64           `protobuf:"varint,3,opt,name=stream_version,json=streamVersion,proto3" json:"stream_version,omitempty"`
 	Entry                *walleapi.Entry `protobuf:"bytes,4,opt,name=entry,proto3" json:"entry,omitempty"`
 	CommittedEntryId     int64           `protobuf:"varint,5,opt,name=committed_entry_id,json=committedEntryId,proto3" json:"committed_entry_id,omitempty"`
@@ -166,7 +205,7 @@ func (m *PutEntryInternalRequest) Reset()         { *m = PutEntryInternalRequest
 func (m *PutEntryInternalRequest) String() string { return proto.CompactTextString(m) }
 func (*PutEntryInternalRequest) ProtoMessage()    {}
 func (*PutEntryInternalRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_827f2b64ddfdb030, []int{2}
+	return fileDescriptor_827f2b64ddfdb030, []int{3}
 }
 func (m *PutEntryInternalRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -195,16 +234,16 @@ func (m *PutEntryInternalRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_PutEntryInternalRequest proto.InternalMessageInfo
 
-func (m *PutEntryInternalRequest) GetStreamUri() string {
+func (m *PutEntryInternalRequest) GetServerId() string {
 	if m != nil {
-		return m.StreamUri
+		return m.ServerId
 	}
 	return ""
 }
 
-func (m *PutEntryInternalRequest) GetTargetServerId() string {
+func (m *PutEntryInternalRequest) GetStreamUri() string {
 	if m != nil {
-		return m.TargetServerId
+		return m.StreamUri
 	}
 	return ""
 }
@@ -237,27 +276,24 @@ func (m *PutEntryInternalRequest) GetCommittedEntryMd5() []byte {
 	return nil
 }
 
-type BaseResponse struct {
-	SuccessIds           []string `protobuf:"bytes,1,rep,name=success_ids,json=successIds,proto3" json:"success_ids,omitempty"`
-	Fails                int32    `protobuf:"varint,2,opt,name=fails,proto3" json:"fails,omitempty"`
-	StreamVersion        int64    `protobuf:"varint,3,opt,name=stream_version,json=streamVersion,proto3" json:"stream_version,omitempty"`
+type PutEntryInternalResponse struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *BaseResponse) Reset()         { *m = BaseResponse{} }
-func (m *BaseResponse) String() string { return proto.CompactTextString(m) }
-func (*BaseResponse) ProtoMessage()    {}
-func (*BaseResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_827f2b64ddfdb030, []int{3}
+func (m *PutEntryInternalResponse) Reset()         { *m = PutEntryInternalResponse{} }
+func (m *PutEntryInternalResponse) String() string { return proto.CompactTextString(m) }
+func (*PutEntryInternalResponse) ProtoMessage()    {}
+func (*PutEntryInternalResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_827f2b64ddfdb030, []int{4}
 }
-func (m *BaseResponse) XXX_Unmarshal(b []byte) error {
+func (m *PutEntryInternalResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *BaseResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *PutEntryInternalResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_BaseResponse.Marshal(b, m, deterministic)
+		return xxx_messageInfo_PutEntryInternalResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalTo(b)
@@ -267,42 +303,21 @@ func (m *BaseResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return b[:n], nil
 	}
 }
-func (m *BaseResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_BaseResponse.Merge(m, src)
+func (m *PutEntryInternalResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_PutEntryInternalResponse.Merge(m, src)
 }
-func (m *BaseResponse) XXX_Size() int {
+func (m *PutEntryInternalResponse) XXX_Size() int {
 	return m.Size()
 }
-func (m *BaseResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_BaseResponse.DiscardUnknown(m)
+func (m *PutEntryInternalResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_PutEntryInternalResponse.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_BaseResponse proto.InternalMessageInfo
-
-func (m *BaseResponse) GetSuccessIds() []string {
-	if m != nil {
-		return m.SuccessIds
-	}
-	return nil
-}
-
-func (m *BaseResponse) GetFails() int32 {
-	if m != nil {
-		return m.Fails
-	}
-	return 0
-}
-
-func (m *BaseResponse) GetStreamVersion() int64 {
-	if m != nil {
-		return m.StreamVersion
-	}
-	return 0
-}
+var xxx_messageInfo_PutEntryInternalResponse proto.InternalMessageInfo
 
 type LastEntryRequest struct {
-	StreamUri            string   `protobuf:"bytes,1,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
-	TargetServerId       string   `protobuf:"bytes,2,opt,name=target_server_id,json=targetServerId,proto3" json:"target_server_id,omitempty"`
+	ServerId             string   `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	StreamUri            string   `protobuf:"bytes,2,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
 	StreamVersion        int64    `protobuf:"varint,3,opt,name=stream_version,json=streamVersion,proto3" json:"stream_version,omitempty"`
 	IncludeUncommitted   bool     `protobuf:"varint,4,opt,name=include_uncommitted,json=includeUncommitted,proto3" json:"include_uncommitted,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -314,7 +329,7 @@ func (m *LastEntryRequest) Reset()         { *m = LastEntryRequest{} }
 func (m *LastEntryRequest) String() string { return proto.CompactTextString(m) }
 func (*LastEntryRequest) ProtoMessage()    {}
 func (*LastEntryRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_827f2b64ddfdb030, []int{4}
+	return fileDescriptor_827f2b64ddfdb030, []int{5}
 }
 func (m *LastEntryRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -343,16 +358,16 @@ func (m *LastEntryRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_LastEntryRequest proto.InternalMessageInfo
 
-func (m *LastEntryRequest) GetStreamUri() string {
+func (m *LastEntryRequest) GetServerId() string {
 	if m != nil {
-		return m.StreamUri
+		return m.ServerId
 	}
 	return ""
 }
 
-func (m *LastEntryRequest) GetTargetServerId() string {
+func (m *LastEntryRequest) GetStreamUri() string {
 	if m != nil {
-		return m.TargetServerId
+		return m.StreamUri
 	}
 	return ""
 }
@@ -382,7 +397,7 @@ func (m *LastEntryResponse) Reset()         { *m = LastEntryResponse{} }
 func (m *LastEntryResponse) String() string { return proto.CompactTextString(m) }
 func (*LastEntryResponse) ProtoMessage()    {}
 func (*LastEntryResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_827f2b64ddfdb030, []int{5}
+	return fileDescriptor_827f2b64ddfdb030, []int{6}
 }
 func (m *LastEntryResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -421,8 +436,9 @@ func (m *LastEntryResponse) GetEntries() []*walleapi.Entry {
 func init() {
 	proto.RegisterType((*StreamTopology)(nil), "StreamTopology")
 	proto.RegisterType((*NewWriterRequest)(nil), "NewWriterRequest")
+	proto.RegisterType((*NewWriterResponse)(nil), "NewWriterResponse")
 	proto.RegisterType((*PutEntryInternalRequest)(nil), "PutEntryInternalRequest")
-	proto.RegisterType((*BaseResponse)(nil), "BaseResponse")
+	proto.RegisterType((*PutEntryInternalResponse)(nil), "PutEntryInternalResponse")
 	proto.RegisterType((*LastEntryRequest)(nil), "LastEntryRequest")
 	proto.RegisterType((*LastEntryResponse)(nil), "LastEntryResponse")
 }
@@ -430,38 +446,35 @@ func init() {
 func init() { proto.RegisterFile("walle/walle.proto", fileDescriptor_827f2b64ddfdb030) }
 
 var fileDescriptor_827f2b64ddfdb030 = []byte{
-	// 481 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xc4, 0x54, 0xc1, 0x6e, 0xd3, 0x40,
-	0x10, 0xcd, 0x26, 0x38, 0x8d, 0xa7, 0x6d, 0x64, 0x6f, 0x91, 0x6a, 0x05, 0x08, 0x91, 0x25, 0xa4,
-	0x1c, 0x90, 0x23, 0x15, 0xf2, 0x03, 0x95, 0x38, 0x58, 0x02, 0x84, 0x5c, 0x4a, 0x8f, 0x96, 0x89,
-	0x87, 0x6a, 0x25, 0xc7, 0x0e, 0xbb, 0xeb, 0x46, 0xfd, 0x00, 0xfe, 0x81, 0x1b, 0x27, 0xbe, 0x80,
-	0x9f, 0xe0, 0xc8, 0x27, 0xa0, 0xf0, 0x23, 0xc8, 0xb3, 0xb6, 0x5b, 0x52, 0x21, 0xf5, 0x96, 0x8b,
-	0xe5, 0x7d, 0x33, 0xf3, 0xfc, 0xe6, 0xcd, 0x8e, 0xc1, 0x5d, 0x27, 0x59, 0x86, 0x33, 0x7a, 0x06,
-	0x2b, 0x59, 0xe8, 0x62, 0x74, 0x4c, 0x87, 0x64, 0x25, 0x66, 0xcd, 0x8b, 0x09, 0xf8, 0x21, 0x0c,
-	0xcf, 0xb4, 0xc4, 0x64, 0xf9, 0xbe, 0x58, 0x15, 0x59, 0x71, 0x79, 0xcd, 0x3d, 0xd8, 0xbb, 0x42,
-	0xa9, 0x44, 0x91, 0x7b, 0x6c, 0xc2, 0xa6, 0xbd, 0xa8, 0x39, 0xf2, 0x27, 0x00, 0x0a, 0xe5, 0x15,
-	0xca, 0x58, 0xa4, 0xca, 0xeb, 0x4e, 0x7a, 0x53, 0x3b, 0xb2, 0x0d, 0x12, 0xa6, 0xca, 0xff, 0xc6,
-	0xc0, 0x79, 0x8b, 0xeb, 0x0b, 0x29, 0x34, 0xca, 0x08, 0x3f, 0x97, 0xa8, 0x34, 0xd5, 0x10, 0x7f,
-	0x5c, 0x4a, 0x41, 0x84, 0x55, 0x0d, 0x21, 0xe7, 0x52, 0xf0, 0x29, 0x38, 0x3a, 0x91, 0x97, 0xa8,
-	0xe3, 0x96, 0xd9, 0xeb, 0x52, 0xd2, 0xd0, 0xe0, 0x67, 0x35, 0x3d, 0x7f, 0x06, 0xc3, 0x9a, 0xa8,
-	0x51, 0xd7, 0x23, 0x75, 0x87, 0x06, 0xfd, 0x50, 0x6b, 0x7c, 0x04, 0xf6, 0x9a, 0x04, 0x54, 0x4c,
-	0x0f, 0x88, 0x69, 0x60, 0x80, 0x30, 0xf5, 0xbf, 0x74, 0xe1, 0xf8, 0x5d, 0xa9, 0x5f, 0xe5, 0x5a,
-	0x5e, 0x87, 0xb9, 0x46, 0x99, 0x27, 0xd9, 0xae, 0x84, 0x3e, 0x06, 0x0b, 0x2b, 0x1d, 0x24, 0x72,
-	0xff, 0xa4, 0x1f, 0x90, 0xaa, 0xc8, 0x80, 0xfc, 0x39, 0xf0, 0x45, 0xb1, 0x5c, 0x0a, 0xad, 0x31,
-	0x8d, 0x09, 0xaa, 0x3e, 0x68, 0x11, 0x91, 0xd3, 0x46, 0x4c, 0x23, 0x29, 0x0f, 0xe0, 0x68, 0x3b,
-	0x7b, 0x99, 0xce, 0xbd, 0xfe, 0x84, 0x4d, 0x0f, 0x22, 0xf7, 0xdf, 0xf4, 0x37, 0xe9, 0xdc, 0xcf,
-	0xe0, 0xe0, 0x34, 0x51, 0x18, 0xa1, 0x5a, 0x15, 0xb9, 0x42, 0xfe, 0x14, 0xf6, 0x55, 0xb9, 0x58,
-	0xa0, 0x52, 0x34, 0x59, 0x46, 0x93, 0x85, 0x1a, 0x0a, 0x53, 0xc5, 0x1f, 0x82, 0xf5, 0x29, 0x11,
-	0x99, 0xa2, 0x96, 0xad, 0xc8, 0x1c, 0xee, 0xd9, 0xa9, 0xff, 0x83, 0x81, 0xf3, 0x3a, 0x51, 0xc6,
-	0xf6, 0x5d, 0xd9, 0x3d, 0x83, 0x23, 0x91, 0x2f, 0xb2, 0x32, 0xc5, 0xb8, 0xcc, 0x5b, 0x47, 0xc8,
-	0xfc, 0x41, 0xc4, 0xeb, 0xd0, 0xf9, 0x4d, 0xc4, 0x9f, 0x83, 0x7b, 0x4b, 0x74, 0x6d, 0xd4, 0x04,
-	0xf6, 0x2a, 0x7b, 0x05, 0x1a, 0x93, 0x6e, 0xc6, 0xd6, 0xc0, 0x27, 0xdf, 0x19, 0x58, 0x17, 0xd5,
-	0x8a, 0xf1, 0x19, 0xd8, 0xed, 0x36, 0x70, 0x37, 0xd8, 0xde, 0x8c, 0xd1, 0x61, 0x70, 0x7b, 0x06,
-	0x7e, 0x87, 0xcf, 0x61, 0xd0, 0x5c, 0x4e, 0xee, 0x05, 0xff, 0xb9, 0xa7, 0x77, 0xcb, 0x5e, 0x82,
-	0xdd, 0x0a, 0xe5, 0x6e, 0xb0, 0xed, 0xf4, 0x88, 0x07, 0x77, 0xfa, 0xf0, 0x3b, 0xa7, 0xce, 0xcf,
-	0xcd, 0x98, 0xfd, 0xda, 0x8c, 0xd9, 0xef, 0xcd, 0x98, 0x7d, 0xfd, 0x33, 0xee, 0x7c, 0xec, 0xd3,
-	0x0f, 0xe1, 0xc5, 0xdf, 0x00, 0x00, 0x00, 0xff, 0xff, 0x28, 0xb7, 0x87, 0x00, 0x3e, 0x04, 0x00,
-	0x00,
+	// 447 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x93, 0x41, 0x6e, 0xd3, 0x40,
+	0x14, 0x86, 0x33, 0x0d, 0x49, 0xeb, 0x07, 0x54, 0xf6, 0xcb, 0xa2, 0x83, 0x0b, 0x91, 0x65, 0x09,
+	0x29, 0x0b, 0x34, 0x91, 0x0a, 0xb9, 0x00, 0x12, 0x0b, 0x4b, 0x80, 0x90, 0xa1, 0x74, 0x19, 0x99,
+	0xce, 0x08, 0x8d, 0xe4, 0x78, 0xc2, 0xcc, 0xb8, 0x51, 0xaf, 0xc1, 0x8a, 0x13, 0x70, 0x0c, 0xd6,
+	0x2c, 0x39, 0x02, 0x0a, 0x97, 0x60, 0x89, 0x3c, 0x13, 0x9b, 0x34, 0x51, 0xb7, 0xdd, 0x44, 0x99,
+	0xff, 0x9f, 0x79, 0xef, 0x7b, 0xbf, 0x9e, 0x21, 0x5a, 0x15, 0x65, 0x29, 0xa6, 0xee, 0x97, 0x2d,
+	0xb5, 0xb2, 0x2a, 0x3e, 0x71, 0x87, 0x62, 0x29, 0xa7, 0xed, 0x1f, 0x6f, 0xa4, 0x19, 0x1c, 0xbf,
+	0xb7, 0x5a, 0x14, 0x8b, 0x0f, 0x6a, 0xa9, 0x4a, 0xf5, 0xf9, 0x1a, 0x29, 0x1c, 0x5e, 0x09, 0x6d,
+	0xa4, 0xaa, 0x28, 0x49, 0xc8, 0xa4, 0x9f, 0xb7, 0x47, 0x7c, 0x02, 0x60, 0x84, 0xbe, 0x12, 0x7a,
+	0x2e, 0xb9, 0xa1, 0x07, 0x49, 0x7f, 0x12, 0xe4, 0x81, 0x57, 0x32, 0x6e, 0xd2, 0xaf, 0x04, 0xc2,
+	0xb7, 0x62, 0x75, 0xa1, 0xa5, 0x15, 0x3a, 0x17, 0x5f, 0x6a, 0x61, 0x2c, 0x9e, 0x42, 0xd0, 0xbd,
+	0x71, 0xf5, 0x82, 0xfc, 0xa8, 0x7d, 0xe2, 0x0a, 0xba, 0xe6, 0xf3, 0x5a, 0x4b, 0x7a, 0xe0, 0xdc,
+	0xc0, 0x2b, 0xe7, 0x5a, 0xe2, 0x53, 0x38, 0xde, 0xd8, 0x2d, 0x50, 0xdf, 0x01, 0x3d, 0xf4, 0xea,
+	0xc7, 0x0d, 0xd6, 0x29, 0x04, 0x2b, 0xd7, 0xb3, 0x69, 0x71, 0xcf, 0xb7, 0xf0, 0x42, 0xc6, 0xd3,
+	0x11, 0x44, 0x5b, 0x4c, 0x66, 0xa9, 0x2a, 0x23, 0xd2, 0xbf, 0x04, 0x4e, 0xde, 0xd5, 0xf6, 0x55,
+	0x65, 0xf5, 0x75, 0x56, 0x59, 0xa1, 0xab, 0xa2, 0xbc, 0x43, 0xe0, 0xc7, 0x30, 0x10, 0x4d, 0x6b,
+	0x07, 0x7b, 0xff, 0x6c, 0xc8, 0x1c, 0x48, 0xee, 0x45, 0x7c, 0x06, 0x78, 0xa9, 0x16, 0x0b, 0x69,
+	0xad, 0xe0, 0x73, 0x27, 0x35, 0x24, 0x03, 0x57, 0x28, 0xec, 0x1c, 0xcf, 0xce, 0x91, 0xc1, 0x68,
+	0xf7, 0xf6, 0x82, 0xcf, 0xe8, 0x30, 0x21, 0x93, 0x07, 0x79, 0x74, 0xf3, 0xfa, 0x1b, 0x3e, 0x4b,
+	0x63, 0xa0, 0xfb, 0x93, 0x6f, 0x62, 0xf9, 0x4e, 0x20, 0x7c, 0x5d, 0x18, 0xef, 0xde, 0x61, 0x1e,
+	0x53, 0x18, 0xc9, 0xea, 0xb2, 0xac, 0xb9, 0x98, 0xd7, 0x55, 0x87, 0xec, 0xd2, 0x39, 0xca, 0x71,
+	0x63, 0x9d, 0xff, 0x77, 0xd2, 0x19, 0x44, 0x5b, 0x9c, 0x9e, 0x1e, 0x13, 0x38, 0x6c, 0xe6, 0x97,
+	0xc2, 0x50, 0x92, 0xf4, 0xb7, 0x72, 0x6d, 0xe5, 0xb3, 0x1f, 0x04, 0x06, 0x17, 0xcd, 0xfa, 0xe3,
+	0x0b, 0x08, 0xba, 0xad, 0xc0, 0x88, 0xed, 0x6e, 0x6d, 0x8c, 0x6c, 0x7f, 0x69, 0x7a, 0x98, 0x41,
+	0xb8, 0x9b, 0x1d, 0x52, 0x76, 0xcb, 0x22, 0xc5, 0x8f, 0xd8, 0xad, 0x41, 0xf7, 0x1a, 0x80, 0x6e,
+	0x02, 0x8c, 0xd8, 0x6e, 0xea, 0x31, 0xb2, 0xbd, 0x01, 0xd3, 0xde, 0xcb, 0xf0, 0xe7, 0x7a, 0x4c,
+	0x7e, 0xad, 0xc7, 0xe4, 0xf7, 0x7a, 0x4c, 0xbe, 0xfd, 0x19, 0xf7, 0x3e, 0x0d, 0xdd, 0x57, 0xfc,
+	0xfc, 0x5f, 0x00, 0x00, 0x00, 0xff, 0xff, 0xa3, 0xde, 0x71, 0xca, 0xf3, 0x03, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -476,8 +489,8 @@ const _ = grpc.SupportPackageIsVersion4
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type WalleClient interface {
-	NewWriter(ctx context.Context, in *NewWriterRequest, opts ...grpc.CallOption) (*BaseResponse, error)
-	PutEntry(ctx context.Context, in *PutEntryInternalRequest, opts ...grpc.CallOption) (*BaseResponse, error)
+	NewWriter(ctx context.Context, in *NewWriterRequest, opts ...grpc.CallOption) (*NewWriterResponse, error)
+	PutEntryInternal(ctx context.Context, in *PutEntryInternalRequest, opts ...grpc.CallOption) (*PutEntryInternalResponse, error)
 	LastEntry(ctx context.Context, in *LastEntryRequest, opts ...grpc.CallOption) (*LastEntryResponse, error)
 }
 
@@ -489,8 +502,8 @@ func NewWalleClient(cc *grpc.ClientConn) WalleClient {
 	return &walleClient{cc}
 }
 
-func (c *walleClient) NewWriter(ctx context.Context, in *NewWriterRequest, opts ...grpc.CallOption) (*BaseResponse, error) {
-	out := new(BaseResponse)
+func (c *walleClient) NewWriter(ctx context.Context, in *NewWriterRequest, opts ...grpc.CallOption) (*NewWriterResponse, error) {
+	out := new(NewWriterResponse)
 	err := c.cc.Invoke(ctx, "/Walle/NewWriter", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -498,9 +511,9 @@ func (c *walleClient) NewWriter(ctx context.Context, in *NewWriterRequest, opts 
 	return out, nil
 }
 
-func (c *walleClient) PutEntry(ctx context.Context, in *PutEntryInternalRequest, opts ...grpc.CallOption) (*BaseResponse, error) {
-	out := new(BaseResponse)
-	err := c.cc.Invoke(ctx, "/Walle/PutEntry", in, out, opts...)
+func (c *walleClient) PutEntryInternal(ctx context.Context, in *PutEntryInternalRequest, opts ...grpc.CallOption) (*PutEntryInternalResponse, error) {
+	out := new(PutEntryInternalResponse)
+	err := c.cc.Invoke(ctx, "/Walle/PutEntryInternal", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -518,8 +531,8 @@ func (c *walleClient) LastEntry(ctx context.Context, in *LastEntryRequest, opts 
 
 // WalleServer is the server API for Walle service.
 type WalleServer interface {
-	NewWriter(context.Context, *NewWriterRequest) (*BaseResponse, error)
-	PutEntry(context.Context, *PutEntryInternalRequest) (*BaseResponse, error)
+	NewWriter(context.Context, *NewWriterRequest) (*NewWriterResponse, error)
+	PutEntryInternal(context.Context, *PutEntryInternalRequest) (*PutEntryInternalResponse, error)
 	LastEntry(context.Context, *LastEntryRequest) (*LastEntryResponse, error)
 }
 
@@ -545,20 +558,20 @@ func _Walle_NewWriter_Handler(srv interface{}, ctx context.Context, dec func(int
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Walle_PutEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Walle_PutEntryInternal_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(PutEntryInternalRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(WalleServer).PutEntry(ctx, in)
+		return srv.(WalleServer).PutEntryInternal(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/Walle/PutEntry",
+		FullMethod: "/Walle/PutEntryInternal",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(WalleServer).PutEntry(ctx, req.(*PutEntryInternalRequest))
+		return srv.(WalleServer).PutEntryInternal(ctx, req.(*PutEntryInternalRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -590,8 +603,8 @@ var _Walle_serviceDesc = grpc.ServiceDesc{
 			Handler:    _Walle_NewWriter_Handler,
 		},
 		{
-			MethodName: "PutEntry",
-			Handler:    _Walle_PutEntry_Handler,
+			MethodName: "PutEntryInternal",
+			Handler:    _Walle_PutEntryInternal_Handler,
 		},
 		{
 			MethodName: "LastEntry",
@@ -658,17 +671,17 @@ func (m *NewWriterRequest) MarshalTo(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if len(m.StreamUri) > 0 {
+	if len(m.ServerId) > 0 {
 		dAtA[i] = 0xa
+		i++
+		i = encodeVarintWalle(dAtA, i, uint64(len(m.ServerId)))
+		i += copy(dAtA[i:], m.ServerId)
+	}
+	if len(m.StreamUri) > 0 {
+		dAtA[i] = 0x12
 		i++
 		i = encodeVarintWalle(dAtA, i, uint64(len(m.StreamUri)))
 		i += copy(dAtA[i:], m.StreamUri)
-	}
-	if len(m.TargetServerId) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(len(m.TargetServerId)))
-		i += copy(dAtA[i:], m.TargetServerId)
 	}
 	if m.StreamVersion != 0 {
 		dAtA[i] = 0x18
@@ -681,6 +694,27 @@ func (m *NewWriterRequest) MarshalTo(dAtA []byte) (int, error) {
 		i = encodeVarintWalle(dAtA, i, uint64(len(m.WriterId)))
 		i += copy(dAtA[i:], m.WriterId)
 	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *NewWriterResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *NewWriterResponse) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
@@ -702,17 +736,17 @@ func (m *PutEntryInternalRequest) MarshalTo(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if len(m.StreamUri) > 0 {
+	if len(m.ServerId) > 0 {
 		dAtA[i] = 0xa
+		i++
+		i = encodeVarintWalle(dAtA, i, uint64(len(m.ServerId)))
+		i += copy(dAtA[i:], m.ServerId)
+	}
+	if len(m.StreamUri) > 0 {
+		dAtA[i] = 0x12
 		i++
 		i = encodeVarintWalle(dAtA, i, uint64(len(m.StreamUri)))
 		i += copy(dAtA[i:], m.StreamUri)
-	}
-	if len(m.TargetServerId) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(len(m.TargetServerId)))
-		i += copy(dAtA[i:], m.TargetServerId)
 	}
 	if m.StreamVersion != 0 {
 		dAtA[i] = 0x18
@@ -746,7 +780,7 @@ func (m *PutEntryInternalRequest) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
-func (m *BaseResponse) Marshal() (dAtA []byte, err error) {
+func (m *PutEntryInternalResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalTo(dAtA)
@@ -756,36 +790,11 @@ func (m *BaseResponse) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *BaseResponse) MarshalTo(dAtA []byte) (int, error) {
+func (m *PutEntryInternalResponse) MarshalTo(dAtA []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
 	_ = l
-	if len(m.SuccessIds) > 0 {
-		for _, s := range m.SuccessIds {
-			dAtA[i] = 0xa
-			i++
-			l = len(s)
-			for l >= 1<<7 {
-				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
-				l >>= 7
-				i++
-			}
-			dAtA[i] = uint8(l)
-			i++
-			i += copy(dAtA[i:], s)
-		}
-	}
-	if m.Fails != 0 {
-		dAtA[i] = 0x10
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(m.Fails))
-	}
-	if m.StreamVersion != 0 {
-		dAtA[i] = 0x18
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(m.StreamVersion))
-	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
@@ -807,17 +816,17 @@ func (m *LastEntryRequest) MarshalTo(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if len(m.StreamUri) > 0 {
+	if len(m.ServerId) > 0 {
 		dAtA[i] = 0xa
+		i++
+		i = encodeVarintWalle(dAtA, i, uint64(len(m.ServerId)))
+		i += copy(dAtA[i:], m.ServerId)
+	}
+	if len(m.StreamUri) > 0 {
+		dAtA[i] = 0x12
 		i++
 		i = encodeVarintWalle(dAtA, i, uint64(len(m.StreamUri)))
 		i += copy(dAtA[i:], m.StreamUri)
-	}
-	if len(m.TargetServerId) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(len(m.TargetServerId)))
-		i += copy(dAtA[i:], m.TargetServerId)
 	}
 	if m.StreamVersion != 0 {
 		dAtA[i] = 0x18
@@ -909,11 +918,11 @@ func (m *NewWriterRequest) Size() (n int) {
 	}
 	var l int
 	_ = l
-	l = len(m.StreamUri)
+	l = len(m.ServerId)
 	if l > 0 {
 		n += 1 + l + sovWalle(uint64(l))
 	}
-	l = len(m.TargetServerId)
+	l = len(m.StreamUri)
 	if l > 0 {
 		n += 1 + l + sovWalle(uint64(l))
 	}
@@ -930,17 +939,29 @@ func (m *NewWriterRequest) Size() (n int) {
 	return n
 }
 
+func (m *NewWriterResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
 func (m *PutEntryInternalRequest) Size() (n int) {
 	if m == nil {
 		return 0
 	}
 	var l int
 	_ = l
-	l = len(m.StreamUri)
+	l = len(m.ServerId)
 	if l > 0 {
 		n += 1 + l + sovWalle(uint64(l))
 	}
-	l = len(m.TargetServerId)
+	l = len(m.StreamUri)
 	if l > 0 {
 		n += 1 + l + sovWalle(uint64(l))
 	}
@@ -964,24 +985,12 @@ func (m *PutEntryInternalRequest) Size() (n int) {
 	return n
 }
 
-func (m *BaseResponse) Size() (n int) {
+func (m *PutEntryInternalResponse) Size() (n int) {
 	if m == nil {
 		return 0
 	}
 	var l int
 	_ = l
-	if len(m.SuccessIds) > 0 {
-		for _, s := range m.SuccessIds {
-			l = len(s)
-			n += 1 + l + sovWalle(uint64(l))
-		}
-	}
-	if m.Fails != 0 {
-		n += 1 + sovWalle(uint64(m.Fails))
-	}
-	if m.StreamVersion != 0 {
-		n += 1 + sovWalle(uint64(m.StreamVersion))
-	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -994,11 +1003,11 @@ func (m *LastEntryRequest) Size() (n int) {
 	}
 	var l int
 	_ = l
-	l = len(m.StreamUri)
+	l = len(m.ServerId)
 	if l > 0 {
 		n += 1 + l + sovWalle(uint64(l))
 	}
-	l = len(m.TargetServerId)
+	l = len(m.StreamUri)
 	if l > 0 {
 		n += 1 + l + sovWalle(uint64(l))
 	}
@@ -1181,6 +1190,38 @@ func (m *NewWriterRequest) Unmarshal(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ServerId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWalle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthWalle
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthWalle
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ServerId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field StreamUri", wireType)
 			}
 			var stringLen uint64
@@ -1210,38 +1251,6 @@ func (m *NewWriterRequest) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.StreamUri = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field TargetServerId", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowWalle
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthWalle
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthWalle
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.TargetServerId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 3:
 			if wireType != 0 {
@@ -1319,6 +1328,60 @@ func (m *NewWriterRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *NewWriterResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowWalle
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: NewWriterResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: NewWriterResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipWalle(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthWalle
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthWalle
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *PutEntryInternalRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -1350,6 +1413,38 @@ func (m *PutEntryInternalRequest) Unmarshal(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ServerId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWalle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthWalle
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthWalle
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ServerId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field StreamUri", wireType)
 			}
 			var stringLen uint64
@@ -1379,38 +1474,6 @@ func (m *PutEntryInternalRequest) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.StreamUri = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field TargetServerId", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowWalle
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthWalle
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthWalle
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.TargetServerId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 3:
 			if wireType != 0 {
@@ -1545,7 +1608,7 @@ func (m *PutEntryInternalRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *BaseResponse) Unmarshal(dAtA []byte) error {
+func (m *PutEntryInternalResponse) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1568,82 +1631,12 @@ func (m *BaseResponse) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: BaseResponse: wiretype end group for non-group")
+			return fmt.Errorf("proto: PutEntryInternalResponse: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: BaseResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: PutEntryInternalResponse: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field SuccessIds", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowWalle
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthWalle
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthWalle
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.SuccessIds = append(m.SuccessIds, string(dAtA[iNdEx:postIndex]))
-			iNdEx = postIndex
-		case 2:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Fails", wireType)
-			}
-			m.Fails = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowWalle
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Fails |= int32(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 3:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field StreamVersion", wireType)
-			}
-			m.StreamVersion = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowWalle
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.StreamVersion |= int64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skipWalle(dAtA[iNdEx:])
@@ -1700,6 +1693,38 @@ func (m *LastEntryRequest) Unmarshal(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ServerId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWalle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthWalle
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthWalle
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ServerId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field StreamUri", wireType)
 			}
 			var stringLen uint64
@@ -1729,38 +1754,6 @@ func (m *LastEntryRequest) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.StreamUri = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field TargetServerId", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowWalle
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthWalle
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthWalle
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.TargetServerId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 3:
 			if wireType != 0 {

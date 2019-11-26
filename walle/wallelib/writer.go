@@ -7,24 +7,53 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	walle_pb "github.com/zviadm/walle/proto/walle"
+	"github.com/zviadm/walle/proto/walleapi"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 const (
 	shortBeat = time.Millisecond
-	longBeat  = 100 * time.Millisecond // TODO(zviad): This should be configurable.
 )
+
+func ClaimWriter(
+	ctx context.Context,
+	c Client,
+	streamURI string,
+	writerLease time.Duration) (*Writer, error) {
+	resp, err := c.ForStream(streamURI).ClaimWriter(
+		ctx, &walleapi.ClaimWriterRequest{
+			StreamUri: streamURI,
+			LeaseMs:   writerLease.Nanoseconds() / 1000,
+		})
+	if err != nil {
+		return nil, err
+	}
+	// TODO(zviad): Lease timer should be initialzied here.
+	_, err = c.ForStream(streamURI).PutEntry(ctx, &walleapi.PutEntryRequest{
+		StreamUri:         streamURI,
+		Entry:             &walleapi.Entry{WriterId: resp.WriterId},
+		CommittedEntryId:  resp.LastEntry.EntryId,
+		CommittedEntryMd5: resp.LastEntry.ChecksumMd5,
+	})
+	if err != nil {
+		return nil, err
+	}
+	w := newWriter(c, streamURI, writerLease, resp.WriterId, resp.LastEntry)
+	return w, nil
+}
 
 // Writer is not thread safe. PutEntry calls must be issued serially.
 // Writer retries PutEntry calls internally indefinitely, until an unrecoverable error happens.
 // Once an error happens, writer is completely closed and can no longer be used to write any new entries.
 type Writer struct {
-	c         Client
-	streamURI string
-	writerId  string
-	lastEntry *walle_pb.Entry
+	c           Client
+	streamURI   string
+	writerLease time.Duration
+	writerId    string
+	longBeat    time.Duration
+
+	lastEntry *walleapi.Entry
 
 	committedEntryMx  sync.Mutex
 	committedEntryId  int64
@@ -38,13 +67,17 @@ type Writer struct {
 func newWriter(
 	c Client,
 	streamURI string,
+	writerLease time.Duration,
 	writerId string,
-	lastEntry *walle_pb.Entry) *Writer {
+	lastEntry *walleapi.Entry) *Writer {
 	ctx, cancel := context.WithCancel(context.Background())
 	w := &Writer{
-		c:                c,
-		streamURI:        streamURI,
-		writerId:         writerId,
+		c:           c,
+		streamURI:   streamURI,
+		writerLease: writerLease,
+		writerId:    writerId,
+		longBeat:    writerLease / 10,
+
 		lastEntry:        lastEntry,
 		committedEntryId: lastEntry.EntryId,
 
@@ -77,15 +110,15 @@ func (w *Writer) heartbeat() {
 		now := time.Now()
 		ts, entryId, entryMd5 := w.safeCommittedEntryId()
 		if ts.Add(shortBeat).After(now) ||
-			(heartbeatEntryId == entryId && heartbeatTime.Add(longBeat).After(now)) {
+			(heartbeatEntryId == entryId && heartbeatTime.Add(w.longBeat).After(now)) {
 			continue
 		}
 		err := KeepTryingWithBackoff(
-			w.rootCtx, shortBeat, longBeat,
+			w.rootCtx, shortBeat, w.longBeat,
 			func(retryN uint) (bool, error) {
-				_, err := w.c.Preferred(w.streamURI).PutEntry(w.rootCtx, &walle_pb.PutEntryRequest{
+				_, err := w.c.ForStream(w.streamURI).PutEntry(w.rootCtx, &walleapi.PutEntryRequest{
 					StreamUri:         w.streamURI,
-					Entry:             &walle_pb.Entry{WriterId: w.writerId},
+					Entry:             &walleapi.Entry{WriterId: w.writerId},
 					CommittedEntryId:  entryId,
 					CommittedEntryMd5: entryMd5,
 				})
@@ -101,9 +134,9 @@ func (w *Writer) heartbeat() {
 	}
 }
 
-func (w *Writer) PutEntry(data []byte) (*walle_pb.Entry, <-chan error) {
+func (w *Writer) PutEntry(data []byte) (*walleapi.Entry, <-chan error) {
 	r := make(chan error, 1)
-	entry := &walle_pb.Entry{
+	entry := &walleapi.Entry{
 		EntryId:  w.lastEntry.EntryId + 1,
 		WriterId: w.writerId,
 		Data:     data,
@@ -114,13 +147,13 @@ func (w *Writer) PutEntry(data []byte) (*walle_pb.Entry, <-chan error) {
 		ctx, cancel := context.WithCancel(w.rootCtx)
 		defer cancel()
 		err := KeepTryingWithBackoff(
-			ctx, shortBeat, longBeat,
+			ctx, shortBeat, w.longBeat,
 			func(retryN uint) (bool, error) {
 				_, committedEntryId, committedEntryMd5 := w.safeCommittedEntryId()
 				if committedEntryId > entry.EntryId {
 					committedEntryId = entry.EntryId
 				}
-				_, err := w.c.Preferred(w.streamURI).PutEntry(ctx, &walle_pb.PutEntryRequest{
+				_, err := w.c.ForStream(w.streamURI).PutEntry(ctx, &walleapi.PutEntryRequest{
 					StreamUri:         w.streamURI,
 					Entry:             entry,
 					CommittedEntryId:  committedEntryId,

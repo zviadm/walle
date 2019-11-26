@@ -7,6 +7,7 @@ import (
 
 	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
+	"github.com/zviadm/walle/proto/walleapi"
 )
 
 type mockSystem struct {
@@ -14,52 +15,73 @@ type mockSystem struct {
 	servers map[string]*Server
 }
 
-func newMockSystem(serverIds []string) (*mockSystem, *mockClient) {
+func newMockSystem(serverIds []string) (*mockSystem, *mockApiClient) {
 	mSystem := &mockSystem{servers: make(map[string]*Server, len(serverIds))}
 	mClient := &mockClient{mSystem}
 	for _, serverId := range serverIds {
 		m := newMockStorage([]string{"/mock/1"}, serverIds)
 		mSystem.servers[serverId] = NewServer(serverId, m, mClient)
 	}
-	mSystem.servers[""] = mSystem.servers[serverIds[0]]
-	return mSystem, mClient
-}
-
-func (m *mockSystem) PutEntry(
-	ctx context.Context,
-	in *walle_pb.PutEntryRequest,
-	opts ...grpc.CallOption) (*walle_pb.BaseResponse, error) {
-	return m.servers[in.TargetServerId].PutEntry(ctx, in)
-}
-
-func (m *mockSystem) NewWriter(
-	ctx context.Context,
-	in *walle_pb.NewWriterRequest,
-	opts ...grpc.CallOption) (*walle_pb.BaseResponse, error) {
-	return m.servers[in.TargetServerId].NewWriter(ctx, in)
-}
-
-func (m *mockSystem) LastEntry(
-	ctx context.Context,
-	in *walle_pb.LastEntryRequest,
-	opts ...grpc.CallOption) (*walle_pb.LastEntryResponse, error) {
-	return m.servers[in.TargetServerId].LastEntry(ctx, in)
+	return mSystem, &mockApiClient{mSystem}
 }
 
 type mockClient struct {
 	m *mockSystem
 }
 
-func (m *mockClient) Preferred(streamURI string) walle_pb.WalleClient {
-	return m.m
-}
-func (m *mockClient) ForServer(serverId string) walle_pb.WalleClient {
-	return m.m
-}
-func (m *mockClient) ForServerNoFallback(serverId string) (walle_pb.WalleClient, error) {
+func (m *mockClient) ForServer(serverId string) (walle_pb.WalleClient, error) {
 	_, ok := m.m.servers[serverId]
 	if !ok {
 		return nil, errors.Errorf("unknown serverId: %s", serverId)
 	}
-	return m.m, nil
+	return m, nil
+}
+
+func (m *mockClient) PutEntryInternal(
+	ctx context.Context,
+	in *walle_pb.PutEntryInternalRequest,
+	opts ...grpc.CallOption) (*walle_pb.PutEntryInternalResponse, error) {
+	return m.m.servers[in.ServerId].PutEntryInternal(ctx, in)
+}
+
+func (m *mockClient) NewWriter(
+	ctx context.Context,
+	in *walle_pb.NewWriterRequest,
+	opts ...grpc.CallOption) (*walle_pb.NewWriterResponse, error) {
+	return m.m.servers[in.ServerId].NewWriter(ctx, in)
+}
+
+func (m *mockClient) LastEntry(
+	ctx context.Context,
+	in *walle_pb.LastEntryRequest,
+	opts ...grpc.CallOption) (*walle_pb.LastEntryResponse, error) {
+	return m.m.servers[in.ServerId].LastEntry(ctx, in)
+}
+
+type mockApiClient struct {
+	m *mockSystem
+}
+
+func (m *mockApiClient) ForStream(streamURI string) walleapi.WalleApiClient {
+	return m
+}
+
+func (m *mockApiClient) ClaimWriter(
+	ctx context.Context,
+	in *walleapi.ClaimWriterRequest,
+	opts ...grpc.CallOption) (*walleapi.ClaimWriterResponse, error) {
+	for _, s := range m.m.servers {
+		return s.ClaimWriter(ctx, in)
+	}
+	return nil, errors.Errorf("no servers")
+}
+
+func (m *mockApiClient) PutEntry(
+	ctx context.Context,
+	in *walleapi.PutEntryRequest,
+	opts ...grpc.CallOption) (*walleapi.PutEntryResponse, error) {
+	for _, s := range m.m.servers {
+		return s.PutEntry(ctx, in)
+	}
+	return nil, errors.Errorf("no servers")
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	walle_pb "github.com/zviadm/walle/proto/walle"
+	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/wallelib"
 )
 
@@ -20,7 +21,7 @@ type mockStream struct {
 	topology *walle_pb.StreamTopology
 
 	writerId       string
-	entries        []*walle_pb.Entry
+	entries        []*walleapi.Entry
 	committed      int64
 	noGapCommitted int64
 }
@@ -32,7 +33,7 @@ func newMockStorage(streamURIs []string, serverIds []string) *mockStorage {
 	for _, streamURI := range streamURIs {
 		streams[streamURI] = &mockStream{
 			topology: &walle_pb.StreamTopology{Version: 3, ServerIds: serverIds},
-			entries:  []*walle_pb.Entry{&walle_pb.Entry{ChecksumMd5: make([]byte, md5.Size)}},
+			entries:  []*walleapi.Entry{&walleapi.Entry{ChecksumMd5: make([]byte, md5.Size)}},
 		}
 	}
 	return &mockStorage{streams: streams}
@@ -76,7 +77,7 @@ func (m *mockStream) UpdateWriterId(writerId string) {
 	m.writerId = writerId
 }
 
-func (m *mockStream) LastEntry(includeUncommitted bool) []*walle_pb.Entry {
+func (m *mockStream) LastEntry(includeUncommitted bool) []*walleapi.Entry {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	endIdx := int(m.committed) + 1
@@ -84,9 +85,9 @@ func (m *mockStream) LastEntry(includeUncommitted bool) []*walle_pb.Entry {
 		endIdx = len(m.entries)
 	}
 	r := m.entries[int(m.committed):endIdx]
-	rCopy := make([]*walle_pb.Entry, len(r))
+	rCopy := make([]*walleapi.Entry, len(r))
 	for idx, entry := range r {
-		rCopy[idx] = proto.Clone(entry).(*walle_pb.Entry)
+		rCopy[idx] = proto.Clone(entry).(*walleapi.Entry)
 	}
 	return rCopy
 }
@@ -114,7 +115,7 @@ func (m *mockStream) unsafeCommitEntry(entryId int64, entryMd5 []byte, newGap bo
 	return true
 }
 
-func (m *mockStream) PutEntry(entry *walle_pb.Entry, isCommitted bool) bool {
+func (m *mockStream) PutEntry(entry *walleapi.Entry, isCommitted bool) bool {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 
@@ -172,7 +173,7 @@ func (m *mockStream) PutEntry(entry *walle_pb.Entry, isCommitted bool) bool {
 	return true
 }
 
-func (m *mockStream) unsafeMakeGapCommit(entry *walle_pb.Entry) {
+func (m *mockStream) unsafeMakeGapCommit(entry *walleapi.Entry) {
 	// Clear out all uncommitted entries, and create a GAP.
 	if int64(len(m.entries)) > entry.EntryId {
 		m.entries = m.entries[:int(entry.EntryId)]

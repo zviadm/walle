@@ -1,11 +1,9 @@
 package wallelib
 
 import (
-	walle_pb "github.com/zviadm/walle/proto/walle"
+	"github.com/zviadm/walle/proto/walleapi"
 )
 
 type Client interface {
-	Preferred(streamURI string) walle_pb.WalleClient
-	ForServer(serverId string) walle_pb.WalleClient
-	ForServerNoFallback(serverId string) (walle_pb.WalleClient, error)
+	ForStream(streamURI string) walleapi.WalleApiClient
 }

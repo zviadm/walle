@@ -3,8 +3,8 @@ syntax = "proto3";
 import "walleapi/walleapi.proto";
 
 service Walle {
-	rpc NewWriter(NewWriterRequest) returns (BaseResponse) {}
-	rpc PutEntry(PutEntryInternalRequest) returns (BaseResponse) {}
+	rpc NewWriter(NewWriterRequest) returns (NewWriterResponse) {}
+	rpc PutEntryInternal(PutEntryInternalRequest) returns (PutEntryInternalResponse) {}
 
 	rpc LastEntry(LastEntryRequest) returns (LastEntryResponse) {}
 	//rpc ReadEntries(ReadEntriesRequest) returns (stream Entry) {}
@@ -16,36 +16,32 @@ message StreamTopology {
 }
 
 message NewWriterRequest {
-	string stream_uri = 1;
-	string target_server_id = 2;
+	string server_id = 1;
+	string stream_uri = 2;
 	int64 stream_version = 3;
 
 	string writer_id = 4;
 }
+message NewWriterResponse {}
+
 message PutEntryInternalRequest {
-	string stream_uri = 1;
-	string target_server_id = 2;
+	string server_id = 1;
+	string stream_uri = 2;
 	int64 stream_version = 3;
 
 	Entry entry = 4;
 	int64 committed_entry_id = 5;
 	bytes committed_entry_md5 = 6;
 }
-
-message BaseResponse {
-	repeated string success_ids = 1;
-	int32 fails = 2;
-	int64 stream_version = 3;
-}
+message PutEntryInternalResponse{}
 
 message LastEntryRequest {
-	string stream_uri = 1;
-	string target_server_id = 2;
+	string server_id = 1;
+	string stream_uri = 2;
 	int64 stream_version = 3;
 
 	bool include_uncommitted = 4;
 }
-
 message LastEntryResponse {
 	repeated Entry entries = 1;
 }

@@ -2,6 +2,7 @@ package walle
 
 import (
 	walle_pb "github.com/zviadm/walle/proto/walle"
+	"github.com/zviadm/walle/proto/walleapi"
 )
 
 // Storage is expected to be thread-safe.
@@ -29,7 +30,7 @@ type StreamMetadata interface {
 
 // StreamData is expected to be thread-safe.
 type StreamData interface {
-	LastEntry(includeUncommitted bool) []*walle_pb.Entry
+	LastEntry(includeUncommitted bool) []*walleapi.Entry
 	CommitEntry(entryId int64, entryMd5 []byte) bool
-	PutEntry(entry *walle_pb.Entry, isCommitted bool) bool
+	PutEntry(entry *walleapi.Entry, isCommitted bool) bool
 }

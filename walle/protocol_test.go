@@ -3,6 +3,7 @@ package walle
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/zviadm/walle/walle/wallelib"
@@ -11,7 +12,7 @@ import (
 func TestProtocolBasicNewWriter(t *testing.T) {
 	ctx := context.Background()
 	_, c := newMockSystem([]string{"1", "2", "3"})
-	w, err := wallelib.ClaimWriter(ctx, c, "/mock/1")
+	w, err := wallelib.ClaimWriter(ctx, c, "/mock/1", time.Second)
 	require.NoError(t, err)
 	defer w.Close()
 
