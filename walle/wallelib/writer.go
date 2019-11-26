@@ -16,6 +16,10 @@ const (
 	shortBeat = time.Millisecond
 )
 
+type Client interface {
+	ForStream(streamURI string) walleapi.WalleApiClient
+}
+
 func ClaimWriter(
 	ctx context.Context,
 	c Client,
