@@ -10,6 +10,7 @@ import (
 	walle_pb "github.com/zviadm/walle/proto/walle"
 )
 
+// Gap handler detects and fills gaps in streams in background.
 func (s *Server) gapHandler(ctx context.Context) {
 	for {
 		for _, streamURI := range s.s.Streams() {

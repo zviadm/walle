@@ -60,6 +60,7 @@ func (s *Server) PutEntryInternal(
 		if !ok {
 			// Try to fetch the committed entry from other servers and create a GAP locally to continue with
 			// the put.
+			// TODO(zviad): Should we first wait/retry CommitEntry? Maybe PutEntry calls are on the way already.
 			err := s.fetchAndStoreEntries(ctx, ss, req.CommittedEntryId, req.CommittedEntryId+1)
 			if err != nil {
 				return nil, status.Errorf(codes.OutOfRange, "commit entryId: %d, fetch err: %s", req.CommittedEntryId, err)
