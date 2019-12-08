@@ -1,4 +1,5 @@
 syntax = "proto3";
+option go_package = "github.com/zviadm/walle/proto/walle";
 
 import "walleapi/walleapi.proto";
 
@@ -7,7 +8,9 @@ service Walle {
 	rpc PutEntryInternal(PutEntryInternalRequest) returns (PutEntryInternalResponse) {}
 
 	rpc LastEntries(LastEntriesRequest) returns (LastEntriesResponse) {}
-	//rpc ReadEntries(ReadEntriesRequest) returns (stream Entry) {}
+	// NOTE: ReadEntries only returns committed entries. If it hits a GAP or end of the stream,
+	// it will return NOT_FOUND error.
+	rpc ReadEntries(ReadEntriesRequest) returns (stream Entry) {}
 }
 
 message StreamTopology {
@@ -44,11 +47,11 @@ message LastEntriesResponse {
 	repeated Entry entries = 1;
 }
 
-// message ReadEntriesRequest {
-// 	string stream_uri = 1;
-// 	string target_server_id = 2;
-// 	int64 stream_version = 3;
-//
-// 	// if from_entry_id is <0, will start streaming latest entries.
-// 	int64 from_entry_id = 4;
-// }
+message ReadEntriesRequest {
+	string server_id = 1;
+	string stream_uri = 2;
+	int64 stream_version = 3;
+
+	int64 start_entry_id = 4;
+	int64 end_entry_id = 5;
+}

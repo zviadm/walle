@@ -211,7 +211,7 @@ func (s *Server) broadcastRequest(
 	call func(c walle_pb.WalleClient, serverId string) error) ([]string, error) {
 	var successIds []string
 	var errs []error
-	// TODO(zviad): needs to be parallel/asynchronous
+	// TODO(zviad): needs to be done parallel.
 	for _, serverId := range serverIds {
 		c, err := s.c.ForServer(serverId)
 		if err != nil {

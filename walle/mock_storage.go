@@ -17,6 +17,8 @@ type mockStorage struct {
 }
 
 type mockStream struct {
+	streamURI string
+
 	mx       sync.Mutex
 	topology *walle_pb.StreamTopology
 
@@ -32,8 +34,9 @@ func newMockStorage(streamURIs []string, serverIds []string) *mockStorage {
 	streams := make(map[string]*mockStream, len(streamURIs))
 	for _, streamURI := range streamURIs {
 		streams[streamURI] = &mockStream{
-			topology: &walle_pb.StreamTopology{Version: 3, ServerIds: serverIds},
-			entries:  []*walleapi.Entry{&walleapi.Entry{ChecksumMd5: make([]byte, md5.Size)}},
+			streamURI: streamURI,
+			topology:  &walle_pb.StreamTopology{Version: 3, ServerIds: serverIds},
+			entries:   []*walleapi.Entry{&walleapi.Entry{ChecksumMd5: make([]byte, md5.Size)}},
 		}
 	}
 	return &mockStorage{streams: streams}
@@ -62,6 +65,10 @@ func (m *mockStream) Topology() *walle_pb.StreamTopology {
 	return m.topology
 }
 
+func (m *mockStream) StreamURI() string {
+	return m.streamURI
+}
+
 func (m *mockStream) WriterId() string {
 	m.mx.Lock()
 	defer m.mx.Unlock()
@@ -86,6 +93,19 @@ func (m *mockStream) LastEntries() []*walleapi.Entry {
 		rCopy[idx] = proto.Clone(entry).(*walleapi.Entry)
 	}
 	return rCopy
+}
+
+func (m *mockStream) CommittedEntryIds() (noGapCommittedIt int64, committedId int64) {
+	m.mx.Lock()
+	defer m.mx.Unlock()
+	return m.noGapCommitted, m.committed
+}
+func (m *mockStream) UpdateNoGapCommittedId(entryId int64) {
+	m.mx.Lock()
+	defer m.mx.Unlock()
+	if entryId > m.noGapCommitted {
+		m.noGapCommitted = entryId
+	}
 }
 
 func (m *mockStream) CommitEntry(entryId int64, entryMd5 []byte) bool {
@@ -150,6 +170,10 @@ func (m *mockStream) PutEntry(entry *walleapi.Entry, isCommitted bool) bool {
 		return true
 	}
 
+	// NOTE(zviad): if !isCommitted, writerId needs to be checked here again atomically, in the lock.
+	if !isCommitted && entry.WriterId != m.writerId {
+		return false
+	}
 	if int64(len(m.entries)) > entry.EntryId {
 		existingEntry := m.entries[int(entry.EntryId)]
 		if existingEntry.WriterId > entry.WriterId {
@@ -185,4 +209,27 @@ func (m *mockStream) unsafeMakeGapCommit(entry *walleapi.Entry) {
 	if !ok {
 		panic("DeveloperError; unreachable code reached!")
 	}
+}
+
+func (m *mockStream) ReadFrom(entryId int64) StreamCursor {
+	return &mockCursor{m: m, entryId: entryId}
+}
+
+type mockCursor struct {
+	m       *mockStream
+	entryId int64
+}
+
+func (m *mockCursor) Close() {}
+func (m *mockCursor) Next() (*walleapi.Entry, bool) {
+	m.m.mx.Lock()
+	defer m.m.mx.Unlock()
+	for m.entryId < int64(len(m.m.entries)) {
+		e := m.m.entries[m.entryId]
+		m.entryId += 1
+		if e != nil {
+			return e, true
+		}
+	}
+	return nil, false
 }

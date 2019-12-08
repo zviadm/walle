@@ -7,10 +7,10 @@ import (
 	context "context"
 	fmt "fmt"
 	proto "github.com/golang/protobuf/proto"
+	walleapi "github.com/zviadm/walle/proto/walleapi"
 	grpc "google.golang.org/grpc"
 	io "io"
 	math "math"
-	"github.com/zviadm/walle/proto/walleapi"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -425,6 +425,85 @@ func (m *LastEntriesResponse) GetEntries() []*walleapi.Entry {
 	return nil
 }
 
+type ReadEntriesRequest struct {
+	ServerId             string   `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	StreamUri            string   `protobuf:"bytes,2,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
+	StreamVersion        int64    `protobuf:"varint,3,opt,name=stream_version,json=streamVersion,proto3" json:"stream_version,omitempty"`
+	StartEntryId         int64    `protobuf:"varint,4,opt,name=start_entry_id,json=startEntryId,proto3" json:"start_entry_id,omitempty"`
+	EndEntryId           int64    `protobuf:"varint,5,opt,name=end_entry_id,json=endEntryId,proto3" json:"end_entry_id,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ReadEntriesRequest) Reset()         { *m = ReadEntriesRequest{} }
+func (m *ReadEntriesRequest) String() string { return proto.CompactTextString(m) }
+func (*ReadEntriesRequest) ProtoMessage()    {}
+func (*ReadEntriesRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_827f2b64ddfdb030, []int{7}
+}
+func (m *ReadEntriesRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ReadEntriesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ReadEntriesRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ReadEntriesRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ReadEntriesRequest.Merge(m, src)
+}
+func (m *ReadEntriesRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *ReadEntriesRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_ReadEntriesRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ReadEntriesRequest proto.InternalMessageInfo
+
+func (m *ReadEntriesRequest) GetServerId() string {
+	if m != nil {
+		return m.ServerId
+	}
+	return ""
+}
+
+func (m *ReadEntriesRequest) GetStreamUri() string {
+	if m != nil {
+		return m.StreamUri
+	}
+	return ""
+}
+
+func (m *ReadEntriesRequest) GetStreamVersion() int64 {
+	if m != nil {
+		return m.StreamVersion
+	}
+	return 0
+}
+
+func (m *ReadEntriesRequest) GetStartEntryId() int64 {
+	if m != nil {
+		return m.StartEntryId
+	}
+	return 0
+}
+
+func (m *ReadEntriesRequest) GetEndEntryId() int64 {
+	if m != nil {
+		return m.EndEntryId
+	}
+	return 0
+}
+
 func init() {
 	proto.RegisterType((*StreamTopology)(nil), "StreamTopology")
 	proto.RegisterType((*NewWriterRequest)(nil), "NewWriterRequest")
@@ -433,39 +512,45 @@ func init() {
 	proto.RegisterType((*PutEntryInternalResponse)(nil), "PutEntryInternalResponse")
 	proto.RegisterType((*LastEntriesRequest)(nil), "LastEntriesRequest")
 	proto.RegisterType((*LastEntriesResponse)(nil), "LastEntriesResponse")
+	proto.RegisterType((*ReadEntriesRequest)(nil), "ReadEntriesRequest")
 }
 
 func init() { proto.RegisterFile("walle/walle.proto", fileDescriptor_827f2b64ddfdb030) }
 
 var fileDescriptor_827f2b64ddfdb030 = []byte{
-	// 428 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x93, 0x4f, 0x6b, 0xd4, 0x40,
-	0x18, 0xc6, 0x77, 0xba, 0xee, 0xd6, 0xbc, 0xd5, 0x92, 0xbc, 0x11, 0x3a, 0xa6, 0x1a, 0x42, 0x40,
-	0xd8, 0x83, 0x4c, 0xa1, 0x5a, 0x04, 0x8f, 0x82, 0x87, 0x80, 0x8a, 0xc4, 0x3f, 0x3d, 0x2e, 0xd1,
-	0x0c, 0x32, 0x90, 0x64, 0xe2, 0xcc, 0x6c, 0x43, 0xbf, 0x86, 0x27, 0x3f, 0x90, 0x07, 0x8f, 0x7e,
-	0x04, 0x59, 0xbf, 0x84, 0x47, 0xc9, 0xcc, 0x66, 0xd9, 0xee, 0xda, 0x6b, 0x2f, 0x21, 0xf3, 0xbc,
-	0x33, 0xf3, 0xfc, 0xde, 0x27, 0x6f, 0x20, 0xe8, 0x8a, 0xaa, 0xe2, 0x27, 0xf6, 0xc9, 0x5a, 0x25,
-	0x8d, 0x8c, 0x8e, 0xec, 0xa2, 0x68, 0xc5, 0xc9, 0xf0, 0xe2, 0x0a, 0x69, 0x06, 0x87, 0xef, 0x8c,
-	0xe2, 0x45, 0xfd, 0x5e, 0xb6, 0xb2, 0x92, 0x5f, 0x2e, 0x91, 0xc2, 0xfe, 0x05, 0x57, 0x5a, 0xc8,
-	0x86, 0x92, 0x84, 0xcc, 0xc6, 0xf9, 0xb0, 0xc4, 0x87, 0x00, 0x9a, 0xab, 0x0b, 0xae, 0xe6, 0xa2,
-	0xd4, 0x74, 0x2f, 0x19, 0xcf, 0xbc, 0xdc, 0x73, 0x4a, 0x56, 0xea, 0xf4, 0x1b, 0x01, 0xff, 0x0d,
-	0xef, 0xce, 0x95, 0x30, 0x5c, 0xe5, 0xfc, 0xeb, 0x82, 0x6b, 0x83, 0xc7, 0xe0, 0xad, 0xcf, 0xd8,
-	0xfb, 0xbc, 0xfc, 0xf6, 0x70, 0xc4, 0x5e, 0x68, 0xcd, 0xe7, 0x0b, 0x25, 0xe8, 0x9e, 0xad, 0x7a,
-	0x4e, 0xf9, 0xa0, 0x04, 0x3e, 0x82, 0xc3, 0x55, 0x79, 0x00, 0x1a, 0x5b, 0xa0, 0xbb, 0x4e, 0xfd,
-	0xb8, 0xc2, 0x3a, 0x06, 0xaf, 0xb3, 0x9e, 0xbd, 0xc5, 0x2d, 0x67, 0xe1, 0x84, 0xac, 0x4c, 0x43,
-	0x08, 0x36, 0x98, 0x74, 0x2b, 0x1b, 0xcd, 0xd3, 0xbf, 0x04, 0x8e, 0xde, 0x2e, 0xcc, 0xcb, 0xc6,
-	0xa8, 0xcb, 0xac, 0x31, 0x5c, 0x35, 0x45, 0x75, 0x83, 0xc0, 0x0f, 0x60, 0xc2, 0x7b, 0x6b, 0x0b,
-	0x7b, 0x70, 0x3a, 0x65, 0x16, 0x24, 0x77, 0x22, 0x3e, 0x06, 0xfc, 0x2c, 0xeb, 0x5a, 0x18, 0xc3,
-	0xcb, 0xb9, 0x95, 0x7a, 0x92, 0x89, 0xbd, 0xc8, 0x5f, 0x57, 0x1c, 0x7b, 0x89, 0x0c, 0xc2, 0xed,
-	0xdd, 0x75, 0x79, 0x46, 0xa7, 0x09, 0x99, 0xdd, 0xc9, 0x83, 0xab, 0xdb, 0x5f, 0x97, 0x67, 0x69,
-	0x04, 0x74, 0xb7, 0xf3, 0x55, 0x2c, 0x1d, 0xe0, 0xab, 0x42, 0xdb, 0xa2, 0xe0, 0xfa, 0xe6, 0x02,
-	0x49, 0x9f, 0x41, 0x78, 0xc5, 0xd8, 0xf1, 0x60, 0x02, 0xfb, 0xdc, 0x49, 0x94, 0x24, 0xe3, 0x8d,
-	0xa4, 0x06, 0xf9, 0xf4, 0x07, 0x81, 0xc9, 0x79, 0x3f, 0xd0, 0xf8, 0x14, 0xbc, 0xf5, 0x77, 0xc6,
-	0x80, 0x6d, 0xcf, 0x61, 0x84, 0x6c, 0x77, 0x0c, 0x46, 0x98, 0x81, 0xbf, 0x9d, 0x06, 0x52, 0x76,
-	0xcd, 0x68, 0x44, 0xf7, 0xd9, 0xb5, 0xd1, 0x8d, 0xf0, 0x39, 0x1c, 0x6c, 0xf4, 0x80, 0x21, 0xdb,
-	0x8d, 0x32, 0xba, 0xc7, 0xfe, 0xd3, 0x66, 0x3a, 0x7a, 0xe1, 0xff, 0x5c, 0xc6, 0xe4, 0xd7, 0x32,
-	0x26, 0xbf, 0x97, 0x31, 0xf9, 0xfe, 0x27, 0x1e, 0x7d, 0x9a, 0xda, 0xbf, 0xf3, 0xc9, 0xbf, 0x00,
-	0x00, 0x00, 0xff, 0xff, 0xa7, 0x80, 0x73, 0x6d, 0xcb, 0x03, 0x00, 0x00,
+	// 505 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x54, 0xcf, 0x6e, 0xd3, 0x4e,
+	0x10, 0xf6, 0x36, 0x4d, 0xfa, 0xf3, 0x24, 0xbf, 0x2a, 0x19, 0x23, 0xd5, 0xb8, 0x10, 0x59, 0x06,
+	0xa4, 0x1c, 0xd0, 0x06, 0x15, 0x22, 0x24, 0x8e, 0x48, 0x1c, 0x2c, 0x01, 0x42, 0xe6, 0x4f, 0x25,
+	0x2e, 0x91, 0x5b, 0x8f, 0xca, 0x4a, 0xb1, 0x1d, 0xd6, 0x9b, 0x44, 0xe5, 0x31, 0x38, 0xf1, 0x36,
+	0x5c, 0x39, 0xf2, 0x08, 0x28, 0xbc, 0x02, 0x07, 0x8e, 0xc8, 0xbb, 0x71, 0x48, 0x63, 0x7a, 0xcd,
+	0xc5, 0xda, 0xfd, 0x66, 0x76, 0xbe, 0xcf, 0xf3, 0xcd, 0x2e, 0xf4, 0x16, 0xf1, 0x64, 0x42, 0x43,
+	0xfd, 0xe5, 0x53, 0x99, 0xab, 0xdc, 0x3b, 0xd2, 0x9b, 0x78, 0x2a, 0x86, 0xd5, 0xc2, 0x04, 0x82,
+	0x10, 0x0e, 0x5f, 0x2b, 0x49, 0x71, 0xfa, 0x26, 0x9f, 0xe6, 0x93, 0xfc, 0xe2, 0x12, 0x5d, 0x38,
+	0x98, 0x93, 0x2c, 0x44, 0x9e, 0xb9, 0xcc, 0x67, 0x83, 0x46, 0x54, 0x6d, 0xf1, 0x36, 0x40, 0x41,
+	0x72, 0x4e, 0x72, 0x2c, 0x92, 0xc2, 0xdd, 0xf3, 0x1b, 0x03, 0x3b, 0xb2, 0x0d, 0x12, 0x26, 0x45,
+	0xf0, 0x99, 0x41, 0xf7, 0x25, 0x2d, 0x4e, 0xa5, 0x50, 0x24, 0x23, 0xfa, 0x38, 0xa3, 0x42, 0xe1,
+	0x31, 0xd8, 0xeb, 0x33, 0xba, 0x9e, 0x1d, 0xfd, 0x57, 0x1d, 0xd1, 0x05, 0x35, 0xf9, 0x78, 0x26,
+	0x85, 0xbb, 0xa7, 0xa3, 0xb6, 0x41, 0xde, 0x4a, 0x81, 0xf7, 0xe0, 0x70, 0x15, 0xae, 0x04, 0x35,
+	0xb4, 0xa0, 0xff, 0x0d, 0xfa, 0x6e, 0x25, 0xeb, 0x18, 0xec, 0x85, 0xe6, 0x2c, 0x29, 0xf6, 0x0d,
+	0x85, 0x01, 0xc2, 0x24, 0x70, 0xa0, 0xb7, 0xa1, 0xa9, 0x98, 0xe6, 0x59, 0x41, 0xc1, 0x6f, 0x06,
+	0x47, 0xaf, 0x66, 0xea, 0x59, 0xa6, 0xe4, 0x65, 0x98, 0x29, 0x92, 0x59, 0x3c, 0xd9, 0xa1, 0xe0,
+	0x5b, 0xd0, 0xa4, 0x92, 0x5a, 0x8b, 0x6d, 0x9f, 0xb4, 0xb8, 0x16, 0x12, 0x19, 0x10, 0xef, 0x03,
+	0x9e, 0xe7, 0x69, 0x2a, 0x94, 0xa2, 0x64, 0xac, 0xa1, 0x52, 0x49, 0x53, 0x17, 0xea, 0xae, 0x23,
+	0x46, 0x7b, 0x82, 0x1c, 0x9c, 0xed, 0xec, 0x34, 0x19, 0xb9, 0x2d, 0x9f, 0x0d, 0x3a, 0x51, 0xef,
+	0x6a, 0xfa, 0x8b, 0x64, 0x14, 0x78, 0xe0, 0xd6, 0xff, 0x7c, 0xd5, 0x96, 0x05, 0xe0, 0xf3, 0xb8,
+	0xd0, 0x41, 0x41, 0xc5, 0xee, 0x1a, 0x12, 0x3c, 0x06, 0xe7, 0x0a, 0xb1, 0xd1, 0x83, 0x3e, 0x1c,
+	0x90, 0x81, 0x5c, 0xe6, 0x37, 0x36, 0x3a, 0x55, 0xc1, 0xc1, 0x57, 0x06, 0x18, 0x51, 0x9c, 0xec,
+	0x5c, 0x32, 0xde, 0x2d, 0xd3, 0x62, 0xa9, 0xfe, 0x3a, 0xb4, 0xaf, 0xd3, 0x3a, 0x1a, 0xad, 0xdc,
+	0xf1, 0xa1, 0x43, 0x59, 0xcd, 0x45, 0xa0, 0xac, 0xf2, 0xef, 0xe4, 0x17, 0x83, 0xe6, 0x69, 0x79,
+	0x25, 0xf1, 0x11, 0xd8, 0xeb, 0x49, 0xc5, 0x1e, 0xdf, 0xbe, 0x49, 0x1e, 0xf2, 0xfa, 0x20, 0x5b,
+	0x18, 0x42, 0x77, 0xdb, 0x4f, 0x74, 0xf9, 0x35, 0xc3, 0xed, 0xdd, 0xe4, 0xd7, 0x9a, 0x6f, 0xe1,
+	0x13, 0x68, 0x6f, 0xb8, 0x80, 0x0e, 0xaf, 0x0f, 0x83, 0x77, 0x83, 0xff, 0xc3, 0xa8, 0xc0, 0x42,
+	0x0e, 0xed, 0x0d, 0x1f, 0xd0, 0xe1, 0x75, 0x57, 0xbc, 0x95, 0x7b, 0x81, 0xf5, 0x80, 0x3d, 0x1d,
+	0x7d, 0x5b, 0xf6, 0xd9, 0xf7, 0x65, 0x9f, 0xfd, 0x58, 0xf6, 0xd9, 0x97, 0x9f, 0x7d, 0xeb, 0xfd,
+	0x9d, 0x0b, 0xa1, 0x3e, 0xcc, 0xce, 0xf8, 0x79, 0x9e, 0x0e, 0x3f, 0xcd, 0x45, 0x9c, 0xa4, 0xe6,
+	0xa9, 0x1a, 0xea, 0x77, 0xca, 0xac, 0xcf, 0x5a, 0x7a, 0xf3, 0xf0, 0x4f, 0x00, 0x00, 0x00, 0xff,
+	0xff, 0xb3, 0x4a, 0xbc, 0xcb, 0xe2, 0x04, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -483,6 +568,9 @@ type WalleClient interface {
 	NewWriter(ctx context.Context, in *NewWriterRequest, opts ...grpc.CallOption) (*NewWriterResponse, error)
 	PutEntryInternal(ctx context.Context, in *PutEntryInternalRequest, opts ...grpc.CallOption) (*PutEntryInternalResponse, error)
 	LastEntries(ctx context.Context, in *LastEntriesRequest, opts ...grpc.CallOption) (*LastEntriesResponse, error)
+	// NOTE: ReadEntries only returns committed entries. If it hits a GAP or end of the stream,
+	// it will return NOT_FOUND error.
+	ReadEntries(ctx context.Context, in *ReadEntriesRequest, opts ...grpc.CallOption) (Walle_ReadEntriesClient, error)
 }
 
 type walleClient struct {
@@ -520,11 +608,46 @@ func (c *walleClient) LastEntries(ctx context.Context, in *LastEntriesRequest, o
 	return out, nil
 }
 
+func (c *walleClient) ReadEntries(ctx context.Context, in *ReadEntriesRequest, opts ...grpc.CallOption) (Walle_ReadEntriesClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_Walle_serviceDesc.Streams[0], "/Walle/ReadEntries", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &walleReadEntriesClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type Walle_ReadEntriesClient interface {
+	Recv() (*walleapi.Entry, error)
+	grpc.ClientStream
+}
+
+type walleReadEntriesClient struct {
+	grpc.ClientStream
+}
+
+func (x *walleReadEntriesClient) Recv() (*walleapi.Entry, error) {
+	m := new(walleapi.Entry)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // WalleServer is the server API for Walle service.
 type WalleServer interface {
 	NewWriter(context.Context, *NewWriterRequest) (*NewWriterResponse, error)
 	PutEntryInternal(context.Context, *PutEntryInternalRequest) (*PutEntryInternalResponse, error)
 	LastEntries(context.Context, *LastEntriesRequest) (*LastEntriesResponse, error)
+	// NOTE: ReadEntries only returns committed entries. If it hits a GAP or end of the stream,
+	// it will return NOT_FOUND error.
+	ReadEntries(*ReadEntriesRequest, Walle_ReadEntriesServer) error
 }
 
 func RegisterWalleServer(s *grpc.Server, srv WalleServer) {
@@ -585,6 +708,27 @@ func _Walle_LastEntries_Handler(srv interface{}, ctx context.Context, dec func(i
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Walle_ReadEntries_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ReadEntriesRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(WalleServer).ReadEntries(m, &walleReadEntriesServer{stream})
+}
+
+type Walle_ReadEntriesServer interface {
+	Send(*walleapi.Entry) error
+	grpc.ServerStream
+}
+
+type walleReadEntriesServer struct {
+	grpc.ServerStream
+}
+
+func (x *walleReadEntriesServer) Send(m *walleapi.Entry) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 var _Walle_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "Walle",
 	HandlerType: (*WalleServer)(nil),
@@ -602,7 +746,13 @@ var _Walle_serviceDesc = grpc.ServiceDesc{
 			Handler:    _Walle_LastEntries_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "ReadEntries",
+			Handler:       _Walle_ReadEntries_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "walle/walle.proto",
 }
 
@@ -863,6 +1013,54 @@ func (m *LastEntriesResponse) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
+func (m *ReadEntriesRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ReadEntriesRequest) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.ServerId) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintWalle(dAtA, i, uint64(len(m.ServerId)))
+		i += copy(dAtA[i:], m.ServerId)
+	}
+	if len(m.StreamUri) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintWalle(dAtA, i, uint64(len(m.StreamUri)))
+		i += copy(dAtA[i:], m.StreamUri)
+	}
+	if m.StreamVersion != 0 {
+		dAtA[i] = 0x18
+		i++
+		i = encodeVarintWalle(dAtA, i, uint64(m.StreamVersion))
+	}
+	if m.StartEntryId != 0 {
+		dAtA[i] = 0x20
+		i++
+		i = encodeVarintWalle(dAtA, i, uint64(m.StartEntryId))
+	}
+	if m.EndEntryId != 0 {
+		dAtA[i] = 0x28
+		i++
+		i = encodeVarintWalle(dAtA, i, uint64(m.EndEntryId))
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
 func encodeVarintWalle(dAtA []byte, offset int, v uint64) int {
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
@@ -1012,6 +1210,35 @@ func (m *LastEntriesResponse) Size() (n int) {
 			l = e.Size()
 			n += 1 + l + sovWalle(uint64(l))
 		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *ReadEntriesRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.ServerId)
+	if l > 0 {
+		n += 1 + l + sovWalle(uint64(l))
+	}
+	l = len(m.StreamUri)
+	if l > 0 {
+		n += 1 + l + sovWalle(uint64(l))
+	}
+	if m.StreamVersion != 0 {
+		n += 1 + sovWalle(uint64(m.StreamVersion))
+	}
+	if m.StartEntryId != 0 {
+		n += 1 + sovWalle(uint64(m.StartEntryId))
+	}
+	if m.EndEntryId != 0 {
+		n += 1 + sovWalle(uint64(m.EndEntryId))
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -1840,6 +2067,181 @@ func (m *LastEntriesResponse) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipWalle(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthWalle
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthWalle
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ReadEntriesRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowWalle
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ReadEntriesRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ReadEntriesRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ServerId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWalle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthWalle
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthWalle
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ServerId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StreamUri", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWalle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthWalle
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthWalle
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.StreamUri = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StreamVersion", wireType)
+			}
+			m.StreamVersion = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWalle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.StreamVersion |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StartEntryId", wireType)
+			}
+			m.StartEntryId = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWalle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.StartEntryId |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 5:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field EndEntryId", wireType)
+			}
+			m.EndEntryId = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWalle
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.EndEntryId |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skipWalle(dAtA[iNdEx:])

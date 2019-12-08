@@ -83,18 +83,30 @@ func (s *Server) LastEntries(
 	return &walle_pb.LastEntriesResponse{Entries: entries}, nil
 }
 
-// func (s *Server) ReadEntries(
-// 	req *walle_pb.ReadEntriesRequest, stream walle_pb.Walle_ReadEntriesServer) error {
-// 	ss, isTargeted, err := s.processRequestHeader(req)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	if !isTargeted {
-// 		return errors.Errorf("not implemented")
-// 	}
-//
-// 	//return &walle_pb.LastEntryResponse{Entries: entries}, nil
-// }
+func (s *Server) ReadEntries(
+	req *walle_pb.ReadEntriesRequest, stream walle_pb.Walle_ReadEntriesServer) error {
+	ss, err := s.processRequestHeader(req)
+	if err != nil {
+		return err
+	}
+	entryId := req.StartEntryId
+	cursor := ss.ReadFrom(entryId)
+	for entryId < req.EndEntryId {
+		entry, ok := cursor.Next()
+		if !ok {
+			return status.Error(codes.NotFound, "reached end of the stream")
+		}
+		if entry.EntryId != entryId {
+			return status.Errorf(codes.NotFound, "entry: %d is missing", entryId)
+		}
+		entryId += 1
+		err := stream.Send(entry)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 type requestHeader interface {
 	GetServerId() string
@@ -120,6 +132,14 @@ func (s *Server) checkServerId(serverId string) bool {
 	return serverId == s.serverId
 }
 
+func (s *Server) checkStreamVersion(streamURI string, reqStreamVersion int64, ss StreamMetadata) error {
+	version := ss.Topology().Version
+	if reqStreamVersion == version-1 || reqStreamVersion == version || reqStreamVersion == version+1 {
+		return nil
+	}
+	return errors.Errorf("stream[%s] incompatible version: %d vs %d", streamURI, reqStreamVersion, version)
+}
+
 // Checks writerId if it is still active for a given streamURI, and updates if necessary.
 func (s *Server) checkAndUpdateWriterId(streamURI string, writerId string, ss StreamMetadata) error {
 	ssWriterId := ss.WriterId()
@@ -136,12 +156,4 @@ func (s *Server) checkAndUpdateWriterId(streamURI string, writerId string, ss St
 		streamURI, hex.EncodeToString([]byte(ssWriterId)), hex.EncodeToString([]byte(writerId)))
 	ss.UpdateWriterId(writerId)
 	return nil
-}
-
-func (s *Server) checkStreamVersion(streamURI string, reqStreamVersion int64, ss StreamMetadata) error {
-	version := ss.Topology().Version
-	if reqStreamVersion == version-1 || reqStreamVersion == version || reqStreamVersion == version+1 {
-		return nil
-	}
-	return errors.Errorf("stream[%s] incompatible version: %d vs %d", streamURI, reqStreamVersion, version)
 }
