@@ -185,10 +185,12 @@ func (s *Server) PutEntry(
 	_, err := s.broadcastRequest(ctx, ssTopology.ServerIds,
 		func(c walle_pb.WalleClient, serverId string) error {
 			_, err := c.PutEntryInternal(ctx, &walle_pb.PutEntryInternalRequest{
-				ServerId:      serverId,
-				StreamUri:     req.StreamUri,
-				StreamVersion: ssTopology.Version,
-				Entry:         req.Entry,
+				ServerId:          serverId,
+				StreamUri:         req.StreamUri,
+				StreamVersion:     ssTopology.Version,
+				Entry:             req.Entry,
+				CommittedEntryId:  req.CommittedEntryId,
+				CommittedEntryMd5: req.CommittedEntryMd5,
 			})
 			return err
 		})

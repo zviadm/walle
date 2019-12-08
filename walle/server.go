@@ -27,6 +27,7 @@ func NewServer(ctx context.Context, serverId string, s Storage, c Client) *Serve
 		s:        s,
 		c:        c,
 	}
+	go r.catchUpHandler(ctx)
 	go r.gapHandler(ctx)
 	return r
 }
@@ -58,7 +59,7 @@ func (s *Server) PutEntryInternal(
 		// Perform commit first. If commit can't happen, there is no point in trying to perform the put.
 		ok := ss.CommitEntry(req.CommittedEntryId, req.CommittedEntryMd5)
 		if !ok {
-			return nil, status.Errorf(codes.OutOfRange, "TODO(zviad): error message")
+			return nil, status.Errorf(codes.OutOfRange, "commit entryId: %d", req.CommittedEntryId)
 		}
 	}
 	if req.Entry.EntryId == 0 {
@@ -68,7 +69,7 @@ func (s *Server) PutEntryInternal(
 	ok := ss.PutEntry(req.Entry, isCommitted)
 	// TODO(zviad): Should we wait a bit before letting client retry?
 	if !ok {
-		return nil, status.Errorf(codes.OutOfRange, "TODO(zviad): error message")
+		return nil, status.Errorf(codes.OutOfRange, "put entryId: %d, commitId: %d", req.Entry.EntryId, req.CommittedEntryId)
 	}
 	return &walle_pb.PutEntryInternalResponse{}, nil
 }

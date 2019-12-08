@@ -26,6 +26,7 @@ type mockStream struct {
 	entries        []*walleapi.Entry
 	committed      int64
 	noGapCommitted int64
+	maxCommitted   int64
 }
 
 var _ Storage = &mockStorage{}
@@ -95,10 +96,10 @@ func (m *mockStream) LastEntries() []*walleapi.Entry {
 	return rCopy
 }
 
-func (m *mockStream) CommittedEntryIds() (noGapCommittedIt int64, committedId int64) {
+func (m *mockStream) CommittedEntryIds() (noGapCommittedIt int64, committedId int64, maxCommittedId int64) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
-	return m.noGapCommitted, m.committed
+	return m.noGapCommitted, m.committed, m.maxCommitted
 }
 func (m *mockStream) UpdateNoGapCommittedId(entryId int64) {
 	m.mx.Lock()
@@ -117,6 +118,9 @@ func (m *mockStream) CommitEntry(entryId int64, entryMd5 []byte) bool {
 func (m *mockStream) unsafeCommitEntry(entryId int64, entryMd5 []byte, newGap bool) bool {
 	if entryId <= m.committed {
 		return true
+	}
+	if entryId > m.maxCommitted {
+		m.maxCommitted = entryId
 	}
 	if entryId >= int64(len(m.entries)) {
 		return false

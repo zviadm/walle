@@ -35,7 +35,7 @@ type StreamData interface {
 	CommitEntry(entryId int64, entryMd5 []byte) (success bool)
 	PutEntry(entry *walleapi.Entry, isCommitted bool) (success bool)
 
-	CommittedEntryIds() (noGapCommittedId int64, committedId int64)
+	CommittedEntryIds() (noGapCommittedId int64, committedId int64, maxCommittedId int64)
 	UpdateNoGapCommittedId(entryId int64)
 }
 

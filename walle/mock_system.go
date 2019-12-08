@@ -2,7 +2,9 @@ package walle
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"sync"
 
 	"google.golang.org/grpc"
 
@@ -13,11 +15,17 @@ import (
 
 type mockSystem struct {
 	walle_pb.WalleClient
-	servers map[string]*Server
+
+	mx         sync.Mutex
+	servers    map[string]*Server
+	isDisabled map[string]bool
 }
 
 func newMockSystem(ctx context.Context, serverIds []string) (*mockSystem, *mockApiClient) {
-	mSystem := &mockSystem{servers: make(map[string]*Server, len(serverIds))}
+	mSystem := &mockSystem{
+		servers:    make(map[string]*Server, len(serverIds)),
+		isDisabled: make(map[string]bool, len(serverIds)),
+	}
 	mClient := &mockClient{mSystem}
 	for _, serverId := range serverIds {
 		m := newMockStorage([]string{"/mock/1"}, serverIds)
@@ -26,13 +34,47 @@ func newMockSystem(ctx context.Context, serverIds []string) (*mockSystem, *mockA
 	return mSystem, &mockApiClient{mSystem}
 }
 
+func (m *mockSystem) Server(serverId string) (*Server, error) {
+	m.mx.Lock()
+	defer m.mx.Unlock()
+	if m.isDisabled[serverId] {
+		return nil, errors.Errorf("[%s] is unavailable!", serverId)
+	}
+	return m.servers[serverId], nil
+}
+
+func (m *mockSystem) RandServer() (*Server, error) {
+	m.mx.Lock()
+	defer m.mx.Unlock()
+	for serverId, s := range m.servers {
+		if m.isDisabled[serverId] {
+			continue
+		}
+		return s, nil
+	}
+	return nil, errors.Errorf("no servers available!")
+}
+
+func (m *mockSystem) Toggle(serverId string, enabled bool) {
+	m.mx.Lock()
+	defer m.mx.Unlock()
+	_, ok := m.servers[serverId]
+	if !ok {
+		panic(fmt.Sprintf("unknown serverId: %s", serverId))
+	}
+	m.isDisabled[serverId] = !enabled
+}
+
 type mockClient struct {
 	m *mockSystem
 }
 
 func (m *mockClient) ForServer(serverId string) (walle_pb.WalleClient, error) {
-	_, ok := m.m.servers[serverId]
-	if !ok {
+	s, err := m.m.Server(serverId)
+	if err != nil {
+		return nil, err
+	}
+	if s == nil {
 		return nil, errors.Errorf("unknown serverId: %s", serverId)
 	}
 	return m, nil
@@ -42,21 +84,33 @@ func (m *mockClient) PutEntryInternal(
 	ctx context.Context,
 	in *walle_pb.PutEntryInternalRequest,
 	opts ...grpc.CallOption) (*walle_pb.PutEntryInternalResponse, error) {
-	return m.m.servers[in.ServerId].PutEntryInternal(ctx, in)
+	s, err := m.m.Server(in.ServerId)
+	if err != nil {
+		return nil, err
+	}
+	return s.PutEntryInternal(ctx, in)
 }
 
 func (m *mockClient) NewWriter(
 	ctx context.Context,
 	in *walle_pb.NewWriterRequest,
 	opts ...grpc.CallOption) (*walle_pb.NewWriterResponse, error) {
-	return m.m.servers[in.ServerId].NewWriter(ctx, in)
+	s, err := m.m.Server(in.ServerId)
+	if err != nil {
+		return nil, err
+	}
+	return s.NewWriter(ctx, in)
 }
 
 func (m *mockClient) LastEntries(
 	ctx context.Context,
 	in *walle_pb.LastEntriesRequest,
 	opts ...grpc.CallOption) (*walle_pb.LastEntriesResponse, error) {
-	return m.m.servers[in.ServerId].LastEntries(ctx, in)
+	s, err := m.m.Server(in.ServerId)
+	if err != nil {
+		return nil, err
+	}
+	return s.LastEntries(ctx, in)
 }
 
 func (m *mockClient) ReadEntries(
@@ -64,9 +118,13 @@ func (m *mockClient) ReadEntries(
 	in *walle_pb.ReadEntriesRequest,
 	opts ...grpc.CallOption) (walle_pb.Walle_ReadEntriesClient, error) {
 
+	s, err := m.m.Server(in.ServerId)
+	if err != nil {
+		return nil, err
+	}
 	sClient, sServer, closeF := newMockReadEntriesStreams(ctx, 2)
 	go func() {
-		err := m.m.servers[in.ServerId].ReadEntries(in, sServer)
+		err := s.ReadEntries(in, sServer)
 		closeF(err)
 	}()
 	return sClient, nil
@@ -136,18 +194,20 @@ func (m *mockApiClient) ClaimWriter(
 	ctx context.Context,
 	in *walleapi.ClaimWriterRequest,
 	opts ...grpc.CallOption) (*walleapi.ClaimWriterResponse, error) {
-	for _, s := range m.m.servers {
-		return s.ClaimWriter(ctx, in)
+	s, err := m.m.RandServer()
+	if err != nil {
+		return nil, err
 	}
-	return nil, errors.Errorf("no servers")
+	return s.ClaimWriter(ctx, in)
 }
 
 func (m *mockApiClient) PutEntry(
 	ctx context.Context,
 	in *walleapi.PutEntryRequest,
 	opts ...grpc.CallOption) (*walleapi.PutEntryResponse, error) {
-	for _, s := range m.m.servers {
-		return s.PutEntry(ctx, in)
+	s, err := m.m.RandServer()
+	if err != nil {
+		return nil, err
 	}
-	return nil, errors.Errorf("no servers")
+	return s.PutEntry(ctx, in)
 }

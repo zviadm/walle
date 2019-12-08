@@ -10,6 +10,31 @@ import (
 	walle_pb "github.com/zviadm/walle/proto/walle"
 )
 
+func (s *Server) catchUpHandler(ctx context.Context) {
+	for {
+		for _, streamURI := range s.s.Streams() {
+			ss, ok := s.s.Stream(streamURI)
+			if !ok {
+				continue
+			}
+			_, committedId, maxCommittedId := ss.CommittedEntryIds()
+			if committedId >= maxCommittedId {
+				continue
+			}
+			err := s.fetchAndStoreEntries(ctx, ss, maxCommittedId, maxCommittedId+1)
+			if err != nil {
+				glog.Warningf("[%s] error catching up: %d -> %d, %s", ss.StreamURI(), committedId, maxCommittedId, err)
+			}
+			glog.Infof("[%s] catch up succeeded: %d -> %d", ss.StreamURI(), committedId, maxCommittedId)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+}
+
 func (s *Server) gapHandler(ctx context.Context) {
 	for {
 		for _, streamURI := range s.s.Streams() {
@@ -17,19 +42,20 @@ func (s *Server) gapHandler(ctx context.Context) {
 			if !ok {
 				continue
 			}
-			noGapCommittedId, committedId := ss.CommittedEntryIds()
-			if noGapCommittedId == committedId {
+			noGapCommittedId, committedId, _ := ss.CommittedEntryIds()
+			if noGapCommittedId >= committedId {
 				continue
 			}
 			err := s.gapHandlerForStream(ctx, ss, noGapCommittedId, committedId)
 			if err != nil {
-				glog.Warningf("[%s] error filling gap: %s", ss.StreamURI(), err)
+				glog.Warningf("[%s] error filling gap: %d -> %d, %s", ss.StreamURI(), noGapCommittedId, committedId, err)
 			}
+			glog.Infof("[%s] gap filled: %d -> %d", ss.StreamURI(), noGapCommittedId, committedId)
 		}
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(time.Second): // TODO(zviad): Do this based on notifications.
+		case <-time.After(time.Second): // TODO(zviad): Do this based on notifications?
 		}
 	}
 }
@@ -52,7 +78,7 @@ func (s *Server) gapHandlerForStream(
 			}
 		}
 		ss.UpdateNoGapCommittedId(entry.EntryId)
-		noGapCommittedId, committedId = ss.CommittedEntryIds()
+		noGapCommittedId, committedId, _ = ss.CommittedEntryIds()
 	}
 	return nil
 }
@@ -74,7 +100,7 @@ Main:
 
 		c, err := s.c.ForServer(serverId)
 		if err != nil {
-			glog.Warningf("[%s] failed to connect %s for fetching entries: %s", ss.StreamURI(), serverId, err)
+			glog.Warningf("[%s] failed to connect to: %s for fetching entries: %s", ss.StreamURI(), serverId, err)
 			continue
 		}
 		streamCtx, cancel := context.WithCancel(ctx)

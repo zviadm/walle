@@ -12,7 +12,7 @@ import (
 func TestProtocolBasicNewWriter(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	_, c := newMockSystem(ctx, []string{"1", "2", "3"})
+	_, c := newMockSystem(ctx, []string{"s1", "s2", "s3"})
 	w, err := wallelib.ClaimWriter(ctx, c, "/mock/1", time.Second)
 	require.NoError(t, err)
 	defer w.Close()
@@ -42,4 +42,57 @@ func TestProtocolBasicNewWriter(t *testing.T) {
 	// 	require.NoError(t, err)
 	// 	require.EqualValues(t, resp.Entries[0].EntryId, 2)
 	// }
+}
+
+func TestProtocolBasicGapCatchupRecovery(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	m, c := newMockSystem(ctx, []string{"s1", "s2", "s3"})
+	w, err := wallelib.ClaimWriter(ctx, c, "/mock/1", time.Second)
+	require.NoError(t, err)
+	defer w.Close()
+
+	ee, errC := w.PutEntry([]byte("d1"))
+	require.EqualValues(t, ee.EntryId, 1, "ee: %v", ee)
+	err = <-errC
+	require.NoError(t, err)
+
+	m.Toggle("s1", false)
+	_, errC = w.PutEntry([]byte("d2"))
+	err = <-errC
+	require.NoError(t, err)
+	_, errC = w.PutEntry([]byte("d3"))
+	err = <-errC
+	require.NoError(t, err)
+
+	m.Toggle("s2", false)
+	_, errC = w.PutEntry([]byte("d4"))
+	select {
+	case err = <-errC:
+		t.Fatalf("PutEntry must not have succeeded: %v", err)
+	case <-time.After(10 * time.Millisecond):
+	}
+
+	// server1 can only succeed if it can successfully catch up to server3.
+	m.Toggle("s1", true)
+	select {
+	case err = <-errC:
+	case <-time.After(time.Second):
+		t.Fatalf("PutEntry didn't succeed within a timeout")
+	}
+	require.NoError(t, err)
+
+	s1, _ := m.Server("s1")
+	ss1, _ := s1.s.Stream("/mock/1")
+	timeoutDeadline := time.Now().Add(3 * time.Second)
+	for {
+		noGap, committed, maxCommitted := ss1.CommittedEntryIds()
+		if noGap == committed && committed == maxCommitted {
+			break
+		}
+		if time.Now().After(timeoutDeadline) {
+			t.Fatalf("timedout waiting for GAP/Catchup Handler: %d -> %d -> %d", noGap, committed, maxCommitted)
+		}
+		time.Sleep(time.Second) // TODO(zviad): make this smaller and notify gap handler.
+	}
 }
