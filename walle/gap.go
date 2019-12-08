@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 )
 
@@ -113,5 +114,5 @@ Main:
 			}
 		}
 	}
-	return nil
+	return errors.Errorf("[%s] couldn't fetch all entries, tried all servers...", ss.StreamURI())
 }

@@ -21,12 +21,13 @@ type Client interface {
 	ForServer(serverId string) (walle_pb.WalleClient, error)
 }
 
-func NewServer(serverId string, s Storage, c Client) *Server {
+func NewServer(ctx context.Context, serverId string, s Storage, c Client) *Server {
 	r := &Server{
 		serverId: serverId,
 		s:        s,
 		c:        c,
 	}
+	go r.gapHandler(ctx)
 	return r
 }
 
@@ -37,7 +38,7 @@ func (s *Server) NewWriter(
 	if err != nil {
 		return nil, err
 	}
-	if err := s.checkAndUpdateWriterId(req.StreamUri, req.WriterId, ss); err != nil {
+	if err := s.checkAndUpdateWriterId(ss, req.WriterId); err != nil {
 		return nil, err
 	}
 	return &walle_pb.NewWriterResponse{}, nil
@@ -50,7 +51,7 @@ func (s *Server) PutEntryInternal(
 	if err != nil {
 		return nil, err
 	}
-	if err := s.checkAndUpdateWriterId(req.StreamUri, req.Entry.WriterId, ss); err != nil {
+	if err := s.checkAndUpdateWriterId(ss, req.Entry.WriterId); err != nil {
 		return nil, err
 	}
 	if req.Entry.EntryId == 0 || req.Entry.EntryId > req.CommittedEntryId {
@@ -122,7 +123,7 @@ func (s *Server) processRequestHeader(req requestHeader) (ss StreamStorage, err 
 	if !ok {
 		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found", req.GetStreamUri())
 	}
-	if err := s.checkStreamVersion(req.GetStreamUri(), req.GetStreamVersion(), ss); err != nil {
+	if err := s.checkStreamVersion(ss, req.GetStreamVersion()); err != nil {
 		return nil, err
 	}
 	return ss, nil
@@ -132,16 +133,16 @@ func (s *Server) checkServerId(serverId string) bool {
 	return serverId == s.serverId
 }
 
-func (s *Server) checkStreamVersion(streamURI string, reqStreamVersion int64, ss StreamMetadata) error {
+func (s *Server) checkStreamVersion(ss StreamMetadata, reqStreamVersion int64) error {
 	version := ss.Topology().Version
 	if reqStreamVersion == version-1 || reqStreamVersion == version || reqStreamVersion == version+1 {
 		return nil
 	}
-	return errors.Errorf("stream[%s] incompatible version: %d vs %d", streamURI, reqStreamVersion, version)
+	return errors.Errorf("stream[%s] incompatible version: %d vs %d", ss.StreamURI(), reqStreamVersion, version)
 }
 
 // Checks writerId if it is still active for a given streamURI, and updates if necessary.
-func (s *Server) checkAndUpdateWriterId(streamURI string, writerId string, ss StreamMetadata) error {
+func (s *Server) checkAndUpdateWriterId(ss StreamMetadata, writerId string) error {
 	ssWriterId := ss.WriterId()
 	if writerId < ssWriterId {
 		return status.Errorf(codes.FailedPrecondition, "writer no longer active: %s < %s", writerId, ssWriterId)
@@ -153,7 +154,7 @@ func (s *Server) checkAndUpdateWriterId(streamURI string, writerId string, ss St
 	}
 	glog.Infof(
 		"[%s] writerId: updating %s -> %s",
-		streamURI, hex.EncodeToString([]byte(ssWriterId)), hex.EncodeToString([]byte(writerId)))
+		ss.StreamURI(), hex.EncodeToString([]byte(ssWriterId)), hex.EncodeToString([]byte(writerId)))
 	ss.UpdateWriterId(writerId)
 	return nil
 }

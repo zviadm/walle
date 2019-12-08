@@ -16,12 +16,12 @@ type mockSystem struct {
 	servers map[string]*Server
 }
 
-func newMockSystem(serverIds []string) (*mockSystem, *mockApiClient) {
+func newMockSystem(ctx context.Context, serverIds []string) (*mockSystem, *mockApiClient) {
 	mSystem := &mockSystem{servers: make(map[string]*Server, len(serverIds))}
 	mClient := &mockClient{mSystem}
 	for _, serverId := range serverIds {
 		m := newMockStorage([]string{"/mock/1"}, serverIds)
-		mSystem.servers[serverId] = NewServer(serverId, m, mClient)
+		mSystem.servers[serverId] = NewServer(ctx, serverId, m, mClient)
 	}
 	return mSystem, &mockApiClient{mSystem}
 }

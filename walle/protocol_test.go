@@ -10,8 +10,9 @@ import (
 )
 
 func TestProtocolBasicNewWriter(t *testing.T) {
-	ctx := context.Background()
-	_, c := newMockSystem([]string{"1", "2", "3"})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	_, c := newMockSystem(ctx, []string{"1", "2", "3"})
 	w, err := wallelib.ClaimWriter(ctx, c, "/mock/1", time.Second)
 	require.NoError(t, err)
 	defer w.Close()
