@@ -10,31 +10,6 @@ import (
 	walle_pb "github.com/zviadm/walle/proto/walle"
 )
 
-func (s *Server) catchUpHandler(ctx context.Context) {
-	for {
-		for _, streamURI := range s.s.Streams() {
-			ss, ok := s.s.Stream(streamURI)
-			if !ok {
-				continue
-			}
-			_, committedId, maxCommittedId := ss.CommittedEntryIds()
-			if committedId >= maxCommittedId {
-				continue
-			}
-			err := s.fetchAndStoreEntries(ctx, ss, maxCommittedId, maxCommittedId+1)
-			if err != nil {
-				glog.Warningf("[%s] error catching up: %d -> %d, %s", ss.StreamURI(), committedId, maxCommittedId, err)
-			}
-			glog.Infof("[%s] catch up succeeded: %d -> %d", ss.StreamURI(), committedId, maxCommittedId)
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(100 * time.Millisecond):
-		}
-	}
-}
-
 func (s *Server) gapHandler(ctx context.Context) {
 	for {
 		for _, streamURI := range s.s.Streams() {

@@ -27,7 +27,6 @@ func NewServer(ctx context.Context, serverId string, s Storage, c Client) *Serve
 		s:        s,
 		c:        c,
 	}
-	go r.catchUpHandler(ctx)
 	go r.gapHandler(ctx)
 	return r
 }
@@ -59,7 +58,13 @@ func (s *Server) PutEntryInternal(
 		// Perform commit first. If commit can't happen, there is no point in trying to perform the put.
 		ok := ss.CommitEntry(req.CommittedEntryId, req.CommittedEntryMd5)
 		if !ok {
-			return nil, status.Errorf(codes.OutOfRange, "commit entryId: %d", req.CommittedEntryId)
+			// Try to fetch the committed entry from other servers and create a GAP locally to continue with
+			// the put.
+			err := s.fetchAndStoreEntries(ctx, ss, req.CommittedEntryId, req.CommittedEntryId+1)
+			if err != nil {
+				return nil, status.Errorf(codes.OutOfRange, "commit entryId: %d, fetch err: %s", req.CommittedEntryId, err)
+			}
+			glog.Infof("[%s] commit caught up to: %d (might have created a gap)", ss.StreamURI(), req.CommittedEntryId)
 		}
 	}
 	if req.Entry.EntryId == 0 {

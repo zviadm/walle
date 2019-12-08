@@ -44,7 +44,7 @@ func TestProtocolBasicNewWriter(t *testing.T) {
 	// }
 }
 
-func TestProtocolBasicGapCatchupRecovery(t *testing.T) {
+func TestProtocolBasicGapRecovery(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	m, c := newMockSystem(ctx, []string{"s1", "s2", "s3"})
@@ -66,14 +66,14 @@ func TestProtocolBasicGapCatchupRecovery(t *testing.T) {
 	require.NoError(t, err)
 
 	m.Toggle("s2", false)
-	_, errC = w.PutEntry([]byte("d4"))
+	eeD4, errC := w.PutEntry([]byte("d4"))
 	select {
 	case err = <-errC:
 		t.Fatalf("PutEntry must not have succeeded: %v", err)
 	case <-time.After(10 * time.Millisecond):
 	}
 
-	// server1 can only succeed if it can successfully catch up to server3.
+	// s1 will need to create a GAP to succeed with the PutEntry request.
 	m.Toggle("s1", true)
 	select {
 	case err = <-errC:
@@ -82,17 +82,33 @@ func TestProtocolBasicGapCatchupRecovery(t *testing.T) {
 	}
 	require.NoError(t, err)
 
-	s1, _ := m.Server("s1")
-	ss1, _ := s1.s.Stream("/mock/1")
-	timeoutDeadline := time.Now().Add(3 * time.Second)
+	ctxTimeout, _ := context.WithTimeout(ctx, 5*time.Second)
+	waitForCommitConvergence(t, ctxTimeout, m, "s1", "/mock/1", eeD4.EntryId)
+
+	m.Toggle("s2", true)
+	// If client heartbeat is working properly, once 's2' is healthy again, it should force
+	// it to catchup with rest of the servers.
+	waitForCommitConvergence(t, ctxTimeout, m, "s2", "/mock/1", eeD4.EntryId)
+}
+
+func waitForCommitConvergence(
+	t *testing.T,
+	ctx context.Context,
+	m *mockSystem,
+	serverId string,
+	streamURI string,
+	expectedCommitId int64) {
+	s1, _ := m.Server(serverId)
+	ss1, _ := s1.s.Stream(streamURI)
 	for {
 		noGap, committed, maxCommitted := ss1.CommittedEntryIds()
-		if noGap == committed && committed == maxCommitted {
+		if noGap == committed && committed == maxCommitted && maxCommitted == expectedCommitId {
 			break
 		}
-		if time.Now().After(timeoutDeadline) {
+		select {
+		case <-time.After(time.Second): // TODO(zviad): make this smaller and notify gap handler.
+		case <-ctx.Done():
 			t.Fatalf("timedout waiting for GAP/Catchup Handler: %d -> %d -> %d", noGap, committed, maxCommitted)
 		}
-		time.Sleep(time.Second) // TODO(zviad): make this smaller and notify gap handler.
 	}
 }
