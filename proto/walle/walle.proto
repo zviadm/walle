@@ -13,11 +13,6 @@ service Walle {
 	rpc ReadEntries(ReadEntriesRequest) returns (stream Entry) {}
 }
 
-message StreamTopology {
-	int64 version = 1;
-	repeated string server_ids = 2;
-}
-
 message NewWriterRequest {
 	string server_id = 1;
 	string stream_uri = 2;

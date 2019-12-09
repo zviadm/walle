@@ -16,16 +16,16 @@ const (
 	shortBeat = time.Millisecond
 )
 
-type Client interface {
-	ForStream(streamURI string) walleapi.WalleApiClient
-}
-
 func ClaimWriter(
 	ctx context.Context,
-	c Client,
+	c BasicClient,
 	streamURI string,
 	writerLease time.Duration) (*Writer, error) {
-	resp, err := c.ForStream(streamURI).ClaimWriter(
+	cli, err := c.ForStream(streamURI)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := cli.ClaimWriter(
 		ctx, &walleapi.ClaimWriterRequest{
 			StreamUri: streamURI,
 			LeaseMs:   writerLease.Nanoseconds() / 1000,
@@ -34,7 +34,7 @@ func ClaimWriter(
 		return nil, err
 	}
 	// TODO(zviad): Lease timer should be initialzied here.
-	_, err = c.ForStream(streamURI).PutEntry(ctx, &walleapi.PutEntryRequest{
+	_, err = cli.PutEntry(ctx, &walleapi.PutEntryRequest{
 		StreamUri:         streamURI,
 		Entry:             &walleapi.Entry{WriterId: resp.WriterId},
 		CommittedEntryId:  resp.LastEntry.EntryId,
@@ -51,7 +51,7 @@ func ClaimWriter(
 // Writer retries PutEntry calls internally indefinitely, until an unrecoverable error happens.
 // Once an error happens, writer is completely closed and can no longer be used to write any new entries.
 type Writer struct {
-	c           Client
+	c           BasicClient
 	streamURI   string
 	writerLease time.Duration
 	writerId    string
@@ -69,7 +69,7 @@ type Writer struct {
 }
 
 func newWriter(
-	c Client,
+	c BasicClient,
 	streamURI string,
 	writerLease time.Duration,
 	writerId string,
@@ -120,7 +120,11 @@ func (w *Writer) heartbeat() {
 		err := KeepTryingWithBackoff(
 			w.rootCtx, shortBeat, w.longBeat,
 			func(retryN uint) (bool, error) {
-				_, err := w.c.ForStream(w.streamURI).PutEntry(w.rootCtx, &walleapi.PutEntryRequest{
+				cli, err := w.c.ForStream(w.streamURI)
+				if err != nil {
+					return false, err
+				}
+				_, err = cli.PutEntry(w.rootCtx, &walleapi.PutEntryRequest{
 					StreamUri:         w.streamURI,
 					Entry:             &walleapi.Entry{WriterId: w.writerId},
 					CommittedEntryId:  entryId,
@@ -157,7 +161,11 @@ func (w *Writer) PutEntry(data []byte) (*walleapi.Entry, <-chan error) {
 				if committedEntryId > entry.EntryId {
 					committedEntryId = entry.EntryId
 				}
-				_, err := w.c.ForStream(w.streamURI).PutEntry(ctx, &walleapi.PutEntryRequest{
+				cli, err := w.c.ForStream(w.streamURI)
+				if err != nil {
+					return false, err
+				}
+				_, err = cli.PutEntry(ctx, &walleapi.PutEntryRequest{
 					StreamUri:         w.streamURI,
 					Entry:             entry,
 					CommittedEntryId:  committedEntryId,

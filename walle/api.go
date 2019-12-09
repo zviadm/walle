@@ -210,6 +210,9 @@ func (s *Server) StreamEntries(
 	entryId := req.FromEntryId
 	for {
 		_, committedId, notify := ss.CommittedEntryIds()
+		if entryId < 0 {
+			entryId = committedId
+		}
 		if entryId > committedId {
 			select {
 			case <-notify:

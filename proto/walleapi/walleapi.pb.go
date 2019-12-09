@@ -370,6 +370,116 @@ func (m *StreamEntriesRequest) GetFromEntryId() int64 {
 	return 0
 }
 
+type Topology struct {
+	Streams              map[string]*StreamTopology `protobuf:"bytes,1,rep,name=streams,proto3" json:"streams,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Servers              map[string]string          `protobuf:"bytes,2,rep,name=servers,proto3" json:"servers,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	XXX_NoUnkeyedLiteral struct{}                   `json:"-"`
+	XXX_unrecognized     []byte                     `json:"-"`
+	XXX_sizecache        int32                      `json:"-"`
+}
+
+func (m *Topology) Reset()         { *m = Topology{} }
+func (m *Topology) String() string { return proto.CompactTextString(m) }
+func (*Topology) ProtoMessage()    {}
+func (*Topology) Descriptor() ([]byte, []int) {
+	return fileDescriptor_3b522378fad0fbf4, []int{6}
+}
+func (m *Topology) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *Topology) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_Topology.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *Topology) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Topology.Merge(m, src)
+}
+func (m *Topology) XXX_Size() int {
+	return m.Size()
+}
+func (m *Topology) XXX_DiscardUnknown() {
+	xxx_messageInfo_Topology.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Topology proto.InternalMessageInfo
+
+func (m *Topology) GetStreams() map[string]*StreamTopology {
+	if m != nil {
+		return m.Streams
+	}
+	return nil
+}
+
+func (m *Topology) GetServers() map[string]string {
+	if m != nil {
+		return m.Servers
+	}
+	return nil
+}
+
+type StreamTopology struct {
+	Version              int64    `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
+	ServerIds            []string `protobuf:"bytes,2,rep,name=server_ids,json=serverIds,proto3" json:"server_ids,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *StreamTopology) Reset()         { *m = StreamTopology{} }
+func (m *StreamTopology) String() string { return proto.CompactTextString(m) }
+func (*StreamTopology) ProtoMessage()    {}
+func (*StreamTopology) Descriptor() ([]byte, []int) {
+	return fileDescriptor_3b522378fad0fbf4, []int{7}
+}
+func (m *StreamTopology) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *StreamTopology) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_StreamTopology.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *StreamTopology) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_StreamTopology.Merge(m, src)
+}
+func (m *StreamTopology) XXX_Size() int {
+	return m.Size()
+}
+func (m *StreamTopology) XXX_DiscardUnknown() {
+	xxx_messageInfo_StreamTopology.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_StreamTopology proto.InternalMessageInfo
+
+func (m *StreamTopology) GetVersion() int64 {
+	if m != nil {
+		return m.Version
+	}
+	return 0
+}
+
+func (m *StreamTopology) GetServerIds() []string {
+	if m != nil {
+		return m.ServerIds
+	}
+	return nil
+}
+
 func init() {
 	proto.RegisterType((*Entry)(nil), "Entry")
 	proto.RegisterType((*ClaimWriterRequest)(nil), "ClaimWriterRequest")
@@ -377,40 +487,52 @@ func init() {
 	proto.RegisterType((*PutEntryRequest)(nil), "PutEntryRequest")
 	proto.RegisterType((*PutEntryResponse)(nil), "PutEntryResponse")
 	proto.RegisterType((*StreamEntriesRequest)(nil), "StreamEntriesRequest")
+	proto.RegisterType((*Topology)(nil), "Topology")
+	proto.RegisterMapType((map[string]string)(nil), "Topology.ServersEntry")
+	proto.RegisterMapType((map[string]*StreamTopology)(nil), "Topology.StreamsEntry")
+	proto.RegisterType((*StreamTopology)(nil), "StreamTopology")
 }
 
 func init() { proto.RegisterFile("walleapi/walleapi.proto", fileDescriptor_3b522378fad0fbf4) }
 
 var fileDescriptor_3b522378fad0fbf4 = []byte{
-	// 448 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x93, 0xcf, 0x6e, 0x13, 0x31,
-	0x10, 0xc6, 0xe3, 0xa6, 0x7f, 0xb2, 0x93, 0x56, 0xa4, 0x93, 0x22, 0x42, 0x80, 0x28, 0xac, 0x04,
-	0xca, 0x01, 0x39, 0x10, 0x54, 0x09, 0x71, 0x03, 0xd4, 0x43, 0x0f, 0x45, 0x68, 0x11, 0xaa, 0xca,
-	0x65, 0xe5, 0xc6, 0x86, 0x5a, 0xac, 0xbb, 0x8b, 0xed, 0x6d, 0x05, 0x4f, 0xc2, 0x43, 0xc0, 0x7b,
-	0x70, 0xe4, 0x11, 0x50, 0x78, 0x11, 0x64, 0x3b, 0x7f, 0xba, 0x69, 0x0f, 0xb9, 0xcd, 0x7c, 0xb3,
-	0x1a, 0xfd, 0xbe, 0xcf, 0x3b, 0x70, 0xe7, 0x92, 0x65, 0x99, 0x60, 0x85, 0x1c, 0xce, 0x0a, 0x5a,
-	0xe8, 0xdc, 0xe6, 0xf1, 0x05, 0x6c, 0x1c, 0x9c, 0x5b, 0xfd, 0x0d, 0xef, 0x42, 0x43, 0xb8, 0x22,
-	0x95, 0xbc, 0x43, 0xfa, 0x64, 0x50, 0x4f, 0xb6, 0x7c, 0x7f, 0xc8, 0xf1, 0x1e, 0x44, 0x97, 0x5a,
-	0x5a, 0xa1, 0xdd, 0x6c, 0xad, 0x4f, 0x06, 0x51, 0xd2, 0x08, 0xc2, 0x21, 0x47, 0x84, 0x75, 0xce,
-	0x2c, 0xeb, 0xd4, 0xfb, 0x64, 0xb0, 0x9d, 0xf8, 0x1a, 0x1f, 0xc2, 0xf6, 0xf8, 0x4c, 0x8c, 0xbf,
-	0x98, 0x52, 0xa5, 0x8a, 0xef, 0x77, 0xd6, 0xfd, 0xac, 0x39, 0xd3, 0x8e, 0xf8, 0x7e, 0xfc, 0x16,
-	0xf0, 0x4d, 0xc6, 0xa4, 0x3a, 0xf6, 0x7b, 0x12, 0xf1, 0xb5, 0x14, 0xc6, 0xe2, 0x03, 0x00, 0x63,
-	0xb5, 0x60, 0x2a, 0x2d, 0xb5, 0xf4, 0x18, 0x51, 0x12, 0x05, 0xe5, 0x83, 0x96, 0x8e, 0x31, 0x13,
-	0xcc, 0x88, 0x54, 0x19, 0xcf, 0x51, 0x4f, 0xb6, 0x7c, 0x7f, 0x64, 0xe2, 0x13, 0x68, 0x57, 0xf6,
-	0x99, 0x22, 0x3f, 0x37, 0xa2, 0x8a, 0x4e, 0x96, 0xd0, 0x1f, 0x01, 0x64, 0xcc, 0xd8, 0xd4, 0xfb,
-	0xf4, 0x90, 0xcd, 0xd1, 0x26, 0xf5, 0x71, 0x24, 0x91, 0x9b, 0xf8, 0x32, 0xfe, 0x49, 0xe0, 0xd6,
-	0xbb, 0x32, 0x34, 0x2b, 0x82, 0xde, 0x87, 0x8d, 0xb0, 0x74, 0xad, 0xb2, 0x34, 0x88, 0xf8, 0x04,
-	0x70, 0x9c, 0x2b, 0x25, 0xad, 0x15, 0x3c, 0x9d, 0x87, 0x5e, 0xf7, 0x86, 0x5a, 0xf3, 0xc9, 0xc1,
-	0x34, 0x7d, 0x0a, 0xed, 0xe5, 0xaf, 0x17, 0x99, 0xee, 0x56, 0x3f, 0x77, 0xc9, 0x22, 0xb4, 0x16,
-	0xb4, 0x21, 0x86, 0xf8, 0x04, 0xf6, 0xde, 0x7b, 0x38, 0x27, 0x4b, 0x61, 0x56, 0xb4, 0x11, 0xc3,
-	0xce, 0x27, 0x9d, 0xab, 0x05, 0x63, 0x08, 0xbd, 0xe9, 0xc4, 0x29, 0xde, 0xe8, 0x17, 0x81, 0xc6,
-	0xb1, 0xfb, 0xa7, 0x5e, 0x15, 0x12, 0x5f, 0x42, 0xf3, 0xca, 0x2b, 0x60, 0x9b, 0x5e, 0x7f, 0xe3,
-	0xee, 0x1e, 0xbd, 0xe1, 0xa1, 0xe2, 0x1a, 0x3e, 0x83, 0xc6, 0x8c, 0x1b, 0x5b, 0x74, 0x29, 0xf0,
-	0xee, 0x2e, 0xbd, 0x66, 0xaa, 0x86, 0x23, 0xd8, 0xa9, 0xd8, 0xc2, 0xdb, 0xf4, 0x26, 0x9b, 0xdd,
-	0x69, 0xfe, 0x71, 0xed, 0x29, 0x79, 0xfd, 0xe2, 0xf7, 0xa4, 0x47, 0xfe, 0x4c, 0x7a, 0xe4, 0xef,
-	0xa4, 0x47, 0x7e, 0xfc, 0xeb, 0xd5, 0x3e, 0x3e, 0xfe, 0x2c, 0xed, 0x59, 0x79, 0x4a, 0xc7, 0xb9,
-	0x1a, 0x7e, 0xbf, 0x90, 0x8c, 0xab, 0x70, 0x24, 0x43, 0x7f, 0x21, 0xf3, 0x83, 0x39, 0xdd, 0xf4,
-	0xfd, 0xf3, 0xff, 0x01, 0x00, 0x00, 0xff, 0xff, 0x3c, 0xa6, 0x48, 0x2f, 0x4c, 0x03, 0x00, 0x00,
+	// 575 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x54, 0xcf, 0x6e, 0xd3, 0x30,
+	0x1c, 0xae, 0x9b, 0x75, 0x6d, 0x7e, 0xed, 0x58, 0xe7, 0x16, 0x28, 0x05, 0xaa, 0x12, 0x69, 0xa8,
+	0x07, 0xe4, 0x8e, 0xa2, 0x49, 0x53, 0x6f, 0x80, 0x76, 0xa8, 0xd0, 0x10, 0x0a, 0xa0, 0x69, 0x5c,
+	0xa2, 0xac, 0x31, 0x9b, 0xb5, 0xa4, 0x29, 0xb1, 0xd3, 0xa9, 0x3c, 0x09, 0x0f, 0x01, 0xef, 0xc1,
+	0x91, 0x47, 0x40, 0xe5, 0x21, 0xb8, 0x4e, 0xb6, 0x93, 0x36, 0xe9, 0x7a, 0xd8, 0xed, 0xf7, 0xc7,
+	0xbf, 0xcf, 0x9f, 0x3f, 0x7f, 0x36, 0x3c, 0xbc, 0x76, 0x7d, 0x9f, 0xba, 0x53, 0xd6, 0x4f, 0x03,
+	0x32, 0x8d, 0x42, 0x11, 0x5a, 0x33, 0x28, 0x1d, 0x4f, 0x44, 0x34, 0xc7, 0x8f, 0xa0, 0x42, 0x65,
+	0xe0, 0x30, 0xaf, 0x85, 0xba, 0xa8, 0x67, 0xd8, 0x65, 0x95, 0x8f, 0x3c, 0xfc, 0x18, 0xcc, 0xeb,
+	0x88, 0x09, 0x1a, 0xc9, 0x5e, 0xb1, 0x8b, 0x7a, 0xa6, 0x5d, 0xd1, 0x85, 0x91, 0x87, 0x31, 0x6c,
+	0x79, 0xae, 0x70, 0x5b, 0x46, 0x17, 0xf5, 0x6a, 0xb6, 0x8a, 0xf1, 0x33, 0xa8, 0x8d, 0x2f, 0xe9,
+	0xf8, 0x8a, 0xc7, 0x81, 0x13, 0x78, 0x87, 0xad, 0x2d, 0xd5, 0xab, 0xa6, 0xb5, 0x13, 0xef, 0xd0,
+	0x7a, 0x0f, 0xf8, 0xad, 0xef, 0xb2, 0xe0, 0x54, 0xe1, 0xd8, 0xf4, 0x5b, 0x4c, 0xb9, 0xc0, 0x4f,
+	0x01, 0xb8, 0x88, 0xa8, 0x1b, 0x38, 0x71, 0xc4, 0x14, 0x0d, 0xd3, 0x36, 0x75, 0xe5, 0x73, 0xc4,
+	0x24, 0x47, 0x9f, 0xba, 0x9c, 0x3a, 0x01, 0x57, 0x3c, 0x0c, 0xbb, 0xac, 0xf2, 0x13, 0x6e, 0x9d,
+	0x41, 0x23, 0x87, 0xc7, 0xa7, 0xe1, 0x84, 0xd3, 0x3c, 0x75, 0xb4, 0x46, 0x7d, 0x1f, 0xc0, 0x77,
+	0xb9, 0x70, 0xd4, 0x39, 0x15, 0xc9, 0xea, 0x60, 0x9b, 0x28, 0x39, 0x6c, 0x53, 0x76, 0x54, 0x68,
+	0xfd, 0x44, 0xb0, 0xfb, 0x21, 0xd6, 0xc9, 0x1d, 0x89, 0x3e, 0x81, 0x92, 0x06, 0x2d, 0xe6, 0x40,
+	0x75, 0x11, 0xbf, 0x00, 0x3c, 0x0e, 0x83, 0x80, 0x09, 0x41, 0x3d, 0x67, 0x29, 0xba, 0xa1, 0x0e,
+	0x54, 0x5f, 0x76, 0x8e, 0x13, 0xf5, 0x09, 0x34, 0xd6, 0x57, 0xaf, 0x34, 0xdd, 0xcb, 0x2f, 0x97,
+	0xca, 0x62, 0xa8, 0xaf, 0xd8, 0x6a, 0x19, 0xac, 0x33, 0x68, 0x7e, 0x54, 0xe4, 0x64, 0x99, 0x51,
+	0x7e, 0xc7, 0x63, 0x58, 0xb0, 0xf3, 0x35, 0x0a, 0x83, 0x15, 0x47, 0x2d, 0x7a, 0x55, 0x16, 0x13,
+	0x7a, 0xd6, 0x7f, 0x04, 0x95, 0x4f, 0xe1, 0x34, 0xf4, 0xc3, 0x8b, 0x39, 0x3e, 0x80, 0xb2, 0x9e,
+	0xe6, 0x2d, 0xd4, 0x35, 0x7a, 0xd5, 0xc1, 0x03, 0x92, 0xf6, 0x88, 0x26, 0xc0, 0x35, 0xb1, 0x74,
+	0x99, 0x9a, 0xa0, 0xd1, 0x8c, 0x46, 0xf2, 0x46, 0xd7, 0x27, 0x74, 0x23, 0x9d, 0xd0, 0x59, 0xfb,
+	0x1d, 0xd4, 0xb2, 0x50, 0xb8, 0x0e, 0xc6, 0x15, 0x9d, 0x27, 0xe4, 0x65, 0x88, 0xf7, 0xa1, 0x34,
+	0x73, 0xfd, 0x98, 0x26, 0xea, 0xef, 0x26, 0x5b, 0xa7, 0xb8, 0xb6, 0xee, 0x0e, 0x8b, 0x47, 0xa8,
+	0x3d, 0x84, 0x5a, 0x76, 0x97, 0x0d, 0x60, 0xcd, 0x2c, 0x98, 0x99, 0x99, 0xb5, 0x46, 0x70, 0x2f,
+	0x0f, 0x8c, 0x5b, 0x50, 0x96, 0x50, 0x2c, 0x9c, 0xa4, 0x4f, 0x28, 0x49, 0x95, 0xd0, 0x6a, 0x1f,
+	0x87, 0x79, 0xfa, 0xa4, 0x52, 0x68, 0x55, 0x19, 0x79, 0x7c, 0xf0, 0x0b, 0x41, 0xe5, 0x54, 0x3e,
+	0xcc, 0xd7, 0x53, 0x86, 0x87, 0x50, 0xcd, 0x58, 0x19, 0x37, 0xc8, 0xed, 0x87, 0xd2, 0x6e, 0x92,
+	0x0d, 0x6e, 0xb7, 0x0a, 0xf8, 0x25, 0x54, 0xd2, 0xcb, 0xc7, 0x75, 0xb2, 0xe6, 0xda, 0xf6, 0x1e,
+	0xb9, 0xe5, 0x8c, 0x02, 0x1e, 0xc0, 0x4e, 0xce, 0x1b, 0xf8, 0x3e, 0xd9, 0xe4, 0x95, 0x76, 0x62,
+	0x62, 0xab, 0x70, 0x80, 0xde, 0x1c, 0xfd, 0x5e, 0x74, 0xd0, 0x9f, 0x45, 0x07, 0xfd, 0x5d, 0x74,
+	0xd0, 0x8f, 0x7f, 0x9d, 0xc2, 0x97, 0xe7, 0x17, 0x4c, 0x5c, 0xc6, 0xe7, 0x64, 0x1c, 0x06, 0xfd,
+	0xef, 0x33, 0xe6, 0x7a, 0x81, 0xfe, 0x69, 0xfa, 0xea, 0x9b, 0x59, 0xfe, 0x3a, 0xe7, 0xdb, 0x2a,
+	0x7f, 0x75, 0x13, 0x00, 0x00, 0xff, 0xff, 0x6c, 0x36, 0x66, 0x7f, 0x91, 0x04, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -793,6 +915,113 @@ func (m *StreamEntriesRequest) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
+func (m *Topology) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *Topology) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Streams) > 0 {
+		for k, _ := range m.Streams {
+			dAtA[i] = 0xa
+			i++
+			v := m.Streams[k]
+			msgSize := 0
+			if v != nil {
+				msgSize = v.Size()
+				msgSize += 1 + sovWalleapi(uint64(msgSize))
+			}
+			mapSize := 1 + len(k) + sovWalleapi(uint64(len(k))) + msgSize
+			i = encodeVarintWalleapi(dAtA, i, uint64(mapSize))
+			dAtA[i] = 0xa
+			i++
+			i = encodeVarintWalleapi(dAtA, i, uint64(len(k)))
+			i += copy(dAtA[i:], k)
+			if v != nil {
+				dAtA[i] = 0x12
+				i++
+				i = encodeVarintWalleapi(dAtA, i, uint64(v.Size()))
+				n3, err := v.MarshalTo(dAtA[i:])
+				if err != nil {
+					return 0, err
+				}
+				i += n3
+			}
+		}
+	}
+	if len(m.Servers) > 0 {
+		for k, _ := range m.Servers {
+			dAtA[i] = 0x12
+			i++
+			v := m.Servers[k]
+			mapSize := 1 + len(k) + sovWalleapi(uint64(len(k))) + 1 + len(v) + sovWalleapi(uint64(len(v)))
+			i = encodeVarintWalleapi(dAtA, i, uint64(mapSize))
+			dAtA[i] = 0xa
+			i++
+			i = encodeVarintWalleapi(dAtA, i, uint64(len(k)))
+			i += copy(dAtA[i:], k)
+			dAtA[i] = 0x12
+			i++
+			i = encodeVarintWalleapi(dAtA, i, uint64(len(v)))
+			i += copy(dAtA[i:], v)
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *StreamTopology) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *StreamTopology) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Version != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintWalleapi(dAtA, i, uint64(m.Version))
+	}
+	if len(m.ServerIds) > 0 {
+		for _, s := range m.ServerIds {
+			dAtA[i] = 0x12
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
 func encodeVarintWalleapi(dAtA []byte, offset int, v uint64) int {
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
@@ -919,6 +1148,60 @@ func (m *StreamEntriesRequest) Size() (n int) {
 	}
 	if m.FromEntryId != 0 {
 		n += 1 + sovWalleapi(uint64(m.FromEntryId))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *Topology) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.Streams) > 0 {
+		for k, v := range m.Streams {
+			_ = k
+			_ = v
+			l = 0
+			if v != nil {
+				l = v.Size()
+				l += 1 + sovWalleapi(uint64(l))
+			}
+			mapEntrySize := 1 + len(k) + sovWalleapi(uint64(len(k))) + l
+			n += mapEntrySize + 1 + sovWalleapi(uint64(mapEntrySize))
+		}
+	}
+	if len(m.Servers) > 0 {
+		for k, v := range m.Servers {
+			_ = k
+			_ = v
+			mapEntrySize := 1 + len(k) + sovWalleapi(uint64(len(k))) + 1 + len(v) + sovWalleapi(uint64(len(v)))
+			n += mapEntrySize + 1 + sovWalleapi(uint64(mapEntrySize))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *StreamTopology) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Version != 0 {
+		n += 1 + sovWalleapi(uint64(m.Version))
+	}
+	if len(m.ServerIds) > 0 {
+		for _, s := range m.ServerIds {
+			l = len(s)
+			n += 1 + l + sovWalleapi(uint64(l))
+		}
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -1648,6 +1931,421 @@ func (m *StreamEntriesRequest) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipWalleapi(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthWalleapi
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthWalleapi
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *Topology) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowWalleapi
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Topology: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Topology: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Streams", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWalleapi
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthWalleapi
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthWalleapi
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Streams == nil {
+				m.Streams = make(map[string]*StreamTopology)
+			}
+			var mapkey string
+			var mapvalue *StreamTopology
+			for iNdEx < postIndex {
+				entryPreIndex := iNdEx
+				var wire uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowWalleapi
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					wire |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				fieldNum := int32(wire >> 3)
+				if fieldNum == 1 {
+					var stringLenmapkey uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowWalleapi
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapkey |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapkey := int(stringLenmapkey)
+					if intStringLenmapkey < 0 {
+						return ErrInvalidLengthWalleapi
+					}
+					postStringIndexmapkey := iNdEx + intStringLenmapkey
+					if postStringIndexmapkey < 0 {
+						return ErrInvalidLengthWalleapi
+					}
+					if postStringIndexmapkey > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
+					iNdEx = postStringIndexmapkey
+				} else if fieldNum == 2 {
+					var mapmsglen int
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowWalleapi
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						mapmsglen |= int(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					if mapmsglen < 0 {
+						return ErrInvalidLengthWalleapi
+					}
+					postmsgIndex := iNdEx + mapmsglen
+					if postmsgIndex < 0 {
+						return ErrInvalidLengthWalleapi
+					}
+					if postmsgIndex > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapvalue = &StreamTopology{}
+					if err := mapvalue.Unmarshal(dAtA[iNdEx:postmsgIndex]); err != nil {
+						return err
+					}
+					iNdEx = postmsgIndex
+				} else {
+					iNdEx = entryPreIndex
+					skippy, err := skipWalleapi(dAtA[iNdEx:])
+					if err != nil {
+						return err
+					}
+					if skippy < 0 {
+						return ErrInvalidLengthWalleapi
+					}
+					if (iNdEx + skippy) > postIndex {
+						return io.ErrUnexpectedEOF
+					}
+					iNdEx += skippy
+				}
+			}
+			m.Streams[mapkey] = mapvalue
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Servers", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWalleapi
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthWalleapi
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthWalleapi
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Servers == nil {
+				m.Servers = make(map[string]string)
+			}
+			var mapkey string
+			var mapvalue string
+			for iNdEx < postIndex {
+				entryPreIndex := iNdEx
+				var wire uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowWalleapi
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					wire |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				fieldNum := int32(wire >> 3)
+				if fieldNum == 1 {
+					var stringLenmapkey uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowWalleapi
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapkey |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapkey := int(stringLenmapkey)
+					if intStringLenmapkey < 0 {
+						return ErrInvalidLengthWalleapi
+					}
+					postStringIndexmapkey := iNdEx + intStringLenmapkey
+					if postStringIndexmapkey < 0 {
+						return ErrInvalidLengthWalleapi
+					}
+					if postStringIndexmapkey > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
+					iNdEx = postStringIndexmapkey
+				} else if fieldNum == 2 {
+					var stringLenmapvalue uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowWalleapi
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapvalue |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapvalue := int(stringLenmapvalue)
+					if intStringLenmapvalue < 0 {
+						return ErrInvalidLengthWalleapi
+					}
+					postStringIndexmapvalue := iNdEx + intStringLenmapvalue
+					if postStringIndexmapvalue < 0 {
+						return ErrInvalidLengthWalleapi
+					}
+					if postStringIndexmapvalue > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapvalue = string(dAtA[iNdEx:postStringIndexmapvalue])
+					iNdEx = postStringIndexmapvalue
+				} else {
+					iNdEx = entryPreIndex
+					skippy, err := skipWalleapi(dAtA[iNdEx:])
+					if err != nil {
+						return err
+					}
+					if skippy < 0 {
+						return ErrInvalidLengthWalleapi
+					}
+					if (iNdEx + skippy) > postIndex {
+						return io.ErrUnexpectedEOF
+					}
+					iNdEx += skippy
+				}
+			}
+			m.Servers[mapkey] = mapvalue
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipWalleapi(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthWalleapi
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthWalleapi
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *StreamTopology) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowWalleapi
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: StreamTopology: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: StreamTopology: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Version", wireType)
+			}
+			m.Version = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWalleapi
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Version |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ServerIds", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWalleapi
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthWalleapi
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthWalleapi
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ServerIds = append(m.ServerIds, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipWalleapi(dAtA[iNdEx:])

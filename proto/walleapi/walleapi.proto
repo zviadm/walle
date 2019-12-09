@@ -37,3 +37,13 @@ message StreamEntriesRequest {
 	string stream_uri = 1;
 	int64 from_entry_id = 2;
 }
+
+message Topology {
+	map<string, StreamTopology> streams = 1; // URI -> StreamTopology
+	map<string, string> servers = 2; // ID -> ADDR
+}
+
+message StreamTopology {
+	int64 version = 1;
+	repeated string server_ids = 2;
+}
