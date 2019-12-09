@@ -22,11 +22,11 @@ type mockStream struct {
 	mx       sync.Mutex
 	topology *walle_pb.StreamTopology
 
-	writerId       string
-	entries        []*walleapi.Entry
-	committed      int64
-	noGapCommitted int64
-	maxCommitted   int64
+	writerId        string
+	entries         []*walleapi.Entry
+	committed       int64
+	noGapCommitted  int64
+	committedNotify chan struct{}
 }
 
 var _ Storage = &mockStorage{}
@@ -35,9 +35,10 @@ func newMockStorage(streamURIs []string, serverIds []string) *mockStorage {
 	streams := make(map[string]*mockStream, len(streamURIs))
 	for _, streamURI := range streamURIs {
 		streams[streamURI] = &mockStream{
-			streamURI: streamURI,
-			topology:  &walle_pb.StreamTopology{Version: 3, ServerIds: serverIds},
-			entries:   []*walleapi.Entry{&walleapi.Entry{ChecksumMd5: make([]byte, md5.Size)}},
+			streamURI:       streamURI,
+			topology:        &walle_pb.StreamTopology{Version: 3, ServerIds: serverIds},
+			entries:         []*walleapi.Entry{&walleapi.Entry{ChecksumMd5: make([]byte, md5.Size)}},
+			committedNotify: make(chan struct{}),
 		}
 	}
 	return &mockStorage{streams: streams}
@@ -96,16 +97,18 @@ func (m *mockStream) LastEntries() []*walleapi.Entry {
 	return rCopy
 }
 
-func (m *mockStream) CommittedEntryIds() (noGapCommittedIt int64, committedId int64, maxCommittedId int64) {
+func (m *mockStream) CommittedEntryIds() (noGapCommittedIt int64, committedId int64, notify <-chan struct{}) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
-	return m.noGapCommitted, m.committed, m.maxCommitted
+	return m.noGapCommitted, m.committed, m.committedNotify
 }
 func (m *mockStream) UpdateNoGapCommittedId(entryId int64) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	if entryId > m.noGapCommitted {
 		m.noGapCommitted = entryId
+		close(m.committedNotify)
+		m.committedNotify = make(chan struct{})
 	}
 }
 
@@ -119,9 +122,6 @@ func (m *mockStream) unsafeCommitEntry(entryId int64, entryMd5 []byte, newGap bo
 	if entryId <= m.committed {
 		return true
 	}
-	if entryId > m.maxCommitted {
-		m.maxCommitted = entryId
-	}
 	if entryId >= int64(len(m.entries)) {
 		return false
 	}
@@ -132,6 +132,8 @@ func (m *mockStream) unsafeCommitEntry(entryId int64, entryMd5 []byte, newGap bo
 		m.noGapCommitted = entryId
 	}
 	m.committed = entryId
+	close(m.committedNotify)
+	m.committedNotify = make(chan struct{})
 	return true
 }
 

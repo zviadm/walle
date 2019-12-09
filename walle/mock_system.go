@@ -211,3 +211,10 @@ func (m *mockApiClient) PutEntry(
 	}
 	return s.PutEntry(ctx, in)
 }
+
+func (m *mockApiClient) StreamEntries(
+	ctx context.Context,
+	req *walleapi.StreamEntriesRequest,
+	opts ...grpc.CallOption) (walleapi.WalleApi_StreamEntriesClient, error) {
+	return nil, errors.Errorf("not implemented")
+}

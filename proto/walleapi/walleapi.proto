@@ -4,6 +4,7 @@ option go_package = "github.com/zviadm/walle/proto/walleapi";
 service WalleApi {
 	rpc ClaimWriter(ClaimWriterRequest) returns (ClaimWriterResponse) {}
 	rpc PutEntry(PutEntryRequest) returns (PutEntryResponse) {}
+	rpc StreamEntries(StreamEntriesRequest) returns (stream Entry) {}
 }
 
 message Entry {
@@ -30,4 +31,9 @@ message PutEntryRequest {
 	bytes committed_entry_md5 = 4;
 }
 message PutEntryResponse {
+}
+
+message StreamEntriesRequest {
+	string stream_uri = 1;
+	int64 from_entry_id = 2;
 }

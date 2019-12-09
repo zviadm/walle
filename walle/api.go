@@ -200,6 +200,44 @@ func (s *Server) PutEntry(
 	return &walleapi.PutEntryResponse{}, nil
 }
 
+func (s *Server) StreamEntries(
+	req *walleapi.StreamEntriesRequest,
+	stream walleapi.WalleApi_StreamEntriesServer) error {
+	ss, ok := s.s.Stream(req.GetStreamUri())
+	if !ok {
+		return status.Errorf(codes.NotFound, "streamURI: %s not found", req.GetStreamUri())
+	}
+	entryId := req.FromEntryId
+	for {
+		_, committedId, notify := ss.CommittedEntryIds()
+		if entryId > committedId {
+			select {
+			case <-notify:
+			case <-stream.Context().Done():
+				// TODO(zviad): return nil, only if writer heartbeat is alive.
+				return nil
+			}
+			continue
+		}
+		cursor := ss.ReadFrom(entryId)
+		entry, ok := cursor.Next()
+		if !ok {
+			return status.Errorf(codes.Internal, "committed entry missing? %d <= %d", entryId, committedId)
+		}
+		if entry.EntryId > entryId {
+			if err := s.fetchAndStoreEntries(
+				stream.Context(), ss, entryId, entry.EntryId, stream.Send); err != nil {
+				return err
+			}
+		}
+		entryId = entry.EntryId + 1
+		err := stream.Send(entry)
+		if err != nil {
+			return err
+		}
+	}
+}
+
 func makeWriterId() string {
 	writerId := make([]byte, 16)
 	binary.BigEndian.PutUint64(writerId[0:8], uint64(time.Now().UnixNano()))

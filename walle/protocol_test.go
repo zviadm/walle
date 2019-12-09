@@ -82,7 +82,8 @@ func TestProtocolBasicGapRecovery(t *testing.T) {
 	}
 	require.NoError(t, err)
 
-	ctxTimeout, _ := context.WithTimeout(ctx, 5*time.Second)
+	ctxTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
 	waitForCommitConvergence(t, ctxTimeout, m, "s1", "/mock/1", eeD4.EntryId)
 
 	m.Toggle("s2", true)
@@ -101,14 +102,14 @@ func waitForCommitConvergence(
 	s1, _ := m.Server(serverId)
 	ss1, _ := s1.s.Stream(streamURI)
 	for {
-		noGap, committed, maxCommitted := ss1.CommittedEntryIds()
-		if noGap == committed && committed == maxCommitted && maxCommitted == expectedCommitId {
+		noGap, committed, notify := ss1.CommittedEntryIds()
+		if noGap == committed && committed == expectedCommitId {
 			break
 		}
 		select {
-		case <-time.After(time.Second): // TODO(zviad): make this smaller and notify gap handler.
+		case <-notify:
 		case <-ctx.Done():
-			t.Fatalf("timedout waiting for GAP/Catchup Handler: %d -> %d -> %d", noGap, committed, maxCommitted)
+			t.Fatalf("timedout waiting for GAP/Catchup Handler: %d -> %d != %d", noGap, committed, expectedCommitId)
 		}
 	}
 }

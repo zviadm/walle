@@ -8,6 +8,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
+	"github.com/zviadm/walle/proto/walleapi"
 )
 
 // Gap handler detects and fills gaps in streams in background.
@@ -48,7 +49,7 @@ func (s *Server) gapHandlerForStream(
 			panic("DeveloperError; CommittedEntry wasn't found by cursor!")
 		}
 		if entry.EntryId > noGapCommittedId+1 {
-			err := s.fetchAndStoreEntries(ctx, ss, noGapCommittedId+1, entry.EntryId)
+			err := s.fetchAndStoreEntries(ctx, ss, noGapCommittedId+1, entry.EntryId, nil)
 			if err != nil {
 				return err
 			}
@@ -65,7 +66,8 @@ func (s *Server) gapHandlerForStream(
 func (s *Server) fetchAndStoreEntries(
 	ctx context.Context,
 	ss StreamStorage,
-	startId int64, endId int64) error {
+	startId int64, endId int64,
+	processEntry func(entry *walleapi.Entry) error) error {
 
 	ssTopology := ss.Topology()
 Main:
@@ -113,6 +115,11 @@ Main:
 			ok := ss.PutEntry(entry, true)
 			if !ok {
 				panic("DeveloperError; Putting CommittedEntry must always succeed!")
+			}
+			if processEntry != nil {
+				if err := processEntry(entry); err != nil {
+					return err
+				}
 			}
 		}
 	}
