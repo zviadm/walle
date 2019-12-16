@@ -16,10 +16,12 @@ type mockStorage struct {
 }
 
 type mockStream struct {
+	serverId  string
 	streamURI string
 
 	mx       sync.Mutex
 	topology *walleapi.StreamTopology
+	isLocal  bool
 
 	writerId        string
 	entries         []*walleapi.Entry
@@ -30,15 +32,17 @@ type mockStream struct {
 
 var _ Storage = &mockStorage{}
 
-func newMockStorage(streamURIs []string, serverIds []string) *mockStorage {
+func newMockStorage(serverId string, streamURIs []string, serverIds []string) *mockStorage {
 	streams := make(map[string]*mockStream, len(streamURIs))
 	for _, streamURI := range streamURIs {
-		streams[streamURI] = &mockStream{
+		s := &mockStream{
+			serverId:        serverId,
 			streamURI:       streamURI,
-			topology:        &walleapi.StreamTopology{Version: 3, ServerIds: serverIds},
 			entries:         []*walleapi.Entry{&walleapi.Entry{ChecksumMd5: make([]byte, md5.Size)}},
 			committedNotify: make(chan struct{}),
 		}
+		s.UpdateTopology(&walleapi.StreamTopology{Version: 3, ServerIds: serverIds})
+		streams[streamURI] = s
 	}
 	return &mockStorage{streams: streams}
 }
@@ -47,7 +51,10 @@ func (m *mockStorage) Streams(localOnly bool) []string {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	r := make([]string, 0, len(m.streams))
-	for streamURI := range m.streams {
+	for streamURI, s := range m.streams {
+		if localOnly && !s.IsLocal() {
+			continue
+		}
 		r = append(r, streamURI)
 	}
 	return r
@@ -57,6 +64,9 @@ func (m *mockStorage) Stream(streamURI string, localOnly bool) (StreamStorage, b
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	r, ok := m.streams[streamURI]
+	if ok && localOnly && !r.IsLocal() {
+		return nil, false
+	}
 	return r, ok
 }
 
@@ -70,6 +80,19 @@ func (m *mockStream) UpdateTopology(topology *walleapi.StreamTopology) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	m.topology = topology
+	m.isLocal = false
+	for _, serverId := range m.topology.ServerIds {
+		if serverId == m.serverId {
+			m.isLocal = true
+			break
+		}
+	}
+}
+
+func (m *mockStream) IsLocal() bool {
+	m.mx.Lock()
+	defer m.mx.Unlock()
+	return m.isLocal
 }
 
 func (m *mockStream) StreamURI() string {

@@ -28,7 +28,7 @@ func newMockSystem(ctx context.Context, serverIds []string) (*mockSystem, *mockA
 	}
 	mClient := &mockClient{mSystem}
 	for _, serverId := range serverIds {
-		m := newMockStorage([]string{"/mock/1"}, serverIds)
+		m := newMockStorage(serverId, []string{"/mock/1"}, serverIds)
 		mSystem.servers[serverId] = NewServer(ctx, serverId, m, mClient)
 	}
 	return mSystem, &mockApiClient{mSystem}
