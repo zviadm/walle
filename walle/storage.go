@@ -1,15 +1,17 @@
 package walle
 
 import (
-	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
 )
 
 // Storage is expected to be thread-safe.
 // Storage might cause panics for unrecoverable errors.
 type Storage interface {
-	Streams() []string
-	Stream(streamURI string) (StreamStorage, bool)
+	Streams(localOnly bool) []string
+	Stream(streamURI string, localOnly bool) (StreamStorage, bool)
+
+	//NewStream(streamURI string, topology *walleapi.Topology)
+	//RemoveStream(streamURI string)
 }
 
 // StreamStorage is expected to be thread-safe.
@@ -25,7 +27,8 @@ type StreamMetadata interface {
 	// Expected to have internal check to make sure stored writerId never decreases.
 	UpdateWriterId(writerId string)
 
-	Topology() *walle_pb.StreamTopology
+	Topology() *walleapi.StreamTopology
+	UpdateTopology(topology *walleapi.StreamTopology)
 }
 
 // StreamData is expected to be thread-safe.

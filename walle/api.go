@@ -17,9 +17,9 @@ import (
 func (s *Server) ClaimWriter(
 	ctx context.Context,
 	req *walleapi.ClaimWriterRequest) (*walleapi.ClaimWriterResponse, error) {
-	ss, ok := s.s.Stream(req.GetStreamUri())
+	ss, ok := s.s.Stream(req.GetStreamUri(), true)
 	if !ok {
-		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found", req.GetStreamUri())
+		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found locally", req.GetStreamUri())
 	}
 	writerId := makeWriterId()
 	ssTopology := ss.Topology()
@@ -177,9 +177,9 @@ func (s *Server) commitMaxEntry(
 func (s *Server) PutEntry(
 	ctx context.Context, req *walleapi.PutEntryRequest) (*walleapi.PutEntryResponse, error) {
 
-	ss, ok := s.s.Stream(req.GetStreamUri())
+	ss, ok := s.s.Stream(req.GetStreamUri(), true)
 	if !ok {
-		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found", req.GetStreamUri())
+		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found locally", req.GetStreamUri())
 	}
 	ssTopology := ss.Topology()
 	_, err := s.broadcastRequest(ctx, ssTopology.ServerIds,
@@ -203,9 +203,9 @@ func (s *Server) PutEntry(
 func (s *Server) StreamEntries(
 	req *walleapi.StreamEntriesRequest,
 	stream walleapi.WalleApi_StreamEntriesServer) error {
-	ss, ok := s.s.Stream(req.GetStreamUri())
+	ss, ok := s.s.Stream(req.GetStreamUri(), true)
 	if !ok {
-		return status.Errorf(codes.NotFound, "streamURI: %s not found", req.GetStreamUri())
+		return status.Errorf(codes.NotFound, "streamURI: %s not found locally", req.GetStreamUri())
 	}
 	entryId := req.FromEntryId
 	for {
@@ -256,10 +256,16 @@ func (s *Server) broadcastRequest(
 	var errs []error
 	// TODO(zviad): needs to be done parallel.
 	for _, serverId := range serverIds {
-		c, err := s.c.ForServer(serverId)
-		if err != nil {
-			errs = append(errs, err)
-			continue
+		var c walle_pb.WalleClient
+		var err error
+		if serverId == s.serverId {
+			// c should be self wrapped server.
+		} else {
+			c, err = s.c.ForServer(serverId)
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
 		}
 		err = call(c, serverId)
 		if err != nil {

@@ -6,7 +6,6 @@ import (
 	"sync"
 
 	"github.com/gogo/protobuf/proto"
-	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/wallelib"
 )
@@ -20,7 +19,7 @@ type mockStream struct {
 	streamURI string
 
 	mx       sync.Mutex
-	topology *walle_pb.StreamTopology
+	topology *walleapi.StreamTopology
 
 	writerId        string
 	entries         []*walleapi.Entry
@@ -36,7 +35,7 @@ func newMockStorage(streamURIs []string, serverIds []string) *mockStorage {
 	for _, streamURI := range streamURIs {
 		streams[streamURI] = &mockStream{
 			streamURI:       streamURI,
-			topology:        &walle_pb.StreamTopology{Version: 3, ServerIds: serverIds},
+			topology:        &walleapi.StreamTopology{Version: 3, ServerIds: serverIds},
 			entries:         []*walleapi.Entry{&walleapi.Entry{ChecksumMd5: make([]byte, md5.Size)}},
 			committedNotify: make(chan struct{}),
 		}
@@ -44,7 +43,7 @@ func newMockStorage(streamURIs []string, serverIds []string) *mockStorage {
 	return &mockStorage{streams: streams}
 }
 
-func (m *mockStorage) Streams() []string {
+func (m *mockStorage) Streams(localOnly bool) []string {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	r := make([]string, 0, len(m.streams))
@@ -54,17 +53,23 @@ func (m *mockStorage) Streams() []string {
 	return r
 }
 
-func (m *mockStorage) Stream(streamURI string) (StreamStorage, bool) {
+func (m *mockStorage) Stream(streamURI string, localOnly bool) (StreamStorage, bool) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	r, ok := m.streams[streamURI]
 	return r, ok
 }
 
-func (m *mockStream) Topology() *walle_pb.StreamTopology {
+func (m *mockStream) Topology() *walleapi.StreamTopology {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	return m.topology
+}
+
+func (m *mockStream) UpdateTopology(topology *walleapi.StreamTopology) {
+	m.mx.Lock()
+	defer m.mx.Unlock()
+	m.topology = topology
 }
 
 func (m *mockStream) StreamURI() string {

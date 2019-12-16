@@ -14,8 +14,8 @@ import (
 // Gap handler detects and fills gaps in streams in background.
 func (s *Server) gapHandler(ctx context.Context) {
 	for {
-		for _, streamURI := range s.s.Streams() {
-			ss, ok := s.s.Stream(streamURI)
+		for _, streamURI := range s.s.Streams(true) {
+			ss, ok := s.s.Stream(streamURI, true)
 			if !ok {
 				continue
 			}

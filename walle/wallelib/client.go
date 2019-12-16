@@ -100,7 +100,7 @@ func (c *client) ForStream(streamURI string) (walleapi.WalleApiClient, error) {
 		}
 		return walleapi.NewWalleApiClient(conn), nil
 	}
-	return nil, errors.Errorf("connections to servers for: %s are all in failed state")
+	return nil, errors.Errorf("connections to servers for: %s are all in failed state", streamURI)
 }
 
 func (c *client) ForServer(serverId string) (walle_pb.WalleClient, error) {

@@ -100,7 +100,7 @@ func waitForCommitConvergence(
 	streamURI string,
 	expectedCommitId int64) {
 	s1, _ := m.Server(serverId)
-	ss1, _ := s1.s.Stream(streamURI)
+	ss1, _ := s1.s.Stream(streamURI, false)
 	for {
 		noGap, committed, notify := ss1.CommittedEntryIds()
 		if noGap == committed && committed == expectedCommitId {

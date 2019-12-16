@@ -7,6 +7,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
+	"github.com/zviadm/walle/walle/wallelib"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -21,14 +22,44 @@ type Client interface {
 	ForServer(serverId string) (walle_pb.WalleClient, error)
 }
 
-func NewServer(ctx context.Context, serverId string, s Storage, c Client) *Server {
+func NewServer(
+	ctx context.Context,
+	serverId string,
+	s Storage,
+	c Client,
+	d wallelib.Discovery) *Server {
 	r := &Server{
 		serverId: serverId,
 		s:        s,
 		c:        c,
 	}
+	go r.topologyWatcher(ctx, d)
 	go r.gapHandler(ctx)
 	return r
+}
+
+func (s *Server) topologyWatcher(ctx context.Context, d wallelib.Discovery) {
+	for {
+		topology, notify := d.Topology()
+		streamURIs := s.s.Streams(false)
+		for _, streamURI := range streamURIs {
+			streamT, ok := topology.Streams[streamURI]
+			if !ok {
+				// For safety, if a stream is removed, it is assumed that it still stays in topology with
+				// empty list of serverIds. If for some reason streamURI isn't in the list, it is assumed that
+				// topology read from discovery is just an older version.
+				continue
+			}
+			ss, _ := s.s.Stream(streamURI, false) // This can't fail.
+			ss.UpdateTopology(streamT)
+		}
+
+		select {
+		case <-notify:
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 func (s *Server) NewWriter(
@@ -126,9 +157,9 @@ func (s *Server) processRequestHeader(req requestHeader) (ss StreamStorage, err 
 	if !s.checkServerId(req.GetServerId()) {
 		return nil, status.Errorf(codes.NotFound, "invalid serverId: %s", req.GetServerId())
 	}
-	ss, ok := s.s.Stream(req.GetStreamUri())
+	ss, ok := s.s.Stream(req.GetStreamUri(), true)
 	if !ok {
-		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found", req.GetStreamUri())
+		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found locally", req.GetStreamUri())
 	}
 	if err := s.checkStreamVersion(ss, req.GetStreamVersion()); err != nil {
 		return nil, err
