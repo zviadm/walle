@@ -254,19 +254,16 @@ func (s *Server) broadcastRequest(
 	call func(c walle_pb.WalleClient, serverId string) error) ([]string, error) {
 	var successIds []string
 	var errs []error
-	// TODO(zviad): needs to be done parallel.
+	// TODO(zviad): needs to be done in parallel.
 	for _, serverId := range serverIds {
 		var c walle_pb.WalleClient
 		var err error
-		// if serverId == s.serverId {
-		// 	// c should be self wrapped server.
-		// } else {
+		// if serverId == s.serverId ==> c should be self wrapped server.
 		c, err = s.c.ForServer(serverId)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
-		// }
 		err = call(c, serverId)
 		if err != nil {
 			errs = append(errs, err)
