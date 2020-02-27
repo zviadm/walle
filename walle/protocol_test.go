@@ -6,13 +6,25 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/wallelib"
 )
+
+// Example simple topology.
+var topoSimple = &walleapi.Topology{
+	Streams: map[string]*walleapi.StreamTopology{
+		"/mock/1": &walleapi.StreamTopology{
+			Version:   3,
+			ServerIds: []string{"s1", "s2", "s3"},
+		},
+	},
+	Servers: map[string]string{"s1": "s1", "s2": "s2", "s3": "s3"},
+}
 
 func TestProtocolBasicNewWriter(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	_, c := newMockSystem(ctx, []string{"s1", "s2", "s3"})
+	_, c := newMockSystem(ctx, topoSimple)
 	w, err := wallelib.ClaimWriter(ctx, c, "/mock/1", time.Second)
 	require.NoError(t, err)
 	defer w.Close()
@@ -47,7 +59,7 @@ func TestProtocolBasicNewWriter(t *testing.T) {
 func TestProtocolBasicGapRecovery(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	m, c := newMockSystem(ctx, []string{"s1", "s2", "s3"})
+	m, c := newMockSystem(ctx, topoSimple)
 	w, err := wallelib.ClaimWriter(ctx, c, "/mock/1", time.Second)
 	require.NoError(t, err)
 	defer w.Close()

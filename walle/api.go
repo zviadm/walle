@@ -258,15 +258,15 @@ func (s *Server) broadcastRequest(
 	for _, serverId := range serverIds {
 		var c walle_pb.WalleClient
 		var err error
-		if serverId == s.serverId {
-			// c should be self wrapped server.
-		} else {
-			c, err = s.c.ForServer(serverId)
-			if err != nil {
-				errs = append(errs, err)
-				continue
-			}
+		// if serverId == s.serverId {
+		// 	// c should be self wrapped server.
+		// } else {
+		c, err = s.c.ForServer(serverId)
+		if err != nil {
+			errs = append(errs, err)
+			continue
 		}
+		// }
 		err = call(c, serverId)
 		if err != nil {
 			errs = append(errs, err)

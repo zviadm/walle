@@ -7,6 +7,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
+	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/wallelib"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -33,32 +34,35 @@ func NewServer(
 		s:        s,
 		c:        c,
 	}
-	go r.topologyWatcher(ctx, d)
+	topology, notify := d.Topology()
+	r.updateTopology(topology)
+
+	go r.topologyWatcher(ctx, d, notify)
 	go r.gapHandler(ctx)
 	return r
 }
 
-func (s *Server) topologyWatcher(ctx context.Context, d wallelib.Discovery) {
+func (s *Server) topologyWatcher(ctx context.Context, d wallelib.Discovery, notify <-chan struct{}) {
 	for {
-		topology, notify := d.Topology()
-		streamURIs := s.s.Streams(false)
-		for _, streamURI := range streamURIs {
-			streamT, ok := topology.Streams[streamURI]
-			if !ok {
-				// For safety, if a stream is removed, it is assumed that it still stays in topology with
-				// empty list of serverIds. If for some reason streamURI isn't in the list, it is assumed that
-				// topology read from discovery is just an older version.
-				continue
-			}
-			ss, _ := s.s.Stream(streamURI, false) // This can't fail.
-			ss.UpdateTopology(streamT)
-		}
-
 		select {
 		case <-notify:
 		case <-ctx.Done():
 			return
 		}
+		var topology *walleapi.Topology
+		topology, notify = d.Topology()
+		s.updateTopology(topology)
+	}
+}
+func (s *Server) updateTopology(t *walleapi.Topology) {
+	for streamURI, streamT := range t.Streams {
+		ss, ok := s.s.Stream(streamURI, false)
+		if ok {
+			ss.UpdateTopology(streamT)
+			continue
+		}
+		glog.Infof("[%s] creating with topology: %+v", streamURI, streamT)
+		s.s.NewStream(streamURI, streamT)
 	}
 }
 

@@ -11,8 +11,9 @@ import (
 )
 
 type mockStorage struct {
-	mx      sync.Mutex
-	streams map[string]*mockStream
+	serverId string
+	mx       sync.Mutex
+	streams  map[string]*mockStream
 }
 
 type mockStream struct {
@@ -32,19 +33,11 @@ type mockStream struct {
 
 var _ Storage = &mockStorage{}
 
-func newMockStorage(serverId string, streamURIs []string, serverIds []string) *mockStorage {
-	streams := make(map[string]*mockStream, len(streamURIs))
-	for _, streamURI := range streamURIs {
-		s := &mockStream{
-			serverId:        serverId,
-			streamURI:       streamURI,
-			entries:         []*walleapi.Entry{&walleapi.Entry{ChecksumMd5: make([]byte, md5.Size)}},
-			committedNotify: make(chan struct{}),
-		}
-		s.UpdateTopology(&walleapi.StreamTopology{Version: 3, ServerIds: serverIds})
-		streams[streamURI] = s
+func newMockStorage(serverId string) *mockStorage {
+	return &mockStorage{
+		serverId: serverId,
+		streams:  make(map[string]*mockStream),
 	}
-	return &mockStorage{streams: streams}
 }
 
 func (m *mockStorage) Streams(localOnly bool) []string {
@@ -68,6 +61,20 @@ func (m *mockStorage) Stream(streamURI string, localOnly bool) (StreamStorage, b
 		return nil, false
 	}
 	return r, ok
+}
+
+func (m *mockStorage) NewStream(streamURI string, t *walleapi.StreamTopology) {
+	s := &mockStream{
+		serverId:        m.serverId,
+		streamURI:       streamURI,
+		entries:         []*walleapi.Entry{&walleapi.Entry{ChecksumMd5: make([]byte, md5.Size)}},
+		committedNotify: make(chan struct{}),
+	}
+	s.UpdateTopology(t)
+
+	m.mx.Lock()
+	defer m.mx.Unlock()
+	m.streams[streamURI] = s
 }
 
 func (m *mockStream) Topology() *walleapi.StreamTopology {

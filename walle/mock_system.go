@@ -15,23 +15,29 @@ import (
 
 type mockSystem struct {
 	walle_pb.WalleClient
+	topology *walleapi.Topology
 
 	mx         sync.Mutex
 	servers    map[string]*Server
 	isDisabled map[string]bool
 }
 
-func newMockSystem(ctx context.Context, serverIds []string) (*mockSystem, *mockApiClient) {
+func newMockSystem(ctx context.Context, topology *walleapi.Topology) (*mockSystem, *mockApiClient) {
 	mSystem := &mockSystem{
-		servers:    make(map[string]*Server, len(serverIds)),
-		isDisabled: make(map[string]bool, len(serverIds)),
+		topology:   topology,
+		servers:    make(map[string]*Server, len(topology.Servers)),
+		isDisabled: make(map[string]bool, len(topology.Servers)),
 	}
 	mClient := &mockClient{mSystem}
-	for _, serverId := range serverIds {
-		m := newMockStorage(serverId, []string{"/mock/1"}, serverIds)
-		mSystem.servers[serverId] = NewServer(ctx, serverId, m, mClient)
+	for serverId := range topology.Servers {
+		m := newMockStorage(serverId)
+		mSystem.servers[serverId] = NewServer(ctx, serverId, m, mClient, mSystem)
 	}
 	return mSystem, &mockApiClient{mSystem}
+}
+
+func (m *mockSystem) Topology() (*walleapi.Topology, <-chan struct{}) {
+	return m.topology, make(chan struct{})
 }
 
 func (m *mockSystem) Server(serverId string) (*Server, error) {
@@ -40,7 +46,11 @@ func (m *mockSystem) Server(serverId string) (*Server, error) {
 	if m.isDisabled[serverId] {
 		return nil, errors.Errorf("[%s] is unavailable!", serverId)
 	}
-	return m.servers[serverId], nil
+	s, ok := m.servers[serverId]
+	if !ok {
+		return nil, errors.Errorf("[%s] doesn't exist!", serverId)
+	}
+	return s, nil
 }
 
 func (m *mockSystem) RandServer() (*Server, error) {
