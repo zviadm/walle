@@ -54,12 +54,13 @@ func NewDiscovery(
 	ctx context.Context,
 	root BasicClient,
 	rootURI string,
-	topologyURI string) (Discovery, error) {
+	topologyURI string) Discovery {
+	var topology *walleapi.Topology
+	var entryId int64
 	cli, err := root.ForStream(rootURI)
-	if err != nil {
-		return nil, err
+	if err == nil {
+		topology, entryId, err = streamUpdates(ctx, cli, topologyURI, 0)
 	}
-	topology, entryId, err := streamUpdates(ctx, cli, topologyURI, 0)
 	if err != nil {
 		glog.Warningf("initializing discovery for: %s, from %s err: %v", topologyURI, rootURI, err)
 		topology = &walleapi.Topology{}
@@ -67,7 +68,7 @@ func NewDiscovery(
 	}
 	d := newDiscovery(root, rootURI, topologyURI, topology)
 	go d.watcher(ctx, entryId)
-	return d, nil
+	return d
 }
 
 func newDiscovery(

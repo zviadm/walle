@@ -38,7 +38,8 @@ func main() {
 	if *topologyURI == *rootURI {
 		d = rootD
 	} else {
-		glog.Fatalf("not implemented")
+		rootCli := wallelib.NewClient(ctx, rootD)
+		d = wallelib.NewDiscovery(ctx, rootCli, *rootURI, *topologyURI)
 	}
 	c := wallelib.NewClient(ctx, d)
 
