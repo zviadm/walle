@@ -72,7 +72,7 @@ func (s *Server) fetchAndStoreEntries(
 	ssTopology := ss.Topology()
 Main:
 	for _, serverId := range ssTopology.ServerIds {
-		if serverId == s.serverId {
+		if serverId == s.s.ServerId() {
 			continue
 		}
 

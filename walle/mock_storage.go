@@ -33,11 +33,20 @@ type mockStream struct {
 
 var _ Storage = &mockStorage{}
 
+// TODO(zviad): This will be removed.
+func NewMockStorage() *mockStorage {
+	return newMockStorage("")
+}
+
 func newMockStorage(serverId string) *mockStorage {
 	return &mockStorage{
 		serverId: serverId,
 		streams:  make(map[string]*mockStream),
 	}
+}
+
+func (m *mockStorage) ServerId() string {
+	return m.serverId
 }
 
 func (m *mockStorage) Streams(localOnly bool) []string {
@@ -86,6 +95,9 @@ func (m *mockStream) Topology() *walleapi.StreamTopology {
 func (m *mockStream) UpdateTopology(topology *walleapi.StreamTopology) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
+	if topology.Version < m.topology.GetVersion() {
+		return
+	}
 	m.topology = topology
 	m.isLocal = false
 	for _, serverId := range m.topology.ServerIds {

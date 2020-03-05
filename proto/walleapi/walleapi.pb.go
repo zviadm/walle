@@ -371,11 +371,13 @@ func (m *StreamEntriesRequest) GetFromEntryId() int64 {
 }
 
 type Topology struct {
-	Streams              map[string]*StreamTopology `protobuf:"bytes,1,rep,name=streams,proto3" json:"streams,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	Servers              map[string]string          `protobuf:"bytes,2,rep,name=servers,proto3" json:"servers,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	XXX_NoUnkeyedLiteral struct{}                   `json:"-"`
-	XXX_unrecognized     []byte                     `json:"-"`
-	XXX_sizecache        int32                      `json:"-"`
+	// maps streamURI -> StreamTopology
+	Streams map[string]*StreamTopology `protobuf:"bytes,1,rep,name=streams,proto3" json:"streams,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	// maps ServerID -> ADDR
+	Servers              map[string]string `protobuf:"bytes,2,rep,name=servers,proto3" json:"servers,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
+	XXX_unrecognized     []byte            `json:"-"`
+	XXX_sizecache        int32             `json:"-"`
 }
 
 func (m *Topology) Reset()         { *m = Topology{} }

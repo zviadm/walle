@@ -39,8 +39,10 @@ message StreamEntriesRequest {
 }
 
 message Topology {
-	map<string, StreamTopology> streams = 1; // URI -> StreamTopology
-	map<string, string> servers = 2; // ID -> ADDR
+	// maps streamURI -> StreamTopology
+	map<string, StreamTopology> streams = 1;
+	// maps ServerID -> ADDR
+	map<string, string> servers = 2;
 }
 
 message StreamTopology {

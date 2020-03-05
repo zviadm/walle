@@ -7,6 +7,7 @@ import (
 // Storage is expected to be thread-safe.
 // Storage might cause panics for unrecoverable errors.
 type Storage interface {
+	ServerId() string
 	Streams(localOnly bool) []string
 	Stream(streamURI string, localOnly bool) (StreamStorage, bool)
 
@@ -28,6 +29,7 @@ type StreamMetadata interface {
 	UpdateWriterId(writerId string)
 
 	Topology() *walleapi.StreamTopology
+	// Expected to have internal check to make sure toplogy version never decreases.
 	UpdateTopology(topology *walleapi.StreamTopology)
 }
 

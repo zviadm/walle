@@ -14,9 +14,8 @@ import (
 )
 
 type Server struct {
-	serverId string
-	s        Storage
-	c        Client
+	s Storage
+	c Client
 }
 
 type Client interface {
@@ -25,19 +24,15 @@ type Client interface {
 
 func NewServer(
 	ctx context.Context,
-	serverId string,
 	s Storage,
 	c Client,
 	d wallelib.Discovery) *Server {
-	r := &Server{
-		serverId: serverId,
-		s:        s,
-		c:        c,
-	}
+	r := &Server{s: s, c: c}
+
 	topology, notify := d.Topology()
 	r.updateTopology(topology)
-
 	go r.topologyWatcher(ctx, d, notify)
+
 	go r.gapHandler(ctx)
 	return r
 }
@@ -172,7 +167,7 @@ func (s *Server) processRequestHeader(req requestHeader) (ss StreamStorage, err 
 }
 
 func (s *Server) checkServerId(serverId string) bool {
-	return serverId == s.serverId
+	return serverId == s.s.ServerId()
 }
 
 func (s *Server) checkStreamVersion(ss StreamMetadata, reqStreamVersion int64) error {

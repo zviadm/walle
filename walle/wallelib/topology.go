@@ -30,15 +30,24 @@ type Discovery interface {
 func NewRootDiscovery(
 	ctx context.Context,
 	rootURI string,
-	seedAddrs []string) (Discovery, error) {
-	topology, entryId, err := fetchTopologyFromSeeds(ctx, seedAddrs, rootURI)
-	if err != nil {
-		return nil, err
+	seedAddrs map[string]string) Discovery {
+	seedIds := make([]string, 0, len(seedAddrs))
+	for serverId := range seedAddrs {
+		seedIds = append(seedIds, serverId)
+	}
+	topology := &walleapi.Topology{
+		Streams: map[string]*walleapi.StreamTopology{
+			rootURI: &walleapi.StreamTopology{
+				Version:   0,
+				ServerIds: seedIds,
+			},
+		},
+		Servers: seedAddrs,
 	}
 	d := newDiscovery(nil, rootURI, rootURI, topology)
 	d.root = NewClient(ctx, d)
-	go d.watcher(ctx, entryId)
-	return d, nil
+	go d.watcher(ctx, 0)
+	return d
 }
 
 func NewDiscovery(
@@ -50,9 +59,11 @@ func NewDiscovery(
 	if err != nil {
 		return nil, err
 	}
-	topology, entryId, err := streamUpdates(ctx, cli, topologyURI, -1)
+	topology, entryId, err := streamUpdates(ctx, cli, topologyURI, 0)
 	if err != nil {
-		return nil, err
+		glog.Warningf("initializing discovery for: %s, from %s err: %v", topologyURI, rootURI, err)
+		topology = &walleapi.Topology{}
+		entryId = 0
 	}
 	d := newDiscovery(root, rootURI, topologyURI, topology)
 	go d.watcher(ctx, entryId)
@@ -83,7 +94,7 @@ func (d *discovery) watcher(ctx context.Context, entryId int64) {
 			// TODO(zviad): introduce a delay.
 			continue
 		}
-		topology, entryId, err = streamUpdates(ctx, cli, d.topologyURI, entryId)
+		topology, entryId, err = streamUpdates(ctx, cli, d.topologyURI, entryId+1)
 		if err != nil {
 			if ctx.Err() != nil {
 				return
@@ -163,7 +174,7 @@ func streamUpdates(
 			if err != nil {
 				return nil, 0, err
 			}
-			return topology, entry.EntryId + 1, nil
+			return topology, entry.EntryId, nil
 		}
 	}
 }

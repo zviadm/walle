@@ -31,7 +31,7 @@ func newMockSystem(ctx context.Context, topology *walleapi.Topology) (*mockSyste
 	mClient := &mockClient{mSystem}
 	for serverId := range topology.Servers {
 		m := newMockStorage(serverId)
-		mSystem.servers[serverId] = NewServer(ctx, serverId, m, mClient, mSystem)
+		mSystem.servers[serverId] = NewServer(ctx, m, mClient, mSystem)
 	}
 	return mSystem, &mockApiClient{mSystem}
 }
