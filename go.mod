@@ -8,5 +8,8 @@ require (
 	github.com/golang/protobuf v1.2.0
 	github.com/pkg/errors v0.8.1
 	github.com/stretchr/testify v1.4.0
+	github.com/zviadm/wt v0.0.0
 	google.golang.org/grpc v1.22.0
 )
+
+replace github.com/zviadm/wt => ./wt

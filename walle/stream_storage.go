@@ -8,11 +8,13 @@ import (
 
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/wallelib"
+	"github.com/zviadm/wt"
 )
 
 type mockStream struct {
 	serverId  string
 	streamURI string
+	conn      *wt.Connection
 
 	mx       sync.Mutex
 	topology *walleapi.StreamTopology
