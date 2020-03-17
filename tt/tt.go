@@ -56,6 +56,7 @@ func main() {
 		os.Exit(1)
 	}
 	cacheDir = path.Join(cacheDir, ".tt_cache")
+
 	args := []string{
 		"run", "-i", "-t",
 		"-v", rootDir + ":/root/src:cached",
@@ -68,6 +69,8 @@ func main() {
 	for _, pkg := range packages {
 		args = append(args, pkg)
 	}
+	args = append(args, "-logtostderr")
+
 	cmd := exec.Command("docker", args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
