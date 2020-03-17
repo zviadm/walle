@@ -9,6 +9,7 @@ require (
 	github.com/pkg/errors v0.8.1
 	github.com/stretchr/testify v1.4.0
 	github.com/zviadm/wt v0.0.0
+	golang.org/dl v0.0.0-20200302224518-306f3096cb2f // indirect
 	google.golang.org/grpc v1.22.0
 )
 

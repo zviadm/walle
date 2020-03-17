@@ -1,19 +1,20 @@
 FROM ubuntu:18.04
 
-# APT dependencies for building compilers, build tools.
+# Compilers and Build tools
+WORKDIR /root
 RUN apt-get update && apt-get install -y --no-install-recommends \
-		g++ \
-		gcc \
-		libc6-dev \
-		make \
-		pkg-config \
 		autoconf \
 		automake \
+		ca-certificates \
+		g++ \
+		gcc \
 		git \
+		libc6-dev \
+		libtool \
+		make \
+		pkg-config \
 		python
-WORKDIR /root
 
-# Compilers and build tools
 ADD https://dl.google.com/go/go1.14.linux-amd64.tar.gz ./
 RUN tar -xvzf go1.14.linux-amd64.tar.gz \
 	&& mv go go1.4 \
@@ -21,17 +22,17 @@ RUN tar -xvzf go1.14.linux-amd64.tar.gz \
 
 # ThirdParty dependencies. Sort dependencies: Slowest->Fastest.
 RUN apt-get install -y --no-install-recommends libsnappy-dev
-ADD http://source.wiredtiger.com/releases/wiredtiger-3.2.1.tar.bz2 ./
-RUN tar -xvjf wiredtiger-3.2.1.tar.bz2 \
-	&& cd wiredtiger-3.2.1 \
+RUN git clone --depth 1 https://github.com/wiredtiger/wiredtiger.git --branch mongodb-4.5.0 --single-branch
+RUN cd wiredtiger \
+	&& sh ./autogen.sh \
 	&& ./configure -with-builtins=snappy -disable-shared \
-	&& make \
 	&& make install
 
 # Extra tools.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-	git \
+	less \
 	silversearcher-ag
 
 # Environment variables.
 ENV GOPATH=/root/.cache/goroot:/root/src
+ENV PATH=$PATH:/root/.cache/goroot/bin
