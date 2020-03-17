@@ -1,6 +1,3 @@
 [submodule "wt"]
 	path = wt
 	url = git@github.com:zviadm/wt.git
-[submodule "wiredtiger"]
-	path = wiredtiger
-	url = https://github.com/wiredtiger/wiredtiger.git
