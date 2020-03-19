@@ -242,9 +242,9 @@ func (s *Server) StreamEntries(
 }
 
 func makeWriterId() string {
-	writerId := make([]byte, 16)
+	writerId := make([]byte, writerIdLen)
 	binary.BigEndian.PutUint64(writerId[0:8], uint64(time.Now().UnixNano()))
-	rand.Read(writerId[8:15])
+	rand.Read(writerId[8:writerIdLen])
 	return string(writerId)
 }
 

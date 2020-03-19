@@ -53,7 +53,7 @@ func createStreamStorage(
 	panicOnErr(
 		metaW.Insert([]byte(streamURI+sfxTopology), v))
 	panicOnErr(
-		metaW.Insert([]byte(streamURI+sfxWriterId), make([]byte, 16)))
+		metaW.Insert([]byte(streamURI+sfxWriterId), make([]byte, writerIdLen)))
 	panicOnErr(
 		metaW.Insert([]byte(streamURI+sfxCommittedId), make([]byte, 8)))
 	panicOnErr(
