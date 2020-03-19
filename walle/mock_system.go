@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"path"
 	"sync"
 
 	"google.golang.org/grpc"
@@ -22,7 +23,10 @@ type mockSystem struct {
 	isDisabled map[string]bool
 }
 
-func newMockSystem(ctx context.Context, topology *walleapi.Topology) (*mockSystem, *mockApiClient) {
+func newMockSystem(
+	ctx context.Context,
+	topology *walleapi.Topology,
+	storagePath string) (*mockSystem, *mockApiClient) {
 	mSystem := &mockSystem{
 		topology:   topology,
 		servers:    make(map[string]*Server, len(topology.Servers)),
@@ -30,7 +34,8 @@ func newMockSystem(ctx context.Context, topology *walleapi.Topology) (*mockSyste
 	}
 	mClient := &mockClient{mSystem}
 	for serverId := range topology.Servers {
-		m := newMockStorage(serverId)
+		m, err := storageInitWithServerId(path.Join(storagePath, serverId+".walledb"), true, serverId)
+		panicOnErr(err)
 		mSystem.servers[serverId] = NewServer(ctx, m, mClient, mSystem)
 	}
 	return mSystem, &mockApiClient{mSystem}
@@ -69,9 +74,7 @@ func (m *mockSystem) Toggle(serverId string, enabled bool) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	_, ok := m.servers[serverId]
-	if !ok {
-		panic(fmt.Sprintf("unknown serverId: %s", serverId))
-	}
+	panicOnNotOk(ok, fmt.Sprintf("unknown serverId: %s", serverId))
 	m.isDisabled[serverId] = !enabled
 }
 

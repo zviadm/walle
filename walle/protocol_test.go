@@ -24,7 +24,7 @@ var topoSimple = &walleapi.Topology{
 func TestProtocolBasicNewWriter(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	_, c := newMockSystem(ctx, topoSimple)
+	_, c := newMockSystem(ctx, topoSimple, "/tmp/tt_protocol_basic_new_writer")
 	w, err := wallelib.ClaimWriter(ctx, c, "/mock/1", time.Second)
 	require.NoError(t, err)
 	defer w.Close()
@@ -59,7 +59,7 @@ func TestProtocolBasicNewWriter(t *testing.T) {
 func TestProtocolBasicGapRecovery(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	m, c := newMockSystem(ctx, topoSimple)
+	m, c := newMockSystem(ctx, topoSimple, storageTmpTestDir())
 	w, err := wallelib.ClaimWriter(ctx, c, "/mock/1", time.Second)
 	require.NoError(t, err)
 	defer w.Close()

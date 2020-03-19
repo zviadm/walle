@@ -29,6 +29,7 @@ func rootDirForPkg(pkg string) (string, string, error) {
 }
 
 func main() {
+	runFlag := flag.String("run", "", "regexp")
 	flag.Parse()
 	packages := flag.Args()
 	if len(packages) < 1 {
@@ -65,6 +66,9 @@ func main() {
 		"walle:latest", // TODO(zviad): control with a cfg/flag
 		"/root/go1.4/bin/go",
 		"test", "-v",
+	}
+	if *runFlag != "" {
+		args = append(args, "-run", *runFlag)
 	}
 	for _, pkg := range packages {
 		args = append(args, pkg)

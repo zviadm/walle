@@ -22,6 +22,7 @@ func main() {
 	var rootSeeds = flag.String("walle.root_seeds", "",
 		"Comma separated list of <seed id>:<seed addr> pairs for servers serving the root topology URI")
 	var topologyURI = flag.String("walle.topology_uri", "", "Topology URI for this server.")
+	var dbPath = flag.String("walle.db_path", "", "Path where database will be stored.")
 
 	// var rootBootstrapEntry = flag.String("walle.bootstrap_entry", "", "")
 	flag.Parse()
@@ -43,7 +44,10 @@ func main() {
 	}
 	c := wallelib.NewClient(ctx, d)
 
-	ss := walle.NewMockStorage()
+	ss, err := walle.StorageInit(*dbPath, true)
+	if err != nil {
+		glog.Fatalf("failed to initialize storage: %v", err)
+	}
 	ws := walle.NewServer(ctx, ss, c, d)
 	s := grpc.NewServer()
 	walle_pb.RegisterWalleServer(s, ws)
