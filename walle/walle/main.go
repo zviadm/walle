@@ -48,6 +48,7 @@ func main() {
 	if err != nil {
 		glog.Fatalf("failed to initialize storage: %v", err)
 	}
+	defer ss.Close()
 	ws := walle.NewServer(ctx, ss, c, d)
 	s := grpc.NewServer()
 	walle_pb.RegisterWalleServer(s, ws)

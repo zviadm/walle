@@ -8,9 +8,15 @@ import (
 	"github.com/zviadm/walle/proto/walleapi"
 )
 
-func TestSimpleOpen(t *testing.T) {
-	s, err := StorageInit(storageTmpTestDir(), true)
+func TestStorageOpen(t *testing.T) {
+	dbPath := storageTmpTestDir()
+	s, err := StorageInit(dbPath, true)
 	require.NoError(t, err)
-
 	s.NewStream("/s/1", &walleapi.StreamTopology{Version: 1})
+	s.Close()
+
+	s, err = StorageInit(dbPath, false)
+	require.NoError(t, err)
+	defer s.Close()
+	require.EqualValues(t, s.Streams(false), []string{"/s/1"})
 }

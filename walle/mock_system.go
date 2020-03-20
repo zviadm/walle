@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"path"
 	"sync"
 
@@ -38,6 +39,15 @@ func newMockSystem(
 		panicOnErr(err)
 		mSystem.servers[serverId] = NewServer(ctx, m, mClient, mSystem)
 	}
+	go func() {
+		<-ctx.Done()
+		mSystem.mx.Lock()
+		defer mSystem.mx.Unlock()
+		for _, s := range mSystem.servers {
+			s.s.Close()
+		}
+		_ = os.RemoveAll(storagePath)
+	}()
 	return mSystem, &mockApiClient{mSystem}
 }
 

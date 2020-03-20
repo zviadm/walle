@@ -13,6 +13,8 @@ type Storage interface {
 
 	NewStream(streamURI string, topology *walleapi.StreamTopology)
 	//RemoveStream(streamURI string)
+
+	Close()
 }
 
 // StreamStorage is expected to be thread-safe.

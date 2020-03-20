@@ -3,6 +3,7 @@ package walle
 import (
 	"crypto/rand"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -30,38 +31,32 @@ func storageInitWithServerId(dbPath string, createIfNotExists bool, serverId str
 			return nil, err
 		}
 	}
-	c, err := wt.Open(dbPath, &wt.ConnectionConfig{
-		Create: &createIfNotExists,
+	cfg := &wt.ConnectionConfig{
+		Create: wt.Bool(createIfNotExists),
 		Log:    "enabled,compressor=snappy",
-	})
+	}
+	c, err := wt.Open(dbPath, cfg)
 	if err != nil {
 		return nil, err
 	}
 	s, err := c.OpenSession(nil)
-	if err != nil {
-		return nil, err
-	}
+	panicOnErr(err)
 	defer s.Close()
-	if err := s.Create(metadataDS, &wt.DataSourceConfig{BlockCompressor: "snappy"}); err != nil {
-		return nil, err
-	}
+	panicOnErr(
+		s.Create(metadataDS, &wt.DataSourceConfig{BlockCompressor: "snappy"}))
 	metaR, err := s.Scan(metadataDS)
-	if err != nil {
-		return nil, err
-	}
+	panicOnErr(err)
 	defer metaR.Close()
 	serverIdB, err := metaR.ReadUnsafeValue([]byte(glbServerId))
 	if err != nil {
 		if wt.ErrCode(err) != wt.ErrNotFound {
-			return nil, err
+			panicOnErr(err)
 		}
 		if !createIfNotExists {
 			return nil, errors.Errorf("serverId doesn't exist in the database: %v", dbPath)
 		}
 		metaW, err := s.Mutate(metadataDS, nil)
-		if err != nil {
-			return nil, err
-		}
+		panicOnErr(err)
 		defer metaW.Close()
 		if serverId != "" {
 			serverIdB = []byte(serverId)
@@ -69,9 +64,8 @@ func storageInitWithServerId(dbPath string, createIfNotExists bool, serverId str
 			serverIdB = make([]byte, serverIdLen)
 			rand.Read(serverIdB)
 		}
-		if err := metaW.Insert([]byte(glbServerId), serverIdB); err != nil {
-			return nil, err
-		}
+		panicOnErr(
+			metaW.Insert([]byte(glbServerId), serverIdB))
 	}
 	r := &storage{
 		serverId: string(serverIdB),
@@ -81,8 +75,36 @@ func storageInitWithServerId(dbPath string, createIfNotExists bool, serverId str
 	if serverId != "" && serverId != r.serverId {
 		return nil, errors.Errorf("storage already has different serverId: %v vs %v", r.serverId, serverId)
 	}
-	// TODO(zviad): Load all streams that already exist in metadata.
+	panicOnErr(metaR.Reset())
+
+	streamURIs := make(map[string]struct{})
+	for {
+		if err := metaR.Next(); err != nil {
+			if wt.ErrCode(err) != wt.ErrNotFound {
+				panicOnErr(err)
+			}
+			break
+		}
+		metaKey, err := metaR.UnsafeKey()
+		panicOnErr(err)
+		if metaKey[0] != '/' {
+			continue
+		}
+		streamURI := strings.Split(string(metaKey), ":")[0]
+		streamURIs[streamURI] = struct{}{}
+	}
+	for streamURI := range streamURIs {
+		sess, err := c.OpenSession(nil)
+		panicOnErr(err)
+		r.streams[streamURI] = openStreamStorage(serverId, streamURI, sess)
+	}
 	return r, nil
+}
+
+func (m *storage) Close() {
+	m.mx.Lock()
+	defer m.mx.Unlock()
+	m.c.Close()
 }
 
 func (m *storage) ServerId() string {
