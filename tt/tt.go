@@ -51,20 +51,23 @@ func main() {
 		}
 		packages[idx] = pkgD
 	}
-	cacheDir, err := os.UserHomeDir()
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	cacheDir = path.Join(cacheDir, ".tt_cache")
+	cacheDir := path.Join(homeDir, ".tt_cache")
+	tmpDir := path.Join(homeDir, ".tt_tmp")
+	_ = os.RemoveAll(tmpDir) // Make sure tmp dir is completely wiped between every run.
 
 	args := []string{
 		"run", "-i", "-t",
 		"-v", rootDir + ":/root/src:cached",
 		"-v", cacheDir + ":/root/.cache:delegated",
+		//"-v", tmpDir + ":/tmp:delegated", NOTE(zviad): This is way too slow on OSx :'(
 		"-w", "/root/src",
 		"walle:latest", // TODO(zviad): control with a cfg/flag
-		"/root/go1.4/bin/go",
+		"/root/go1.14/bin/go",
 		"test", "-v",
 	}
 	if *runFlag != "" {

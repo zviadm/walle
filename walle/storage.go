@@ -2,10 +2,12 @@ package walle
 
 import (
 	"crypto/rand"
+	"encoding/hex"
 	"os"
 	"strings"
 	"sync"
 
+	"github.com/golang/glog"
 	"github.com/pkg/errors"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/wt"
@@ -63,6 +65,9 @@ func storageInitWithServerId(dbPath string, createIfNotExists bool, serverId str
 		} else {
 			serverIdB = make([]byte, serverIdLen)
 			rand.Read(serverIdB)
+			glog.Infof(
+				"initializing new database: %s, with serverId: %s...",
+				dbPath, hex.EncodeToString(serverIdB))
 		}
 		panicOnErr(
 			metaW.Insert([]byte(glbServerId), serverIdB))

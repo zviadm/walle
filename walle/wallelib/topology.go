@@ -91,8 +91,13 @@ func (d *discovery) watcher(ctx context.Context, entryId int64) {
 	for {
 		cli, err := d.root.ForStream(d.rootURI)
 		if err != nil {
-			glog.Warningf("[%s] watcher can't connect to root: %s, err: %s", d.topologyURI, d.rootURI, err)
-			// TODO(zviad): introduce a delay.
+			glog.Warningf("[%s] watcher can't connect to root: %s, err: %s...", d.topologyURI, d.rootURI, err)
+			// TODO(zviad): exp backoff?
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(time.Second):
+			}
 			continue
 		}
 		topology, entryId, err = streamUpdates(ctx, cli, d.topologyURI, entryId+1)

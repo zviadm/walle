@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 ADD https://dl.google.com/go/go1.14.linux-amd64.tar.gz ./
 RUN tar -xvzf go1.14.linux-amd64.tar.gz \
-	&& mv go go1.4 \
+	&& mv go go1.14 \
 	&& rm go1.14.linux-amd64.tar.gz
 
 # ThirdParty dependencies. Sort dependencies: Slowest->Fastest.
