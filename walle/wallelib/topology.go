@@ -2,6 +2,7 @@ package wallelib
 
 import (
 	"context"
+	"io"
 	"io/ioutil"
 	"os"
 	"sync"
@@ -133,7 +134,9 @@ func (d *discovery) watcher(ctx context.Context) {
 			}
 
 			errStatus, _ := status.FromError(err)
-			if err == context.DeadlineExceeded || errStatus.Code() == codes.DeadlineExceeded {
+			if err == io.EOF ||
+				err == context.DeadlineExceeded ||
+				errStatus.Code() == codes.DeadlineExceeded {
 				continue
 			}
 			glog.Warningf("[%s] watcher err: %s", d.topologyURI, err)

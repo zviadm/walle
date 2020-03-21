@@ -14,8 +14,9 @@ import (
 )
 
 type Server struct {
-	s Storage
-	c Client
+	rootCtx context.Context
+	s       Storage
+	c       Client
 }
 
 type Client interface {
@@ -27,12 +28,11 @@ func NewServer(
 	s Storage,
 	c Client,
 	d wallelib.Discovery) *Server {
-	r := &Server{s: s, c: c}
+	r := &Server{rootCtx: ctx, s: s, c: c}
 
 	topology, notify := d.Topology()
 	r.updateTopology(topology)
 	go r.topologyWatcher(ctx, d, notify)
-
 	go r.gapHandler(ctx)
 	return r
 }

@@ -13,12 +13,16 @@ import (
 
 var _ = glog.Info
 
-func TestRootTopology(t *testing.T) {
+const (
+	wallePkg = "github.com/zviadm/walle/walle"
+)
+
+func TestE2ESimple(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	w1Dir := walle.StorageTmpTestDir()
 	s, err := servicelib.RunGoService(
-		ctx, "../walle/walle", []string{
+		ctx, wallePkg, []string{
 			"-walle.storage_dir", w1Dir,
 			"-walle.root_uri", "/topology/itest",
 			"-walle.port", "5005",
@@ -30,7 +34,7 @@ func TestRootTopology(t *testing.T) {
 	s.Wait(t)
 
 	s, err = servicelib.RunGoService(
-		ctx, "../walle/walle", []string{
+		ctx, wallePkg, []string{
 			"-walle.storage_dir", w1Dir,
 			"-walle.root_uri", "/topology/itest",
 			"-walle.port", "5005",
@@ -40,8 +44,4 @@ func TestRootTopology(t *testing.T) {
 	require.NoError(t, err)
 	time.Sleep(10 * time.Second)
 	defer s.Stop(t)
-}
-
-func runWalle(ctx context.Context) {
-
 }

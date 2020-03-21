@@ -215,10 +215,12 @@ func (s *Server) StreamEntries(
 		}
 		if entryId > committedId {
 			select {
-			case <-notify:
+			case <-s.rootCtx.Done():
+				return nil
 			case <-stream.Context().Done():
 				// TODO(zviad): return nil, only if writer heartbeat is alive.
 				return nil
+			case <-notify:
 			}
 			continue
 		}

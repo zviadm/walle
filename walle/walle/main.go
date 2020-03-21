@@ -35,7 +35,7 @@ func main() {
 		"Topology URI for this server. If not set, value from -walle.root_uri will be used.")
 
 	flag.Parse()
-	ctx := context.Background()
+	ctx, cancelAll := context.WithCancel(context.Background())
 	if *rootURI == "" {
 		glog.Fatal("must provide root streamURI using -walle.root_uri flag")
 	}
@@ -106,6 +106,7 @@ func main() {
 	go func() {
 		<-notify
 		glog.Infof("terminating WALLE server...")
+		cancelAll()
 		s.GracefulStop()
 	}()
 	glog.Infof("starting WALLE server on port:%s...", *port)

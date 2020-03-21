@@ -34,8 +34,9 @@ func storageInitWithServerId(dbPath string, createIfNotExists bool, serverId str
 		}
 	}
 	cfg := &wt.ConnectionConfig{
-		Create: wt.Bool(createIfNotExists),
-		Log:    "enabled,compressor=snappy",
+		Create:          wt.Bool(createIfNotExists),
+		Log:             "enabled,compressor=snappy",
+		TransactionSync: "enabled",
 	}
 	c, err := wt.Open(dbPath, cfg)
 	if err != nil {
@@ -80,9 +81,10 @@ func storageInitWithServerId(dbPath string, createIfNotExists bool, serverId str
 	if serverId != "" && serverId != r.serverId {
 		return nil, errors.Errorf("storage already has different serverId: %v vs %v", r.serverId, serverId)
 	}
-	panicOnErr(metaR.Reset())
+	glog.Infof("storage: %s", hex.EncodeToString(serverIdB))
 
 	streamURIs := make(map[string]struct{})
+	panicOnErr(metaR.Reset())
 	for {
 		if err := metaR.Next(); err != nil {
 			if wt.ErrCode(err) != wt.ErrNotFound {
@@ -101,7 +103,8 @@ func storageInitWithServerId(dbPath string, createIfNotExists bool, serverId str
 	for streamURI := range streamURIs {
 		sess, err := c.OpenSession(nil)
 		panicOnErr(err)
-		r.streams[streamURI] = openStreamStorage(serverId, streamURI, sess)
+		r.streams[streamURI] = openStreamStorage(r.serverId, streamURI, sess)
+		glog.Infof("stream: %s (isLocal? %t)", streamURI, r.streams[streamURI].IsLocal())
 	}
 	return r, nil
 }
