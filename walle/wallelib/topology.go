@@ -72,6 +72,7 @@ func NewDiscovery(
 	return d, nil
 }
 
+// Helper function to read topology from a file.
 func topologyFromFile(f string) (*walleapi.Topology, error) {
 	topologyB, err := ioutil.ReadFile(f)
 	if err != nil {
@@ -82,6 +83,8 @@ func topologyFromFile(f string) (*walleapi.Topology, error) {
 	return topology, err
 }
 
+// Helper function to write topology to a file. Write happens atomically
+// to avoid chances of corruption if process where to crash.
 func TopologyToFile(t *walleapi.Topology, f string) error {
 	tB, err := t.Marshal()
 	if err != nil {
@@ -174,7 +177,8 @@ func streamUpdates(
 	cli walleapi.WalleApiClient,
 	topologyURI string,
 	fromEntryId int64) (*walleapi.Topology, error) {
-	streamCtx, cancel := context.WithTimeout(ctx, 5*time.Second) // TODO(zviad): timeout must come from config.
+	// TODO(zviad): timeout must come from config.
+	streamCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	r, err := cli.StreamEntries(streamCtx, &walleapi.StreamEntriesRequest{
 		StreamUri:   topologyURI,
