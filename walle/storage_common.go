@@ -14,6 +14,7 @@ const (
 	metadataDS = "table:metadata"
 	// Global metadata keys
 	glbServerId = ".server_id"
+	glbTopology = ".topology"
 
 	// Per streamURI key suffixes
 	sfxTopology         = ":topology"

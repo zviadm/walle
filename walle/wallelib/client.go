@@ -84,6 +84,7 @@ func (c *client) ForStream(streamURI string) (walleapi.WalleApiClient, error) {
 		return nil, errors.Errorf("streamURI: %s, not found in topology", streamURI)
 	}
 	preferredMajority := (len(preferredIds) + 1) / 2
+	var oneErr error
 	for idx := 0; idx < len(preferredIds); idx++ {
 		var serverId string
 		if idx < preferredMajority {
@@ -95,12 +96,17 @@ func (c *client) ForStream(streamURI string) (walleapi.WalleApiClient, error) {
 		}
 
 		conn, err := c.unsafeServerConn(serverId)
-		if err != nil || conn.GetState() == connectivity.TransientFailure {
+		if err != nil {
+			oneErr = err
+			continue
+		}
+		if conn.GetState() == connectivity.TransientFailure {
 			continue
 		}
 		return walleapi.NewWalleApiClient(conn), nil
 	}
-	return nil, errors.Errorf("connections to servers for: %s are all in failed state", streamURI)
+	return nil, errors.Errorf(
+		"connections to servers for: %s are all in failed state, err: %v", streamURI, oneErr)
 }
 
 func (c *client) ForServer(serverId string) (walle_pb.WalleClient, error) {
@@ -122,7 +128,8 @@ func (c *client) unsafeServerConn(serverId string) (*grpc.ClientConn, error) {
 	if !ok {
 		return nil, errors.Errorf("serverId: %s, not found in topology", serverId)
 	}
-	conn, err := grpc.Dial(serverAddr) // Non-Blocking Dial.
+	// TODO(zviad): Decide what to do about security...
+	conn, err := grpc.Dial(serverAddr, grpc.WithInsecure()) // Non-Blocking Dial.
 	if err != nil {
 		return nil, err
 	}

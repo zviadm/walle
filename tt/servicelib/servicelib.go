@@ -24,7 +24,10 @@ type Service struct {
 }
 
 func RunGoService(
-	ctx context.Context, pkg string, flags ...string) (*Service, error) {
+	ctx context.Context,
+	pkg string,
+	flags []string,
+	waitOnPort string) (*Service, error) {
 
 	cmd := exec.Command(path.Join("/root", goVer, "bin/go"), "install", pkg)
 	glog.Infof("running: %v", cmd)
@@ -59,10 +62,11 @@ func RunGoService(
 		s.cv.Broadcast()
 	}()
 
-	if err := s.waitForPort(ctx, "5005"); err != nil {
-		glog.Warning("wtf is going on my friend?")
-		_ = s.cmd.Process.Kill()
-		return nil, err
+	if waitOnPort != "" {
+		if err := s.waitForPort(ctx, waitOnPort); err != nil {
+			_ = s.cmd.Process.Kill()
+			return nil, err
+		}
 	}
 	return s, nil
 }
@@ -72,16 +76,18 @@ func (s *Service) IsDone() *os.ProcessState {
 	defer s.cv.L.Unlock()
 	return s.processState
 }
-
-func (s *Service) Stop(t *testing.T) {
-	err := s.cmd.Process.Signal(syscall.SIGTERM)
-	require.NoError(t, err)
+func (s *Service) Wait(t *testing.T) {
 	s.cv.L.Lock()
 	defer s.cv.L.Unlock()
 	for s.processState == nil {
 		s.cv.Wait()
 	}
 	require.EqualValues(t, 0, s.processState.ExitCode())
+}
+func (s *Service) Stop(t *testing.T) {
+	err := s.cmd.Process.Signal(syscall.SIGTERM)
+	require.NoError(t, err)
+	s.Wait(t)
 }
 
 func (s *Service) waitForPort(ctx context.Context, port string) error {

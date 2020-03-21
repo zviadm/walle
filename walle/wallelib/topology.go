@@ -2,21 +2,23 @@ package wallelib
 
 import (
 	"context"
+	"io/ioutil"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
 	"github.com/zviadm/walle/proto/walleapi"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 type discovery struct {
-	root        BasicClient
-	rootURI     string
-	topologyURI string
+	root         BasicClient
+	rootURI      string
+	topologyURI  string
+	topologyFile string
 
 	mx       sync.Mutex
 	topology *walleapi.Topology
@@ -30,64 +32,88 @@ type Discovery interface {
 func NewRootDiscovery(
 	ctx context.Context,
 	rootURI string,
-	seedAddrs map[string]string) Discovery {
-	seedIds := make([]string, 0, len(seedAddrs))
-	for serverId := range seedAddrs {
-		seedIds = append(seedIds, serverId)
+	topologyFile string) (Discovery, error) {
+	topology, err := topologyFromFile(topologyFile)
+	if err != nil {
+		return nil, err
 	}
-	topology := &walleapi.Topology{
-		Streams: map[string]*walleapi.StreamTopology{
-			rootURI: &walleapi.StreamTopology{
-				Version:   0,
-				ServerIds: seedIds,
-			},
-		},
-		Servers: seedAddrs,
-	}
-	d := newDiscovery(nil, rootURI, rootURI, topology)
+	d := newDiscovery(nil, rootURI, rootURI, topologyFile, topology)
 	d.root = NewClient(ctx, d)
-	go d.watcher(ctx, 0)
-	return d
+	go d.watcher(ctx)
+	return d, nil
 }
 
 func NewDiscovery(
 	ctx context.Context,
 	root BasicClient,
 	rootURI string,
-	topologyURI string) Discovery {
-	var topology *walleapi.Topology
-	var entryId int64
-	cli, err := root.ForStream(rootURI)
-	if err == nil {
-		topology, entryId, err = streamUpdates(ctx, cli, topologyURI, 0)
-	}
+	topologyURI string,
+	topologyFile string) (Discovery, error) {
+	topology, err := topologyFromFile(topologyFile)
 	if err != nil {
-		glog.Warningf("initializing discovery for: %s, from %s err: %v", topologyURI, rootURI, err)
-		topology = &walleapi.Topology{}
-		entryId = 0
+		glog.Infof(
+			"topology file: %s couldn't be read, will try to stream from scratch, err: %v",
+			topologyFile, err)
+		cli, err := root.ForStream(rootURI)
+		if err != nil {
+			return nil, err
+		}
+		topology, err = streamUpdates(ctx, cli, topologyURI, 0)
+		if err != nil {
+			return nil, err
+		}
+		if err := TopologyToFile(topology, topologyFile); err != nil {
+			return nil, err
+		}
 	}
-	d := newDiscovery(root, rootURI, topologyURI, topology)
-	go d.watcher(ctx, entryId)
-	return d
+	d := newDiscovery(root, rootURI, topologyURI, topologyFile, topology)
+	go d.watcher(ctx)
+	return d, nil
+}
+
+func topologyFromFile(f string) (*walleapi.Topology, error) {
+	topologyB, err := ioutil.ReadFile(f)
+	if err != nil {
+		return nil, err
+	}
+	topology := &walleapi.Topology{}
+	err = topology.Unmarshal(topologyB)
+	return topology, err
+}
+
+func TopologyToFile(t *walleapi.Topology, f string) error {
+	tB, err := t.Marshal()
+	if err != nil {
+		return err
+	}
+	tmpF := f + ".tmp"
+	if err := ioutil.WriteFile(tmpF, tB, 0644); err != nil {
+		return err
+	}
+	// Write file atomically, to avoid any corruption issues if program
+	// crashes in the middle of a write.
+	return os.Rename(tmpF, f)
 }
 
 func newDiscovery(
 	root BasicClient,
 	rootURI string,
 	topologyURI string,
+	topologyFile string,
 	topology *walleapi.Topology) *discovery {
 	return &discovery{
-		root:        root,
-		rootURI:     rootURI,
-		topologyURI: rootURI,
+		root:         root,
+		rootURI:      rootURI,
+		topologyURI:  rootURI,
+		topologyFile: topologyFile,
 
 		topology: topology,
 		notify:   make(chan struct{}),
 	}
 }
 
-func (d *discovery) watcher(ctx context.Context, entryId int64) {
-	var topology *walleapi.Topology
+func (d *discovery) watcher(ctx context.Context) {
+	topology := d.topology
 	for {
 		cli, err := d.root.ForStream(d.rootURI)
 		if err != nil {
@@ -100,7 +126,7 @@ func (d *discovery) watcher(ctx context.Context, entryId int64) {
 			}
 			continue
 		}
-		topology, entryId, err = streamUpdates(ctx, cli, d.topologyURI, entryId+1)
+		topology, err = streamUpdates(ctx, cli, d.topologyURI, d.topology.Version+1)
 		if err != nil {
 			if ctx.Err() != nil {
 				return
@@ -111,10 +137,18 @@ func (d *discovery) watcher(ctx context.Context, entryId int64) {
 				continue
 			}
 			glog.Warningf("[%s] watcher err: %s", d.topologyURI, err)
-			// TODO(zviad): Some delay here?
+			// TODO(zviad): exp backoff?
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(time.Second):
+			}
 			continue
 		}
 		d.updateTopology(topology)
+		if err := TopologyToFile(topology, d.topologyFile); err != nil {
+			glog.Warningf("[%s] watcher failed to store, err: %s", d.topologyURI, err)
+		}
 	}
 }
 
@@ -132,32 +166,11 @@ func (d *discovery) Topology() (*walleapi.Topology, <-chan struct{}) {
 	return d.topology, d.notify
 }
 
-func fetchTopologyFromSeeds(
-	ctx context.Context,
-	seedAddrs []string,
-	rootURI string) (*walleapi.Topology, int64, error) {
-	for _, addr := range seedAddrs {
-		connectCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		defer cancel()
-		conn, err := grpc.DialContext(connectCtx, addr, grpc.WithBlock())
-		if err != nil {
-			continue
-		}
-		cli := walleapi.NewWalleApiClient(conn)
-		topology, entryId, err := streamUpdates(ctx, cli, rootURI, -1)
-		if err != nil {
-			continue
-		}
-		return topology, entryId, nil
-	}
-	return nil, 0, errors.Errorf("unable to fetch initial topology")
-}
-
 func streamUpdates(
 	ctx context.Context,
 	cli walleapi.WalleApiClient,
 	topologyURI string,
-	fromEntryId int64) (*walleapi.Topology, int64, error) {
+	fromEntryId int64) (*walleapi.Topology, error) {
 	streamCtx, cancel := context.WithTimeout(ctx, 5*time.Second) // TODO(zviad): timeout must come from config.
 	defer cancel()
 	r, err := cli.StreamEntries(streamCtx, &walleapi.StreamEntriesRequest{
@@ -165,22 +178,27 @@ func streamUpdates(
 		FromEntryId: fromEntryId,
 	})
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 	var entry *walleapi.Entry
 	for {
-		entry, err = r.Recv()
-		if err != nil {
-			if entry == nil {
-				return nil, 0, err
-			}
-
-			topology := &walleapi.Topology{}
-			err := topology.Unmarshal(entry.Data)
-			if err != nil {
-				return nil, 0, err
-			}
-			return topology, entry.EntryId, nil
+		entryNew, err := r.Recv()
+		if err == nil {
+			entry = entryNew
+			continue
 		}
+		if entry == nil {
+			return nil, err
+		}
+		break
 	}
+	topology := &walleapi.Topology{}
+	if err := topology.Unmarshal(entry.Data); err != nil {
+		return nil, err
+	}
+	if topology.Version != entry.EntryId {
+		return nil, errors.Errorf(
+			"invalid topology entry, version must match EntryId: %v vs %+v", entry.EntryId, topology)
+	}
+	return topology, nil
 }

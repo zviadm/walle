@@ -18,14 +18,27 @@ func TestRootTopology(t *testing.T) {
 	defer cancel()
 	w1Dir := walle.StorageTmpTestDir()
 	s, err := servicelib.RunGoService(
-		ctx, "../walle/walle",
-		"-walle.db_path", w1Dir,
-		"-walle.root_uri", "/topology/itest",
-		"-walle.topology_uri", "/topology/itest",
-		"-walle.port", "5005",
-		"-walle.root_seeds", "s1:localhost:5005",
-		"-logtostderr")
+		ctx, "../walle/walle", []string{
+			"-walle.storage_dir", w1Dir,
+			"-walle.root_uri", "/topology/itest",
+			"-walle.port", "5005",
+			"-walle.bootstrap_only",
+			"-logtostderr",
+		},
+		"")
 	require.NoError(t, err)
+	s.Wait(t)
+
+	s, err = servicelib.RunGoService(
+		ctx, "../walle/walle", []string{
+			"-walle.storage_dir", w1Dir,
+			"-walle.root_uri", "/topology/itest",
+			"-walle.port", "5005",
+			"-logtostderr",
+		},
+		"5005")
+	require.NoError(t, err)
+	time.Sleep(10 * time.Second)
 	defer s.Stop(t)
 }
 

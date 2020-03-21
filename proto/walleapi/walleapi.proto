@@ -39,10 +39,12 @@ message StreamEntriesRequest {
 }
 
 message Topology {
+	// Matches EntryId where it is written in the stream.
+	int64 version = 1;
 	// maps streamURI -> StreamTopology
-	map<string, StreamTopology> streams = 1;
+	map<string, StreamTopology> streams = 2;
 	// maps ServerID -> ADDR
-	map<string, string> servers = 2;
+	map<string, string> servers = 3;
 }
 
 message StreamTopology {
