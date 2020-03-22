@@ -25,9 +25,9 @@ func (s *Server) gapHandler(ctx context.Context) {
 			}
 			err := s.gapHandlerForStream(ctx, ss, noGapCommittedId, committedId)
 			if err != nil {
-				glog.Warningf("[%s] error filling gap: %d -> %d, %s", ss.StreamURI(), noGapCommittedId, committedId, err)
+				glog.Warningf("[gh:%s] error filling gap: %d -> %d, %s", ss.StreamURI(), noGapCommittedId, committedId, err)
 			}
-			glog.Infof("[%s] gap filled: %d -> %d", ss.StreamURI(), noGapCommittedId, committedId)
+			glog.Infof("[gh:%s] gap filled: %d -> %d", ss.StreamURI(), noGapCommittedId, committedId)
 		}
 		select {
 		case <-ctx.Done():
@@ -43,6 +43,7 @@ func (s *Server) gapHandlerForStream(
 	noGapCommittedId int64,
 	committedId int64) error {
 	cursor := ss.ReadFrom(noGapCommittedId + 1)
+	defer cursor.Close()
 	for noGapCommittedId < committedId {
 		entry, ok := cursor.Next()
 		if !ok || entry.EntryId > committedId {
@@ -78,7 +79,7 @@ Main:
 
 		c, err := s.c.ForServer(serverId)
 		if err != nil {
-			glog.Warningf("[%s] failed to connect to: %s for fetching entries: %s", ss.StreamURI(), serverId, err)
+			glog.Warningf("[gh:%s] failed to connect to: %s for fetching entries: %s", ss.StreamURI(), serverId, err)
 			continue
 		}
 		streamCtx, cancel := context.WithCancel(ctx)
@@ -91,7 +92,7 @@ Main:
 			EndEntryId:    endId,
 		})
 		if err != nil {
-			glog.Warningf("[%s] failed to establish stream to: %s for fetching entries: %s", ss.StreamURI(), serverId, err)
+			glog.Warningf("[gh:%s] failed to establish stream to: %s for fetching entries: %s", ss.StreamURI(), serverId, err)
 			continue
 		}
 		for {
@@ -99,16 +100,16 @@ Main:
 			if err != nil {
 				if err == io.EOF {
 					if startId != endId {
-						glog.Errorf("[%s] DEVELOPER_ERROR; unreachable code. server: %s is buggy!", ss.StreamURI(), serverId)
+						glog.Errorf("[gh:%s] DEVELOPER_ERROR; unreachable code. server: %s is buggy!", ss.StreamURI(), serverId)
 						continue Main
 					}
 					return nil
 				}
-				glog.Warningf("[%s] failed to fetch all entries from: %s, %s", ss.StreamURI(), serverId, err)
+				glog.Warningf("[gh:%s] failed to fetch all entries from: %s, %s", ss.StreamURI(), serverId, err)
 				continue Main
 			}
 			if entry.EntryId != startId {
-				glog.Errorf("[%s] DEVELOPER_ERROR; unreachable code. server: %s is buggy!", ss.StreamURI(), serverId)
+				glog.Errorf("[gh:%s] DEVELOPER_ERROR; unreachable code. server: %s is buggy!", ss.StreamURI(), serverId)
 				continue Main
 			}
 			startId += 1
@@ -123,5 +124,5 @@ Main:
 			}
 		}
 	}
-	return errors.Errorf("[%s] couldn't fetch all entries, tried all servers...", ss.StreamURI())
+	return errors.Errorf("couldn't fetch all entries, tried all servers for: %s", ss.StreamURI())
 }

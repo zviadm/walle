@@ -373,37 +373,52 @@ func (m *streamStorage) ReadFrom(entryId int64) StreamCursor {
 	defer m.mx.Unlock()
 	cursor, err := m.sess.Scan(streamDS(m.streamURI))
 	panicOnErr(err)
-	binary.BigEndian.PutUint64(m.buf8, uint64(entryId))
-	mType, err := cursor.SearchNear(m.buf8)
-	panicOnErr(err)
-	if mType == wt.SmallerMatch {
-		cursor.Next() // TODO(zviad): needs a check?
-	}
-	return &streamCursor{
+
+	r := &streamCursor{
 		mx:      &m.mx,
 		cursor:  cursor,
 		entryId: entryId,
 	}
+	binary.BigEndian.PutUint64(m.buf8, uint64(entryId))
+	mType, err := cursor.SearchNear(m.buf8)
+	panicOnErr(err)
+	if mType == wt.SmallerMatch {
+		_, _ = r.Next()
+	}
+	return r
 }
 
 type streamCursor struct {
-	mx      *sync.Mutex
-	cursor  *wt.Scanner
-	entryId int64
+	mx       *sync.Mutex
+	finished bool
+	cursor   *wt.Scanner
+	entryId  int64
 }
 
 func (m *streamCursor) Close() {
-	_ = m.cursor.Close()
+	m.mx.Lock()
+	defer m.mx.Unlock()
+	if !m.finished {
+		panicOnErr(m.cursor.Close())
+	}
 }
 func (m *streamCursor) Next() (*walleapi.Entry, bool) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
-	v, err := m.cursor.UnsafeValue()
-	if err != nil && wt.ErrCode(err) == wt.ErrNotFound {
+	if m.finished {
 		return nil, false
 	}
+
+	v, err := m.cursor.UnsafeValue()
+	panicOnErr(err)
 	entry := &walleapi.Entry{}
 	panicOnErr(entry.Unmarshal(v))
-	m.cursor.Next()
+	if err := m.cursor.Next(); err != nil {
+		if wt.ErrCode(err) != wt.ErrNotFound {
+			panicOnErr(err)
+		}
+		m.finished = true
+		panicOnErr(m.cursor.Close())
+	}
 	return entry, true
 }

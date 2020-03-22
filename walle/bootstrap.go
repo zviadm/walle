@@ -6,9 +6,9 @@ import (
 	"github.com/zviadm/walle/walle/wallelib"
 )
 
-func BootstrapRoot(s Storage, rootURI string, rootTopoFile string, addr string) error {
+func BootstrapRoot(s Storage, rootURI string, rootFile string, addr string) error {
 	var entryId int64 = 1
-	topology := &walleapi.Topology{
+	rootPb := &walleapi.Topology{
 		Version: entryId,
 		Streams: map[string]*walleapi.StreamTopology{
 			rootURI: &walleapi.StreamTopology{
@@ -18,15 +18,15 @@ func BootstrapRoot(s Storage, rootURI string, rootTopoFile string, addr string) 
 		},
 		Servers: map[string]string{s.ServerId(): addr},
 	}
-	if err := wallelib.TopologyToFile(topology, rootTopoFile); err != nil {
+	if err := wallelib.TopologyToFile(rootPb, rootFile); err != nil {
 		return err
 	}
-	s.NewStream(rootURI, topology.Streams[rootURI])
+	s.NewStream(rootURI, rootPb.Streams[rootURI])
 	ss, ok := s.Stream(rootURI, true)
 	if !ok {
 		return errors.Errorf("stream was just created, must exist for: %s", rootURI)
 	}
-	entryData, err := topology.Marshal()
+	entryData, err := rootPb.Marshal()
 	if err != nil {
 		return err
 	}
@@ -34,6 +34,9 @@ func BootstrapRoot(s Storage, rootURI string, rootTopoFile string, addr string) 
 		EntryId:     entryId,
 		ChecksumMd5: wallelib.CalculateChecksumMd5(entry0.ChecksumMd5, entryData),
 		Data:        entryData,
+	}
+	if err != nil {
+		return err
 	}
 	if !ss.PutEntry(entry, true) {
 		return errors.Errorf("couldn't initialize rootURI with initial entry: %s -- %+v", rootURI, entry)

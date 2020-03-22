@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"github.com/pkg/errors"
 	"github.com/zviadm/walle/proto/walleapi"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -31,7 +32,7 @@ func ClaimWriter(
 			LeaseMs:   writerLease.Nanoseconds() / 1000,
 		})
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "")
 	}
 	// TODO(zviad): Lease timer should be initialzied here.
 	_, err = cli.PutEntry(ctx, &walleapi.PutEntryRequest{
@@ -41,7 +42,7 @@ func ClaimWriter(
 		CommittedEntryMd5: resp.LastEntry.ChecksumMd5,
 	})
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "")
 	}
 	w := newWriter(c, streamURI, writerLease, resp.WriterId, resp.LastEntry)
 	return w, nil
@@ -64,6 +65,10 @@ type Writer struct {
 	committedEntryMd5 []byte
 	commitTime        time.Time
 
+	heartbeatMx      sync.Mutex
+	heartbeatEntryId int64
+	heartbeatNotify  chan struct{}
+
 	rootCtx    context.Context
 	rootCancel context.CancelFunc
 }
@@ -85,6 +90,9 @@ func newWriter(
 		lastEntry:        lastEntry,
 		committedEntryId: lastEntry.EntryId,
 
+		heartbeatEntryId: lastEntry.EntryId,
+		heartbeatNotify:  make(chan struct{}),
+
 		rootCtx:    ctx,
 		rootCancel: cancel,
 	}
@@ -98,13 +106,18 @@ func (w *Writer) Close() {
 	<-w.rootCtx.Done()
 }
 
+// Returns last entry that was submitted for put request. Note that the entry
+// might not be committed yet.
+func (w *Writer) LastEntry() *walleapi.Entry {
+	return w.lastEntry
+}
+
 // Heartbeat makes background requests to the server if there are no active
 // PutEntry calls happening. This makes sure that entries will be marked as committed fast,
 // even if there are no PutEntry calls, and also makes sure that servers are aware that
 // writer is still alive.
 func (w *Writer) heartbeat() {
 	var heartbeatTime time.Time
-	var heartbeatEntryId int64
 	for {
 		select {
 		case <-w.rootCtx.Done():
@@ -114,7 +127,7 @@ func (w *Writer) heartbeat() {
 		now := time.Now()
 		ts, entryId, entryMd5 := w.safeCommittedEntryId()
 		if ts.Add(shortBeat).After(now) ||
-			(heartbeatEntryId == entryId && heartbeatTime.Add(w.longBeat).After(now)) {
+			(w.heartbeatEntryId == entryId && heartbeatTime.Add(w.longBeat).After(now)) {
 			continue
 		}
 		err := KeepTryingWithBackoff(
@@ -136,9 +149,31 @@ func (w *Writer) heartbeat() {
 				return err == nil, err
 			})
 		if err == nil {
-			heartbeatEntryId = entryId
+			w.heartbeatMx.Lock()
+			w.heartbeatEntryId = entryId
+			close(w.heartbeatNotify)
+			w.heartbeatNotify = make(chan struct{})
+			w.heartbeatMx.Unlock()
 			heartbeatTime = now
 		}
+	}
+}
+
+func (w *Writer) waitForHeartbeat(ctx context.Context, entryId int64) error {
+	w.heartbeatMx.Lock()
+	defer w.heartbeatMx.Unlock()
+	for {
+		if w.heartbeatEntryId >= entryId {
+			return nil
+		}
+		notify := w.heartbeatNotify
+		w.heartbeatMx.Unlock()
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-notify:
+		}
+		w.heartbeatMx.Lock()
 	}
 }
 
@@ -173,7 +208,8 @@ func (w *Writer) PutEntry(data []byte) (*walleapi.Entry, <-chan error) {
 				})
 				if err == nil {
 					w.updateCommittedEntryId(time.Now(), entry.EntryId, entry.ChecksumMd5)
-					return true, nil
+					err = w.waitForHeartbeat(ctx, entry.EntryId)
+					return true, err
 				}
 
 				errStatus, _ := status.FromError(err)

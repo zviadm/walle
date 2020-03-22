@@ -199,6 +199,11 @@ func streamUpdates(
 		}
 		break
 	}
+	return TopologyFromEntry(entry)
+}
+
+// Parses out and unmarshalls stored topology protobuf from an entry.
+func TopologyFromEntry(entry *walleapi.Entry) (*walleapi.Topology, error) {
 	topology := &walleapi.Topology{}
 	if err := topology.Unmarshal(entry.Data); err != nil {
 		return nil, err

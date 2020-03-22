@@ -46,6 +46,7 @@ func (s *Server) topologyWatcher(ctx context.Context, d wallelib.Discovery, noti
 		}
 		var topology *walleapi.Topology
 		topology, notify = d.Topology()
+		glog.Infof("[tw] received version: %d", topology.Version)
 		s.updateTopology(topology)
 	}
 }
@@ -56,7 +57,7 @@ func (s *Server) updateTopology(t *walleapi.Topology) {
 			ss.UpdateTopology(streamT)
 			continue
 		}
-		glog.Infof("[%s] creating with topology: %+v", streamURI, streamT)
+		glog.Infof("[tw:%s] creating with topology: %+v", streamURI, streamT)
 		s.s.NewStream(streamURI, streamT)
 	}
 }
@@ -129,6 +130,7 @@ func (s *Server) ReadEntries(
 	}
 	entryId := req.StartEntryId
 	cursor := ss.ReadFrom(entryId)
+	defer cursor.Close()
 	for entryId < req.EndEntryId {
 		entry, ok := cursor.Next()
 		if !ok {

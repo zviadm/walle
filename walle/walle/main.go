@@ -29,8 +29,8 @@ func main() {
 	var port = flag.String("walle.port", "", "Port to listen on.")
 	var bootstrapOnly = flag.Bool(
 		"walle.bootstrap_only", false,
-		"Bootstrap new root topology. Will exit once new bootstrapped storage is created. "+
-			"Should be restarted without -walle.bootstrap_only flag if it bootstraps successfully.")
+		"Bootstrap new deployment. Will exit once new bootstrapped storage is created. "+
+			"Should be started again without -walle.bootstrap_only flag if it exits successfully.")
 	var topologyURI = flag.String("walle.topology_uri", "",
 		"Topology URI for this server. If not set, value from -walle.root_uri will be used.")
 
@@ -43,7 +43,7 @@ func main() {
 		glog.Fatal("must provide path to the storage using -walle.db_path flag")
 	}
 	dbPath := path.Join(*storageDir, "walle.db")
-	rootTopoFile := path.Join(*storageDir, "root_topology.pb")
+	rootFile := path.Join(*storageDir, "root.pb")
 	topoFile := path.Join(*storageDir, "topology.pb")
 	if *host == "" {
 		hostname, err := os.Hostname()
@@ -64,7 +64,7 @@ func main() {
 	defer ss.Close()
 
 	if *bootstrapOnly {
-		err := walle.BootstrapRoot(ss, *rootURI, rootTopoFile, addr)
+		err := walle.BootstrapRoot(ss, *rootURI, rootFile, addr)
 		if err != nil {
 			glog.Fatal(err)
 		}
@@ -74,8 +74,8 @@ func main() {
 		return
 	}
 
-	glog.Infof("initializing root discovery: %s - %v...", *rootURI, rootTopoFile)
-	rootD, err := wallelib.NewRootDiscovery(ctx, *rootURI, rootTopoFile)
+	glog.Infof("initializing root discovery: %s - %v...", *rootURI, rootFile)
+	rootD, err := wallelib.NewRootDiscovery(ctx, *rootURI, rootFile)
 	if err != nil {
 		glog.Fatal(err)
 	}

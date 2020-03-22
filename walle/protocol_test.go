@@ -59,7 +59,7 @@ func TestProtocolBasicNewWriter(t *testing.T) {
 func TestProtocolBasicGapRecovery(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	m, c := newMockSystem(ctx, topoSimple, StorageTmpTestDir())
+	m, c := newMockSystem(ctx, topoSimple, TestTmpDir())
 	w, err := wallelib.ClaimWriter(ctx, c, "/mock/1", time.Second)
 	require.NoError(t, err)
 	defer w.Close()

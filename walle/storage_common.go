@@ -60,7 +60,7 @@ func panicOnNotOk(ok bool, msg string) {
 	}
 }
 
-func StorageTmpTestDir() string {
+func TestTmpDir() string {
 	d, err := ioutil.TempDir("", "tt-*")
 	panicOnErr(err)
 	return d

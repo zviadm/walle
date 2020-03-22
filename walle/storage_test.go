@@ -9,7 +9,7 @@ import (
 )
 
 func TestStorageOpen(t *testing.T) {
-	dbPath := StorageTmpTestDir()
+	dbPath := TestTmpDir()
 	s, err := StorageInit(dbPath, true)
 	require.NoError(t, err)
 	s.NewStream("/s/1", &walleapi.StreamTopology{Version: 1})

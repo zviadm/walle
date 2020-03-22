@@ -74,6 +74,12 @@ func (s *Server) ClaimWriter(
 			maxEntry = e
 		}
 	}
+	if maxEntry == entries[maxWriterServerId][0] {
+		// Entries are all fully committed. There is no need to reconcile anything,
+		// claiming writer can just succeed.
+		return &walleapi.ClaimWriterResponse{WriterId: writerId, LastEntry: maxEntry}, nil
+	}
+
 	maxEntry.WriterId = writerId
 	c, err := s.c.ForServer(maxWriterServerId)
 	if err != nil {
@@ -213,22 +219,31 @@ func (s *Server) StreamEntries(
 		if entryId < 0 {
 			entryId = committedId
 		}
-		if entryId > committedId {
-			select {
-			case <-s.rootCtx.Done():
-				return nil
-			case <-stream.Context().Done():
-				// TODO(zviad): return nil, only if writer heartbeat is alive.
-				return nil
-			case <-notify:
-			}
-			continue
+		if entryId <= committedId {
+			break
 		}
-		cursor := ss.ReadFrom(entryId)
+		select {
+		case <-s.rootCtx.Done():
+			return nil
+		case <-stream.Context().Done():
+			// TODO(zviad): return nil, only if writer heartbeat is alive.
+			return nil
+		case <-notify:
+		}
+	}
+
+	cursor := ss.ReadFrom(entryId)
+	defer cursor.Close()
+	oneOk := false
+	for {
 		entry, ok := cursor.Next()
 		if !ok {
-			return status.Errorf(codes.Internal, "committed entry missing? %d <= %d", entryId, committedId)
+			if !oneOk {
+				return status.Errorf(codes.Internal, "committed entry missing? %d", entryId)
+			}
+			break
 		}
+		oneOk = true
 		if entry.EntryId > entryId {
 			if err := s.fetchAndStoreEntries(
 				stream.Context(), ss, entryId, entry.EntryId, stream.Send); err != nil {
@@ -236,11 +251,11 @@ func (s *Server) StreamEntries(
 			}
 		}
 		entryId = entry.EntryId + 1
-		err := stream.Send(entry)
-		if err != nil {
+		if err := stream.Send(entry); err != nil {
 			return err
 		}
 	}
+	return nil
 }
 
 func makeWriterId() string {

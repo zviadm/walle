@@ -61,7 +61,7 @@ func main() {
 	_ = os.RemoveAll(tmpDir) // Make sure tmp dir is completely wiped between every run.
 
 	args := []string{
-		"run", "-i", "-t",
+		"run", "-i", "-t", "--rm",
 		"-v", rootDir + ":/root/src:cached",
 		"-v", cacheDir + ":/root/.cache:delegated",
 		//"-v", tmpDir + ":/tmp:delegated", NOTE(zviad): This is way too slow on OSx :'(
