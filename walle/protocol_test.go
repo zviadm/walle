@@ -21,7 +21,7 @@ var topoSimple = &walleapi.Topology{
 	Servers: map[string]string{"s1": "s1", "s2": "s2", "s3": "s3"},
 }
 
-func TestProtocolBasicNewWriter(t *testing.T) {
+func TestProtocolClaimWriter(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	_, c := newMockSystem(ctx, topoSimple, "/tmp/tt_protocol_basic_new_writer")
@@ -36,27 +36,23 @@ func TestProtocolBasicNewWriter(t *testing.T) {
 
 	err = <-c2
 	require.NoError(t, err)
-	select {
-	case err := <-c1:
-		require.NoError(t, err)
-	default:
-		t.Fatalf("c1 must have been ready since c2 was ready")
-	}
+	err = <-c1
+	require.NoError(t, err)
 
 	e3, c3 := w.PutEntry([]byte("d3"))
 	require.EqualValues(t, e3.EntryId, 3, "e3: %+v", e3)
 	err = <-c3
 	require.NoError(t, err)
 
-	// for _, serverId := range []string{"1", "2", "3"} {
-	// 	resp, err := c.Preferred("/mock/1").LastEntry(
-	// 		ctx, &walle_pb.LastEntryRequest{TargetServerId: serverId, StreamUri: "/mock/1"})
-	// 	require.NoError(t, err)
-	// 	require.EqualValues(t, resp.Entries[0].EntryId, 2)
-	// }
+	// Make sure clean writer transition works.
+	w2, err := wallelib.ClaimWriter(ctx, c, "/mock/1", time.Second)
+	require.NoError(t, err)
+	defer w2.Close()
+
+	// TODO(zviad): Test at least few edgecases of claim writer reconciliations.
 }
 
-func TestProtocolBasicGapRecovery(t *testing.T) {
+func TestProtocolGapRecovery(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	m, c := newMockSystem(ctx, topoSimple, TestTmpDir())

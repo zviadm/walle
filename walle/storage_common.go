@@ -28,8 +28,12 @@ const (
 
 var (
 	maxEntryIdKey = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
-	entry0        = &walleapi.Entry{EntryId: 0, ChecksumMd5: make([]byte, md5.Size)}
-	entry0B, _    = entry0.Marshal()
+	entry0        = &walleapi.Entry{
+		EntryId:     0,
+		WriterId:    string(make([]byte, writerIdLen)),
+		ChecksumMd5: make([]byte, md5.Size),
+	}
+	entry0B, _ = entry0.Marshal()
 )
 
 func streamDS(streamURI string) string {

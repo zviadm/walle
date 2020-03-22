@@ -256,6 +256,10 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) bool {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 
+	panicOnNotOk(entry.WriterId != "", "writerId must always be set")
+	if !isCommitted && entry.WriterId < m.writerId {
+		return false
+	}
 	if entry.EntryId > m.tailEntry.EntryId+1 {
 		if !isCommitted {
 			return false

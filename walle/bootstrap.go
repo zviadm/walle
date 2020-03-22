@@ -32,6 +32,7 @@ func BootstrapRoot(s Storage, rootURI string, rootFile string, addr string) erro
 	}
 	entry := &walleapi.Entry{
 		EntryId:     entryId,
+		WriterId:    entry0.WriterId,
 		ChecksumMd5: wallelib.CalculateChecksumMd5(entry0.ChecksumMd5, entryData),
 		Data:        entryData,
 	}
