@@ -60,14 +60,14 @@ func TestProtocolClaimWriter(t *testing.T) {
 	require.EqualValues(t, e3.EntryId, 3, "e3: %+v", e3)
 	err = <-c3
 	require.NoError(t, err)
-	require.True(t, w.IsWriter())
+	require.Equal(t, wallelib.Exclusive, w.WriterState())
 
 	// Make sure clean writer transition works.
 	w2, _, err := wallelib.ClaimWriter(ctx, c, "/mock/1", "testhost:1001", wallelib.LeaseMinimum)
 	require.NoError(t, err)
 	defer w2.Close(false)
-	require.False(t, w.IsWriter())
-	require.True(t, w2.IsWriter())
+	require.NotEqual(t, wallelib.Exclusive, w.WriterState())
+	require.Equal(t, wallelib.Exclusive, w2.WriterState())
 
 	// TODO(zviad): Test at least few edgecases of claim writer reconciliations.
 }

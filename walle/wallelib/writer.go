@@ -14,7 +14,15 @@ import (
 
 const (
 	shortBeat    = time.Millisecond
-	LeaseMinimum = 10 * shortBeat
+	LeaseMinimum = 100 * shortBeat
+)
+
+type WriterState int
+
+const (
+	Closed       WriterState = 0
+	Disconnected WriterState = 1 // TODO(zviad): better name for this state
+	Exclusive    WriterState = 2
 )
 
 // Writer is not thread safe. PutEntry calls must be issued serially.
@@ -97,10 +105,16 @@ func (w *Writer) Close(tryFlush bool) {
 
 // Returns True, if at the time of the IsWriter call, this writer is still guaranteed
 // to be the only exclusive writer.
-func (w *Writer) IsWriter() bool {
+func (w *Writer) WriterState() WriterState {
 	w.committedEntryMx.Lock()
 	defer w.committedEntryMx.Unlock()
-	return w.commitTime.Add(w.writerLease).After(time.Now())
+	if w.rootCtx.Err() != nil {
+		return Closed
+	}
+	if w.commitTime.Add(w.writerLease).Before(time.Now()) {
+		return Disconnected
+	}
+	return Exclusive
 }
 
 // Heartbeat makes background requests to the server if there are no active
