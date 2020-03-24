@@ -35,9 +35,10 @@ type StreamStorage interface {
 type StreamMetadata interface {
 	StreamURI() string
 	// WriterId() string // Perf sensitive. Needs to be in-memory.
-	WriterInfo() (writerId string, writerAddr string, lease time.Duration)
+	WriterInfo() (writerId WriterId, writerAddr string, lease time.Duration, remainingLease time.Duration)
 	// Update call is expected to have an internal check to make sure stored writerId never decreases.
-	UpdateWriter(writerId string, writerAddr string, lease time.Duration)
+	UpdateWriter(writerId WriterId, writerAddr string, lease time.Duration) (remainingLease time.Duration)
+	RenewLease(writerId WriterId)
 
 	Topology() *walleapi.StreamTopology
 	// Update call is expected to have an internal check to make sure toplogy version never decreases.

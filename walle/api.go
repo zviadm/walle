@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
 	"google.golang.org/grpc/codes"
@@ -344,7 +343,16 @@ func (s *Server) broadcastRequest(
 		successIds = append(successIds, serverId)
 	}
 	if len(successIds) <= len(errs) {
-		return nil, errors.Errorf("not enough success: %s <= %d\nerrs: %v", successIds, len(errs), errs)
+		var errCode codes.Code
+		for _, err := range errs {
+			errStatus, _ := status.FromError(err)
+			if errStatus.Code() == codes.FailedPrecondition {
+				errCode = codes.FailedPrecondition
+				break
+			}
+			errCode = errStatus.Code()
+		}
+		return nil, status.Errorf(errCode, "not enough success: %s <= %d\nerrs: %v", successIds, len(errs), errs)
 	}
 	return successIds, nil
 }

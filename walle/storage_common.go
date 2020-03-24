@@ -2,6 +2,7 @@ package walle
 
 import (
 	"crypto/md5"
+	"encoding/hex"
 	"io/ioutil"
 	"regexp"
 	"strings"
@@ -9,6 +10,16 @@ import (
 	"github.com/pkg/errors"
 	"github.com/zviadm/walle/proto/walleapi"
 )
+
+type WriterId string
+type ServerId string
+
+func (w WriterId) Encode() string {
+	return string(w)
+}
+func (w WriterId) String() string {
+	return hex.EncodeToString([]byte(w))
+}
 
 const (
 	metadataDS = "table:metadata"

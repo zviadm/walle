@@ -70,7 +70,8 @@ func (s *Server) NewWriter(
 	if err != nil {
 		return nil, err
 	}
-	ss.UpdateWriter(req.WriterId, req.WriterAddr, time.Duration(req.LeaseMs)*time.Millisecond)
+	remainingLease := ss.UpdateWriter(WriterId(req.WriterId), req.WriterAddr, time.Duration(req.LeaseMs)*time.Millisecond)
+	time.Sleep(remainingLease) // Need to wait up to remaining lease time before success can be returned.
 	return &walle_pb.NewWriterResponse{}, nil
 }
 
@@ -81,11 +82,12 @@ func (s *Server) WriterInfo(
 	if err != nil {
 		return nil, err
 	}
-	writerId, writerAddr, lease := ss.WriterInfo()
+	writerId, writerAddr, lease, remainingLease := ss.WriterInfo()
 	return &walle_pb.WriterInfoResponse{
-		WriterId:   writerId,
-		WriterAddr: writerAddr,
-		LeaseMs:    lease.Nanoseconds() / time.Millisecond.Nanoseconds(),
+		WriterId:         writerId.Encode(),
+		WriterAddr:       writerAddr,
+		LeaseMs:          lease.Nanoseconds() / time.Millisecond.Nanoseconds(),
+		RemainingLeaseMs: remainingLease.Nanoseconds() / time.Millisecond.Nanoseconds(),
 	}, nil
 }
 
@@ -96,7 +98,7 @@ func (s *Server) PutEntryInternal(
 	if err != nil {
 		return nil, err
 	}
-	if err := s.checkAndUpdateWriterId(ctx, ss, req.Entry.WriterId); err != nil {
+	if err := s.checkAndUpdateWriterId(ctx, ss, WriterId(req.Entry.WriterId)); err != nil {
 		return nil, err
 	}
 	if req.Entry.EntryId == 0 || req.Entry.EntryId > req.CommittedEntryId {
@@ -196,27 +198,27 @@ func (s *Server) checkStreamVersion(ss StreamMetadata, reqStreamVersion int64) e
 
 // Checks writerId if it is still active for a given streamURI. If newer writerId is supplied, will try
 // to get updated information from other servers because this server must have missed the NewWriter call.
-func (s *Server) checkAndUpdateWriterId(ctx context.Context, ss StreamMetadata, writerId string) error {
+func (s *Server) checkAndUpdateWriterId(ctx context.Context, ss StreamMetadata, writerId WriterId) error {
 	for {
-		ssWriterId, _, _ := ss.WriterInfo()
+		ssWriterId, _, _, _ := ss.WriterInfo()
+		if writerId == ssWriterId {
+			ss.RenewLease(writerId)
+			return nil
+		}
 		if writerId < ssWriterId {
 			return status.Errorf(codes.FailedPrecondition, "writer no longer active: %s < %s", writerId, ssWriterId)
-		}
-
-		if writerId == ssWriterId {
-			// TODO(zviad): update heartbeat for `writerIds`.
-			return nil
 		}
 		resp, err := s.broadcastWriterInfo(ctx, ss)
 		if err != nil {
 			return err
 		}
-		if resp.WriterId <= ssWriterId {
+		respWriterId := WriterId(resp.WriterId)
+		if respWriterId <= ssWriterId {
 			return status.Errorf(codes.Internal, "writerId is newer than majority?: %s > %s", writerId, ssWriterId)
 		}
 		glog.Infof(
 			"[%s] writerId: updating %s -> %s",
 			ss.StreamURI(), hex.EncodeToString([]byte(ssWriterId)), hex.EncodeToString([]byte(writerId)))
-		ss.UpdateWriter(resp.WriterId, resp.WriterAddr, time.Duration(resp.LeaseMs)*time.Millisecond)
+		ss.UpdateWriter(respWriterId, resp.WriterAddr, time.Duration(resp.LeaseMs)*time.Millisecond)
 	}
 }

@@ -33,6 +33,15 @@ func TestProtocolClaimWriter(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, "testhost:1001", writerStatus.WriterAddr)
 	require.EqualValues(t, time.Second.Nanoseconds()/time.Millisecond.Nanoseconds(), writerStatus.LeaseMs)
+	require.Less(t, int64(0), writerStatus.RemainingLeaseMs)
+	require.Greater(t, writerStatus.LeaseMs, writerStatus.RemainingLeaseMs)
+
+	// Make sure heartbeat is working in the background.
+	time.Sleep(time.Duration(writerStatus.LeaseMs) * time.Millisecond)
+	writerStatus, err = c.WriterStatus(ctx, &walleapi.WriterStatusRequest{StreamUri: "/mock/1"})
+	require.NoError(t, err)
+	require.Less(t, int64(0), writerStatus.RemainingLeaseMs)
+	require.Greater(t, writerStatus.LeaseMs, writerStatus.RemainingLeaseMs)
 
 	e1, c1 := w.PutEntry([]byte("d1"))
 	e2, c2 := w.PutEntry([]byte("d2"))

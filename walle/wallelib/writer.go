@@ -150,10 +150,19 @@ func (w *Writer) heartbeat() {
 					CommittedEntryId:  toCommitEntryId,
 					CommittedEntryMd5: toCommitEntryMd5,
 				})
-				if err != nil && retryN > 5 {
-					glog.Warningf(
-						"[%s] Heartbeat %d->%d: %s...",
-						w.streamURI, committedEntryId, toCommitEntryId, err)
+				if err != nil {
+					errStatus, _ := status.FromError(err)
+					if err == context.Canceled ||
+						errStatus.Code() == codes.Canceled ||
+						errStatus.Code() == codes.FailedPrecondition {
+						w.Close() // If there is an urecoverable error, close the writer.
+						return true, err
+					}
+					if retryN > 5 {
+						glog.Warningf(
+							"[%s] Heartbeat %d->%d: %s...",
+							w.streamURI, committedEntryId, toCommitEntryId, err)
+					}
 				}
 				return err == nil, err
 			})

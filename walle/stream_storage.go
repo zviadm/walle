@@ -23,9 +23,10 @@ type streamStorage struct {
 	mx       sync.Mutex
 	topology *walleapi.StreamTopology
 
-	writerId        string
+	writerId        WriterId
 	writerAddr      string
 	writerLease     time.Duration
+	renewedLease    time.Time
 	committed       int64
 	noGapCommitted  int64
 	committedNotify chan struct{}
@@ -95,7 +96,7 @@ func openStreamStorage(serverId string, streamURI string, sess *wt.Session) Stre
 	panicOnErr(r.topology.Unmarshal(v))
 	v, err = metaR.ReadUnsafeValue([]byte(streamURI + sfxWriterId))
 	panicOnErr(err)
-	r.writerId = string(v)
+	r.writerId = WriterId(v)
 	v, err = metaR.ReadUnsafeValue([]byte(streamURI + sfxWriterAddr))
 	panicOnErr(err)
 	r.writerAddr = string(v)
@@ -152,18 +153,17 @@ func (m *streamStorage) StreamURI() string {
 	return m.streamURI
 }
 
-func (m *streamStorage) WriterInfo() (string, string, time.Duration) {
+func (m *streamStorage) WriterInfo() (WriterId, string, time.Duration, time.Duration) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
-	return m.writerId, m.writerAddr, m.writerLease
+	return m.writerId, m.writerAddr, m.writerLease, m.unsafeRemainingLease()
 }
-
 func (m *streamStorage) UpdateWriter(
-	writerId string, writerAddr string, lease time.Duration) {
+	writerId WriterId, writerAddr string, lease time.Duration) time.Duration {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	if writerId <= m.writerId {
-		return
+		return 0
 	}
 	m.writerId = writerId
 	m.writerAddr = writerAddr
@@ -172,6 +172,21 @@ func (m *streamStorage) UpdateWriter(
 	panicOnErr(m.metaW.Update([]byte(m.streamURI+sfxWriterAddr), []byte(m.writerAddr)))
 	binary.BigEndian.PutUint64(m.buf8, uint64(lease.Nanoseconds()))
 	panicOnErr(m.metaW.Update([]byte(m.streamURI+sfxWriterLeaseNs), []byte(m.buf8)))
+	return m.unsafeRemainingLease()
+}
+func (m *streamStorage) unsafeRemainingLease() time.Duration {
+	r := m.renewedLease.Add(m.writerLease).Sub(time.Now())
+	if r > 0 {
+		return r
+	}
+	return 0
+}
+func (m *streamStorage) RenewLease(writerId WriterId) {
+	m.mx.Lock()
+	defer m.mx.Unlock()
+	if writerId == m.writerId {
+		m.renewedLease = time.Now()
+	}
 }
 
 func (m *streamStorage) LastEntries() []*walleapi.Entry {
@@ -265,8 +280,9 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) bool {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 
-	panicOnNotOk(entry.WriterId != "", "writerId must always be set")
-	if !isCommitted && entry.WriterId < m.writerId {
+	entryWriterId := WriterId(entry.WriterId)
+	panicOnNotOk(entryWriterId != "", "writerId must always be set")
+	if !isCommitted && entryWriterId < m.writerId {
 		return false
 	}
 	if entry.EntryId > m.tailEntry.EntryId+1 {
@@ -305,7 +321,7 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) bool {
 	}
 
 	// NOTE(zviad): if !isCommitted, writerId needs to be checked here again atomically, in the lock.
-	if !isCommitted && entry.WriterId != m.writerId {
+	if !isCommitted && entryWriterId != m.writerId {
 		return false
 	}
 	if m.tailEntry.EntryId >= entry.EntryId {
