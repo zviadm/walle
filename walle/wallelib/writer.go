@@ -21,8 +21,8 @@ func ClaimWriter(
 	ctx context.Context,
 	c BasicClient,
 	streamURI string,
-	writerLease time.Duration,
-	writerAddr string) (*Writer, error) {
+	writerAddr string,
+	writerLease time.Duration) (*Writer, error) {
 	cli, err := c.ForStream(streamURI)
 	if err != nil {
 		return nil, err
@@ -30,8 +30,8 @@ func ClaimWriter(
 	resp, err := cli.ClaimWriter(
 		ctx, &walleapi.ClaimWriterRequest{
 			StreamUri:  streamURI,
-			LeaseMs:    writerLease.Nanoseconds() / 1000,
 			WriterAddr: writerAddr,
+			LeaseMs:    writerLease.Nanoseconds() / time.Millisecond.Nanoseconds(),
 		})
 	if err != nil {
 		return nil, errors.Wrap(err, "")

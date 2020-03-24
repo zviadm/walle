@@ -32,10 +32,9 @@ message WriterStatusRequest {
 	string stream_uri = 1;
 }
 message WriterStatusResponse {
-	string writer_id = 1;
-	string writer_addr = 2;
-	int64 lease_ms = 3;
-	int64 remaining_lease_ms = 4;
+	string writer_addr = 1;
+	int64 lease_ms = 2;
+	int64 remaining_lease_ms = 3;
 }
 
 message PutEntryRequest {

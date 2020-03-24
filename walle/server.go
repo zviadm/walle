@@ -207,7 +207,7 @@ func (s *Server) checkAndUpdateWriterId(ctx context.Context, ss StreamMetadata, 
 			// TODO(zviad): update heartbeat for `writerIds`.
 			return nil
 		}
-		resp, err := s.WriterStatus(ctx, &walleapi.WriterStatusRequest{StreamUri: ss.StreamURI()})
+		resp, err := s.broadcastWriterInfo(ctx, ss)
 		if err != nil {
 			return err
 		}

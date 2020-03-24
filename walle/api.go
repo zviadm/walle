@@ -32,6 +32,8 @@ func (s *Server) ClaimWriter(
 				StreamUri:     req.StreamUri,
 				StreamVersion: ssTopology.Version,
 				WriterId:      writerId,
+				WriterAddr:    req.WriterAddr,
+				LeaseMs:       req.LeaseMs,
 			})
 			return err
 		})
@@ -189,19 +191,36 @@ func (s *Server) WriterStatus(
 	if !ok {
 		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found locally", req.GetStreamUri())
 	}
+	writerInfo, err := s.broadcastWriterInfo(ctx, ss)
+	if err != nil {
+		return nil, err
+	}
+	return &walleapi.WriterStatusResponse{
+		WriterAddr:       writerInfo.WriterAddr,
+		LeaseMs:          writerInfo.LeaseMs,
+		RemainingLeaseMs: writerInfo.RemainingLeaseMs,
+	}, nil
+}
+
+func (s *Server) broadcastWriterInfo(
+	ctx context.Context, ss StreamMetadata) (*walle_pb.WriterInfoResponse, error) {
 	ssTopology := ss.Topology()
 	respMx := sync.Mutex{}
-	var resps []*walle_pb.WriterInfoResponse
+	var respMax *walle_pb.WriterInfoResponse
+	var remainingMs []int
 	_, err := s.broadcastRequest(ctx, ssTopology.ServerIds,
 		func(c walle_pb.WalleClient, serverId string) error {
 			resp, err := c.WriterInfo(ctx, &walle_pb.WriterInfoRequest{
 				ServerId:      serverId,
-				StreamUri:     req.StreamUri,
+				StreamUri:     ss.StreamURI(),
 				StreamVersion: ssTopology.Version,
 			})
 			respMx.Lock()
 			defer respMx.Unlock()
-			resps = append(resps, resp)
+			if resp.GetWriterId() > respMax.GetWriterId() {
+				respMax = resp
+			}
+			remainingMs = append(remainingMs, int(resp.GetRemainingLeaseMs()))
 			return err
 		})
 	if err != nil {
@@ -209,18 +228,9 @@ func (s *Server) WriterStatus(
 	}
 	// Sort responses by (writerId, remainingLeaseMs) and choose one that majority is
 	// greather than or equal to.
-	sort.Slice(resps, func(i, j int) bool {
-		return (resps[i].GetWriterId() < resps[j].GetWriterId()) ||
-			(resps[i].GetWriterId() == resps[j].GetWriterId() &&
-				resps[i].GetRemainingLeaseMs() < resps[j].GetRemainingLeaseMs())
-	})
-	resp := resps[len(ssTopology.ServerIds)/2+1]
-	return &walleapi.WriterStatusResponse{
-		WriterId:         resp.WriterId,
-		WriterAddr:       resp.WriterAddr,
-		LeaseMs:          resp.LeaseMs,
-		RemainingLeaseMs: resp.RemainingLeaseMs,
-	}, nil
+	sort.Ints(remainingMs)
+	respMax.RemainingLeaseMs = int64(remainingMs[len(ssTopology.ServerIds)/2+1])
+	return respMax, nil
 }
 
 func (s *Server) PutEntry(
