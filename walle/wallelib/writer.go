@@ -7,51 +7,15 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/pkg/errors"
 	"github.com/zviadm/walle/proto/walleapi"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 const (
-	shortBeat = time.Millisecond
+	shortBeat    = time.Millisecond
+	LeaseMinimum = 10 * shortBeat
 )
-
-func ClaimWriter(
-	ctx context.Context,
-	c BasicClient,
-	streamURI string,
-	writerAddr string,
-	writerLease time.Duration) (*Writer, *walleapi.Entry, error) {
-	cli, err := c.ForStream(streamURI)
-	if err != nil {
-		return nil, nil, err
-	}
-	resp, err := cli.ClaimWriter(
-		ctx, &walleapi.ClaimWriterRequest{
-			StreamUri:  streamURI,
-			WriterAddr: writerAddr,
-			LeaseMs:    writerLease.Nanoseconds() / time.Millisecond.Nanoseconds(),
-		})
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "")
-	}
-	// TODO(zviad): Lease timer should be initialzied here.
-	_, err = cli.PutEntry(ctx, &walleapi.PutEntryRequest{
-		StreamUri:         streamURI,
-		Entry:             &walleapi.Entry{WriterId: resp.WriterId},
-		CommittedEntryId:  resp.LastEntry.EntryId,
-		CommittedEntryMd5: resp.LastEntry.ChecksumMd5,
-	})
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "")
-	}
-	w := newWriter(
-		c, streamURI,
-		writerLease, writerAddr,
-		resp.WriterId, resp.LastEntry)
-	return w, resp.LastEntry, nil
-}
 
 // Writer is not thread safe. PutEntry calls must be issued serially.
 // Writer retries PutEntry calls internally indefinitely, until an unrecoverable error happens.
@@ -84,7 +48,8 @@ func newWriter(
 	writerLease time.Duration,
 	writerAddr string,
 	writerId string,
-	lastEntry *walleapi.Entry) *Writer {
+	lastEntry *walleapi.Entry,
+	commitTime time.Time) *Writer {
 	ctx, cancel := context.WithCancel(context.Background())
 	w := &Writer{
 		c:           c,
@@ -99,6 +64,7 @@ func newWriter(
 		committedEntryMd5: lastEntry.ChecksumMd5,
 		toCommitEntryId:   lastEntry.EntryId,
 		toCommitEntryMd5:  lastEntry.ChecksumMd5,
+		commitTime:        commitTime,
 		commitNotify:      make(chan struct{}),
 
 		rootCtx:    ctx,
@@ -113,6 +79,14 @@ func newWriter(
 func (w *Writer) Close() {
 	w.rootCancel()
 	<-w.rootCtx.Done()
+}
+
+// Returns True, if at the time of the IsWriter call, this writer is still guaranteed
+// to be the only exclusive writer.
+func (w *Writer) IsWriter() bool {
+	w.committedEntryMx.Lock()
+	defer w.committedEntryMx.Unlock()
+	return w.commitTime.Add(w.writerLease).After(time.Now())
 }
 
 // Heartbeat makes background requests to the server if there are no active

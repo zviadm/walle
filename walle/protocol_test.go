@@ -2,9 +2,11 @@ package walle
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 
+	"github.com/golang/glog"
 	"github.com/stretchr/testify/require"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/wallelib"
@@ -25,7 +27,8 @@ func TestProtocolClaimWriter(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	_, c := newMockSystem(ctx, topoSimple, "/tmp/tt_protocol_basic_new_writer")
-	w, _, err := wallelib.ClaimWriter(ctx, c, "/mock/1", "testhost:1001", time.Second)
+
+	w, _, err := wallelib.WaitAndClaim(ctx, c, "/mock/1", "testhost:1001", wallelib.LeaseMinimum)
 	require.NoError(t, err)
 	defer w.Close()
 
@@ -57,20 +60,57 @@ func TestProtocolClaimWriter(t *testing.T) {
 	require.EqualValues(t, e3.EntryId, 3, "e3: %+v", e3)
 	err = <-c3
 	require.NoError(t, err)
+	require.True(t, w.IsWriter())
 
 	// Make sure clean writer transition works.
-	w2, _, err := wallelib.ClaimWriter(ctx, c, "/mock/1", "testhost:1001", time.Second)
+	w2, _, err := wallelib.ClaimWriter(ctx, c, "/mock/1", "testhost:1001", wallelib.LeaseMinimum)
 	require.NoError(t, err)
 	defer w2.Close()
+	require.False(t, w.IsWriter())
+	require.True(t, w2.IsWriter())
 
 	// TODO(zviad): Test at least few edgecases of claim writer reconciliations.
+}
+
+func TestProtocolClaimBarrage(t *testing.T) {
+	nClaims := 10
+	lease := wallelib.LeaseMinimum
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(nClaims)*time.Second)
+	defer cancel()
+	_, c := newMockSystem(ctx, topoSimple, "/tmp/tt_protocol_basic_new_writer")
+
+	errChan := make(chan error, nClaims)
+	entries := make(chan *walleapi.Entry, nClaims)
+	for idx := 0; idx < nClaims; idx++ {
+		go func(idx int) (err error) {
+			defer func() { errChan <- err }()
+			w, entry, err := wallelib.WaitAndClaim(ctx, c, "/mock/1", "testhost:"+strconv.Itoa(idx), lease)
+			if err != nil {
+				return err
+			}
+			defer w.Close()
+			glog.Info("Successful claim ", entry.EntryId, idx)
+			entries <- entry
+			w.PutEntry([]byte(strconv.Itoa(idx)))
+			return nil
+		}(idx)
+	}
+	for idx := 0; idx < nClaims; idx++ {
+		err := <-errChan
+		require.NoError(t, err)
+	}
+	for idx := 0; idx < nClaims; idx++ {
+		entry := <-entries
+		require.EqualValues(t, idx, entry.EntryId)
+	}
 }
 
 func TestProtocolGapRecovery(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	m, c := newMockSystem(ctx, topoSimple, TestTmpDir())
-	w, _, err := wallelib.ClaimWriter(ctx, c, "/mock/1", "testhost:1001", time.Second)
+	w, _, err := wallelib.WaitAndClaim(ctx, c, "/mock/1", "testhost:1001", wallelib.LeaseMinimum)
 	require.NoError(t, err)
 	defer w.Close()
 

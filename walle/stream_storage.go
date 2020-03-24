@@ -165,14 +165,16 @@ func (m *streamStorage) UpdateWriter(
 	if writerId <= m.writerId {
 		return 0
 	}
+	remainingLease := m.unsafeRemainingLease()
 	m.writerId = writerId
 	m.writerAddr = writerAddr
 	m.writerLease = lease
+	m.renewedLease = time.Now()
 	panicOnErr(m.metaW.Update([]byte(m.streamURI+sfxWriterId), []byte(m.writerId)))
 	panicOnErr(m.metaW.Update([]byte(m.streamURI+sfxWriterAddr), []byte(m.writerAddr)))
 	binary.BigEndian.PutUint64(m.buf8, uint64(lease.Nanoseconds()))
 	panicOnErr(m.metaW.Update([]byte(m.streamURI+sfxWriterLeaseNs), []byte(m.buf8)))
-	return m.unsafeRemainingLease()
+	return remainingLease
 }
 func (m *streamStorage) unsafeRemainingLease() time.Duration {
 	r := m.renewedLease.Add(m.writerLease).Sub(time.Now())

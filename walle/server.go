@@ -70,8 +70,22 @@ func (s *Server) NewWriter(
 	if err != nil {
 		return nil, err
 	}
-	remainingLease := ss.UpdateWriter(WriterId(req.WriterId), req.WriterAddr, time.Duration(req.LeaseMs)*time.Millisecond)
-	time.Sleep(remainingLease) // Need to wait up to remaining lease time before success can be returned.
+	reqWriterId := WriterId(req.WriterId)
+	remainingLease := ss.UpdateWriter(reqWriterId, req.WriterAddr, time.Duration(req.LeaseMs)*time.Millisecond)
+
+	// Need to wait `remainingLease` duration before returning. However, we also need to make sure new
+	// lease doesn't expire since writer client can't heartbeat until this call succeeds.
+	sleepTill := time.Now().Add(remainingLease)
+	iterSleep := time.Duration(req.LeaseMs) * time.Millisecond / 10
+	iterN := int(remainingLease / iterSleep)
+	for idx := 0; idx < iterN; idx++ {
+		time.Sleep(iterSleep)
+		ss.RenewLease(reqWriterId)
+	}
+	if finalSleep := sleepTill.Sub(time.Now()); finalSleep > 0 {
+		time.Sleep(finalSleep)
+		ss.RenewLease(reqWriterId)
+	}
 	return &walle_pb.NewWriterResponse{}, nil
 }
 

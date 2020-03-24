@@ -11,6 +11,7 @@ import (
 
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/walle/walle/wallelib"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -21,6 +22,9 @@ func (s *Server) ClaimWriter(
 	ss, ok := s.s.Stream(req.GetStreamUri(), true)
 	if !ok {
 		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found locally", req.GetStreamUri())
+	}
+	if req.LeaseMs < wallelib.LeaseMinimum.Nanoseconds()/time.Millisecond.Nanoseconds() {
+		return nil, status.Errorf(codes.InvalidArgument, "lease_ms: %d must be >%v", req.LeaseMs, wallelib.LeaseMinimum)
 	}
 	writerId := makeWriterId()
 	ssTopology := ss.Topology()
@@ -228,7 +232,7 @@ func (s *Server) broadcastWriterInfo(
 	// Sort responses by (writerId, remainingLeaseMs) and choose one that majority is
 	// greather than or equal to.
 	sort.Ints(remainingMs)
-	respMax.RemainingLeaseMs = int64(remainingMs[len(ssTopology.ServerIds)/2+1])
+	respMax.RemainingLeaseMs = int64(remainingMs[len(ssTopology.ServerIds)/2])
 	return respMax, nil
 }
 
