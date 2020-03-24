@@ -16,10 +16,8 @@ import (
 )
 
 type discovery struct {
-	root         BasicClient
-	rootURI      string
-	topologyURI  string
-	topologyFile string
+	root        BasicClient
+	topologyURI string
 
 	mx       sync.Mutex
 	topology *walleapi.Topology
@@ -33,12 +31,11 @@ type Discovery interface {
 func NewRootDiscovery(
 	ctx context.Context,
 	rootURI string,
-	topologyFile string) (Discovery, error) {
-	topology, err := topologyFromFile(topologyFile)
-	if err != nil {
-		return nil, err
+	rootTopology *walleapi.Topology) (Discovery, error) {
+	if rootTopology.GetVersion() == 0 {
+		return nil, errors.Errorf("must provide valid root topology: %+v", rootTopology)
 	}
-	d := newDiscovery(nil, rootURI, rootURI, topologyFile, topology)
+	d := newDiscovery(nil, rootURI, rootTopology)
 	d.root = NewClient(ctx, d)
 	go d.watcher(ctx)
 	return d, nil
@@ -47,69 +44,30 @@ func NewRootDiscovery(
 func NewDiscovery(
 	ctx context.Context,
 	root BasicClient,
-	rootURI string,
 	topologyURI string,
-	topologyFile string) (Discovery, error) {
-	topology, err := topologyFromFile(topologyFile)
-	if err != nil {
-		glog.Infof(
-			"topology file: %s couldn't be read, will try to stream from scratch, err: %v",
-			topologyFile, err)
-		cli, err := root.ForStream(rootURI)
+	topology *walleapi.Topology) (Discovery, error) {
+	if topology.GetVersion() == 0 {
+		cli, err := root.ForStream(topologyURI)
 		if err != nil {
 			return nil, err
 		}
-		topology, err = streamUpdates(ctx, cli, topologyURI, 0)
+		topology, err = streamUpdates(ctx, cli, topologyURI, -1)
 		if err != nil {
-			return nil, err
-		}
-		if err := TopologyToFile(topology, topologyFile); err != nil {
 			return nil, err
 		}
 	}
-	d := newDiscovery(root, rootURI, topologyURI, topologyFile, topology)
+	d := newDiscovery(root, topologyURI, topology)
 	go d.watcher(ctx)
 	return d, nil
 }
 
-// Helper function to read topology from a file.
-func topologyFromFile(f string) (*walleapi.Topology, error) {
-	topologyB, err := ioutil.ReadFile(f)
-	if err != nil {
-		return nil, err
-	}
-	topology := &walleapi.Topology{}
-	err = topology.Unmarshal(topologyB)
-	return topology, err
-}
-
-// Helper function to write topology to a file. Write happens atomically
-// to avoid chances of corruption if process where to crash.
-func TopologyToFile(t *walleapi.Topology, f string) error {
-	tB, err := t.Marshal()
-	if err != nil {
-		return err
-	}
-	tmpF := f + ".tmp"
-	if err := ioutil.WriteFile(tmpF, tB, 0644); err != nil {
-		return err
-	}
-	// Write file atomically, to avoid any corruption issues if program
-	// crashes in the middle of a write.
-	return os.Rename(tmpF, f)
-}
-
 func newDiscovery(
 	root BasicClient,
-	rootURI string,
 	topologyURI string,
-	topologyFile string,
 	topology *walleapi.Topology) *discovery {
 	return &discovery{
-		root:         root,
-		rootURI:      rootURI,
-		topologyURI:  rootURI,
-		topologyFile: topologyFile,
+		root:        root,
+		topologyURI: topologyURI,
 
 		topology: topology,
 		notify:   make(chan struct{}),
@@ -119,9 +77,9 @@ func newDiscovery(
 func (d *discovery) watcher(ctx context.Context) {
 	topology := d.topology
 	for {
-		cli, err := d.root.ForStream(d.rootURI)
+		cli, err := d.root.ForStream(d.topologyURI)
 		if err != nil {
-			glog.Warningf("[%s] watcher can't connect to root: %s, err: %s...", d.topologyURI, d.rootURI, err)
+			glog.Warningf("[%s] watcher can't connect: %s...", d.topologyURI, err)
 			// TODO(zviad): exp backoff?
 			select {
 			case <-ctx.Done():
@@ -152,9 +110,6 @@ func (d *discovery) watcher(ctx context.Context) {
 			continue
 		}
 		d.updateTopology(topology)
-		if err := TopologyToFile(topology, d.topologyFile); err != nil {
-			glog.Warningf("[%s] watcher failed to store, err: %s", d.topologyURI, err)
-		}
 	}
 }
 
@@ -202,6 +157,33 @@ func streamUpdates(
 	return TopologyFromEntry(entry)
 }
 
+// Helper function to read topology from a file.
+func TopologyFromFile(f string) (*walleapi.Topology, error) {
+	topologyB, err := ioutil.ReadFile(f)
+	if err != nil {
+		return nil, err
+	}
+	topology := &walleapi.Topology{}
+	err = topology.Unmarshal(topologyB)
+	return topology, err
+}
+
+// Helper function to write topology to a file. Write happens atomically
+// to avoid chances of corruption if process where to crash.
+func TopologyToFile(t *walleapi.Topology, f string) error {
+	tB, err := t.Marshal()
+	if err != nil {
+		return err
+	}
+	tmpF := f + ".tmp"
+	if err := ioutil.WriteFile(tmpF, tB, 0644); err != nil {
+		return err
+	}
+	// Write file atomically, to avoid any corruption issues if program
+	// crashes in the middle of a write.
+	return os.Rename(tmpF, f)
+}
+
 // Parses out and unmarshalls stored topology protobuf from an entry.
 func TopologyFromEntry(entry *walleapi.Entry) (*walleapi.Topology, error) {
 	topology := &walleapi.Topology{}
@@ -210,7 +192,7 @@ func TopologyFromEntry(entry *walleapi.Entry) (*walleapi.Topology, error) {
 	}
 	if topology.Version != entry.EntryId {
 		return nil, errors.Errorf(
-			"invalid topology entry, version must match EntryId: %v vs %+v", entry.EntryId, topology)
+			"invalid topology entry, version must match EntryId: %d vs %s", entry.EntryId, topology)
 	}
 	return topology, nil
 }

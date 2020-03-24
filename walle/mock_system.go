@@ -17,7 +17,8 @@ import (
 
 type mockSystem struct {
 	walle_pb.WalleClient
-	topology *walleapi.Topology
+	topology    *walleapi.Topology
+	storagePath string
 
 	mx         sync.Mutex
 	servers    map[string]*Server
@@ -29,9 +30,10 @@ func newMockSystem(
 	topology *walleapi.Topology,
 	storagePath string) (*mockSystem, *mockApiClient) {
 	mSystem := &mockSystem{
-		topology:   topology,
-		servers:    make(map[string]*Server, len(topology.Servers)),
-		isDisabled: make(map[string]bool, len(topology.Servers)),
+		topology:    topology,
+		storagePath: storagePath,
+		servers:     make(map[string]*Server, len(topology.Servers)),
+		isDisabled:  make(map[string]bool, len(topology.Servers)),
 	}
 	mClient := &mockClient{mSystem}
 	for serverId := range topology.Servers {
@@ -41,14 +43,19 @@ func newMockSystem(
 	}
 	go func() {
 		<-ctx.Done()
-		mSystem.mx.Lock()
-		defer mSystem.mx.Unlock()
-		for _, s := range mSystem.servers {
-			s.s.Close()
-		}
-		_ = os.RemoveAll(storagePath)
+		mSystem.cleanup()
 	}()
 	return mSystem, &mockApiClient{mSystem}
+}
+
+func (m *mockSystem) cleanup() {
+	m.mx.Lock()
+	defer m.mx.Unlock()
+	for _, s := range m.servers {
+		s.s.Close()
+	}
+	m.servers = nil
+	_ = os.RemoveAll(m.storagePath)
 }
 
 func (m *mockSystem) Topology() (*walleapi.Topology, <-chan struct{}) {

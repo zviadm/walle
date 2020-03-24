@@ -24,7 +24,7 @@ func (s *Server) ClaimWriter(
 		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found locally", req.GetStreamUri())
 	}
 	if req.LeaseMs < wallelib.LeaseMinimum.Nanoseconds()/time.Millisecond.Nanoseconds() {
-		return nil, status.Errorf(codes.InvalidArgument, "lease_ms: %d must be >%v", req.LeaseMs, wallelib.LeaseMinimum)
+		return nil, status.Errorf(codes.InvalidArgument, "lease_ms: %d must be >%s", req.LeaseMs, wallelib.LeaseMinimum)
 	}
 	writerId := makeWriterId()
 	ssTopology := ss.Topology()
@@ -34,7 +34,7 @@ func (s *Server) ClaimWriter(
 				ServerId:      serverId,
 				StreamUri:     req.StreamUri,
 				StreamVersion: ssTopology.Version,
-				WriterId:      writerId,
+				WriterId:      writerId.Encode(),
 				WriterAddr:    req.WriterAddr,
 				LeaseMs:       req.LeaseMs,
 			})
@@ -62,7 +62,8 @@ func (s *Server) ClaimWriter(
 			}
 			entries[serverId] = r.Entries
 		}
-		committed, err := s.commitMaxEntry(ctx, req.StreamUri, ssTopology.Version, entries)
+		committed, err := s.commitMaxEntry(
+			ctx, req.StreamUri, ssTopology.Version, entries, writerId)
 		if err != nil {
 			return nil, err
 		}
@@ -84,10 +85,10 @@ func (s *Server) ClaimWriter(
 	if maxEntry == entries[maxWriterServerId][0] {
 		// Entries are all fully committed. There is no need to reconcile anything,
 		// claiming writer can just succeed.
-		return &walleapi.ClaimWriterResponse{WriterId: writerId, LastEntry: maxEntry}, nil
+		return &walleapi.ClaimWriterResponse{WriterId: writerId.Encode(), LastEntry: maxEntry}, nil
 	}
 
-	maxEntry.WriterId = writerId
+	maxEntry.WriterId = writerId.Encode()
 	c, err := s.c.ForServer(maxWriterServerId)
 	if err != nil {
 		return nil, err
@@ -119,7 +120,7 @@ func (s *Server) ClaimWriter(
 		}
 		for idx := startIdx; idx < len(maxEntries); idx++ {
 			entry := maxEntries[idx]
-			entry.WriterId = writerId
+			entry.WriterId = writerId.Encode()
 			_, err = c.PutEntryInternal(ctx, &walle_pb.PutEntryInternalRequest{
 				ServerId:      serverId,
 				StreamUri:     req.StreamUri,
@@ -148,14 +149,15 @@ func (s *Server) ClaimWriter(
 			return nil, err
 		}
 	}
-	return &walleapi.ClaimWriterResponse{WriterId: writerId, LastEntry: maxEntry}, nil
+	return &walleapi.ClaimWriterResponse{WriterId: writerId.Encode(), LastEntry: maxEntry}, nil
 }
 
 func (s *Server) commitMaxEntry(
 	ctx context.Context,
 	streamURI string,
 	streamVersion int64,
-	entries map[string][]*walleapi.Entry) (bool, error) {
+	entries map[string][]*walleapi.Entry,
+	writerId WriterId) (bool, error) {
 	var maxEntry *walleapi.Entry
 	committed := false
 	for _, es := range entries {
@@ -164,6 +166,7 @@ func (s *Server) commitMaxEntry(
 			maxEntry = es[0]
 		}
 	}
+	maxEntry.WriterId = writerId.Encode()
 	for serverId, es := range entries {
 		if es[0].EntryId < maxEntry.EntryId {
 			committed = true
@@ -314,11 +317,11 @@ func (s *Server) StreamEntries(
 	return nil
 }
 
-func makeWriterId() string {
+func makeWriterId() WriterId {
 	writerId := make([]byte, writerIdLen)
 	binary.BigEndian.PutUint64(writerId[0:8], uint64(time.Now().UnixNano()))
 	rand.Read(writerId[8:writerIdLen])
-	return string(writerId)
+	return WriterId(writerId)
 }
 
 // Broadcasts requests to all serverIds and returns list of serverIds that have succeeded.
@@ -356,7 +359,7 @@ func (s *Server) broadcastRequest(
 			}
 			errCode = errStatus.Code()
 		}
-		return nil, status.Errorf(errCode, "not enough success: %s <= %d\nerrs: %v", successIds, len(errs), errs)
+		return nil, status.Errorf(errCode, "not enough success: %s <= %d\nerrs: %s", successIds, len(errs), errs)
 	}
 	return successIds, nil
 }

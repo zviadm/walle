@@ -26,16 +26,16 @@ var topoSimple = &walleapi.Topology{
 func TestProtocolClaimWriter(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	_, c := newMockSystem(ctx, topoSimple, "/tmp/tt_protocol_basic_new_writer")
+	_, c := newMockSystem(ctx, topoSimple, TestTmpDir())
 
 	w, _, err := wallelib.WaitAndClaim(ctx, c, "/mock/1", "testhost:1001", wallelib.LeaseMinimum)
 	require.NoError(t, err)
-	defer w.Close()
+	defer w.Close(false)
 
 	writerStatus, err := c.WriterStatus(ctx, &walleapi.WriterStatusRequest{StreamUri: "/mock/1"})
 	require.NoError(t, err)
 	require.EqualValues(t, "testhost:1001", writerStatus.WriterAddr)
-	require.EqualValues(t, time.Second.Nanoseconds()/time.Millisecond.Nanoseconds(), writerStatus.LeaseMs)
+	require.EqualValues(t, wallelib.LeaseMinimum.Nanoseconds()/time.Millisecond.Nanoseconds(), writerStatus.LeaseMs)
 	require.Less(t, int64(0), writerStatus.RemainingLeaseMs)
 	require.Greater(t, writerStatus.LeaseMs, writerStatus.RemainingLeaseMs)
 
@@ -65,7 +65,7 @@ func TestProtocolClaimWriter(t *testing.T) {
 	// Make sure clean writer transition works.
 	w2, _, err := wallelib.ClaimWriter(ctx, c, "/mock/1", "testhost:1001", wallelib.LeaseMinimum)
 	require.NoError(t, err)
-	defer w2.Close()
+	defer w2.Close(false)
 	require.False(t, w.IsWriter())
 	require.True(t, w2.IsWriter())
 
@@ -76,24 +76,31 @@ func TestProtocolClaimBarrage(t *testing.T) {
 	nClaims := 10
 	lease := wallelib.LeaseMinimum
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(nClaims)*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(nClaims)*2*time.Second)
 	defer cancel()
-	_, c := newMockSystem(ctx, topoSimple, "/tmp/tt_protocol_basic_new_writer")
+	_, c := newMockSystem(ctx, topoSimple, TestTmpDir())
 
 	errChan := make(chan error, nClaims)
 	entries := make(chan *walleapi.Entry, nClaims)
 	for idx := 0; idx < nClaims; idx++ {
 		go func(idx int) (err error) {
 			defer func() { errChan <- err }()
-			w, entry, err := wallelib.WaitAndClaim(ctx, c, "/mock/1", "testhost:"+strconv.Itoa(idx), lease)
-			if err != nil {
-				return err
+			addr := "testhost:" + strconv.Itoa(idx)
+			for {
+				w, entry, err := wallelib.WaitAndClaim(ctx, c, "/mock/1", addr, lease)
+				if err != nil {
+					return err
+				}
+				defer w.Close(true)
+				_, errC := w.PutEntry([]byte(strconv.Itoa(idx)))
+				err = <-errC
+				if err != nil {
+					continue // This can happen if WaitAndClaim races.
+				}
+				glog.Info("Successful claim ", addr, " ", entry.EntryId)
+				entries <- entry
+				return nil
 			}
-			defer w.Close()
-			glog.Info("Successful claim ", entry.EntryId, idx)
-			entries <- entry
-			w.PutEntry([]byte(strconv.Itoa(idx)))
-			return nil
 		}(idx)
 	}
 	for idx := 0; idx < nClaims; idx++ {
@@ -110,12 +117,13 @@ func TestProtocolGapRecovery(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	m, c := newMockSystem(ctx, topoSimple, TestTmpDir())
+
 	w, _, err := wallelib.WaitAndClaim(ctx, c, "/mock/1", "testhost:1001", wallelib.LeaseMinimum)
 	require.NoError(t, err)
-	defer w.Close()
+	defer w.Close(false)
 
 	ee, errC := w.PutEntry([]byte("d1"))
-	require.EqualValues(t, ee.EntryId, 1, "ee: %v", ee)
+	require.EqualValues(t, ee.EntryId, 1, "ee: %s", ee)
 	err = <-errC
 	require.NoError(t, err)
 
@@ -131,7 +139,7 @@ func TestProtocolGapRecovery(t *testing.T) {
 	eeD4, errC := w.PutEntry([]byte("d4"))
 	select {
 	case err = <-errC:
-		t.Fatalf("PutEntry must not have succeeded: %v", err)
+		t.Fatalf("PutEntry must not have succeeded: %s", err)
 	case <-time.After(10 * time.Millisecond):
 	}
 

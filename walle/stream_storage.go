@@ -159,11 +159,11 @@ func (m *streamStorage) WriterInfo() (WriterId, string, time.Duration, time.Dura
 	return m.writerId, m.writerAddr, m.writerLease, m.unsafeRemainingLease()
 }
 func (m *streamStorage) UpdateWriter(
-	writerId WriterId, writerAddr string, lease time.Duration) time.Duration {
+	writerId WriterId, writerAddr string, lease time.Duration) (bool, time.Duration) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	if writerId <= m.writerId {
-		return 0
+		return writerId == m.writerId, 0
 	}
 	remainingLease := m.unsafeRemainingLease()
 	m.writerId = writerId
@@ -174,7 +174,7 @@ func (m *streamStorage) UpdateWriter(
 	panicOnErr(m.metaW.Update([]byte(m.streamURI+sfxWriterAddr), []byte(m.writerAddr)))
 	binary.BigEndian.PutUint64(m.buf8, uint64(lease.Nanoseconds()))
 	panicOnErr(m.metaW.Update([]byte(m.streamURI+sfxWriterLeaseNs), []byte(m.buf8)))
-	return remainingLease
+	return true, remainingLease
 }
 func (m *streamStorage) unsafeRemainingLease() time.Duration {
 	r := m.renewedLease.Add(m.writerLease).Sub(time.Now())
@@ -255,7 +255,7 @@ func (m *streamStorage) unsafeCommitEntry(entryId int64, entryMd5 []byte, newGap
 	}
 	panicOnNotOk(
 		bytes.Compare(existingEntry.ChecksumMd5, entryMd5) == 0,
-		fmt.Sprintf("committed entry md5 mimstach at: %d, %v vs %v", entryId, entryMd5, existingEntry.ChecksumMd5))
+		fmt.Sprintf("committed entry md5 mimstach at: %d, %s vs %s", entryId, entryMd5, existingEntry.ChecksumMd5))
 	panicOnNotOk(useTx || m.sess.InTx(), "commit must happen inside a transaction")
 	if useTx {
 		panicOnErr(m.sess.TxBegin())

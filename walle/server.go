@@ -71,7 +71,10 @@ func (s *Server) NewWriter(
 		return nil, err
 	}
 	reqWriterId := WriterId(req.WriterId)
-	remainingLease := ss.UpdateWriter(reqWriterId, req.WriterAddr, time.Duration(req.LeaseMs)*time.Millisecond)
+	ok, remainingLease := ss.UpdateWriter(reqWriterId, req.WriterAddr, time.Duration(req.LeaseMs)*time.Millisecond)
+	if !ok {
+		return nil, status.Errorf(codes.FailedPrecondition, "there is already another new writer")
+	}
 
 	// Need to wait `remainingLease` duration before returning. However, we also need to make sure new
 	// lease doesn't expire since writer client can't heartbeat until this call succeeds.

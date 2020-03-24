@@ -30,7 +30,7 @@ func RunGoService(
 	waitOnPort string) (*Service, error) {
 
 	cmd := exec.Command(path.Join("/root", goVer, "bin/go"), "install", pkg)
-	glog.Infof("running: %v", cmd)
+	glog.Infof("running: %s", cmd)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -39,7 +39,7 @@ func RunGoService(
 	}
 
 	cmd = exec.Command(path.Join("/root/.cache/goroot/bin", path.Base(pkg)), flags...)
-	glog.Infof("running: %v", cmd)
+	glog.Infof("running: %s", cmd)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

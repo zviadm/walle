@@ -64,19 +64,17 @@ func WaitAndClaim(
 		func(retryN uint) (bool, error) {
 			s, err := c.ForStream(streamURI)
 			if err != nil {
-				glog.Warningf("[%s] writer: %s err: %v...", streamURI, writerAddr, err)
+				glog.Warningf("[%s] writer: %s err: %s...", streamURI, writerAddr, err)
 				return false, err
 			}
+			var status *walleapi.WriterStatusResponse
 			for {
-				status, err := s.WriterStatus(ctx, &walleapi.WriterStatusRequest{StreamUri: streamURI})
+				status, err = s.WriterStatus(ctx, &walleapi.WriterStatusRequest{StreamUri: streamURI})
 				if err != nil {
-					glog.Warningf("[%s] writer: %s err: %v...", streamURI, writerAddr, err)
+					glog.Warningf("[%s] writer: %s err: %s...", streamURI, writerAddr, err)
 					return false, err
 				}
 				if status.RemainingLeaseMs == 0 {
-					// glog.Infof(
-					// 	"DEBUG: [%s] writer: %s attempting: %s:%v...",
-					// 	streamURI, writerAddr, status.WriterAddr, status.RemainingLeaseMs)
 					break
 				}
 				select {
@@ -87,7 +85,9 @@ func WaitAndClaim(
 			}
 			w, e, err = ClaimWriter(ctx, c, streamURI, writerAddr, writerLease)
 			if err != nil {
-				glog.Warningf("[%s] writer: %s claim attempt: %v...", streamURI, writerAddr, err)
+				glog.Warningf(
+					"[%s] writer: %s claim attempt (%s: %d): %s...",
+					streamURI, writerAddr, status.WriterAddr, status.RemainingLeaseMs, err)
 			}
 			return err == nil, err
 		})

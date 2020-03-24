@@ -30,6 +30,7 @@ func rootDirForPkg(pkg string) (string, string, error) {
 
 func main() {
 	runFlag := flag.String("run", "", "regexp")
+	countFlag := flag.String("count", "", "number of times to run tests")
 	flag.Parse()
 	packages := flag.Args()
 	if len(packages) < 1 {
@@ -62,6 +63,7 @@ func main() {
 
 	args := []string{
 		"run", "-i", "-t", "--rm",
+		"--name", "tt",
 		"-v", rootDir + ":/root/src:cached",
 		"-v", cacheDir + ":/root/.cache:delegated",
 		//"-v", tmpDir + ":/tmp:delegated", NOTE(zviad): This is way too slow on OSx :'(
@@ -72,6 +74,9 @@ func main() {
 	}
 	if *runFlag != "" {
 		args = append(args, "-run", *runFlag)
+	}
+	if *countFlag != "" {
+		args = append(args, "-count", *countFlag)
 	}
 	for _, pkg := range packages {
 		args = append(args, pkg)

@@ -2,7 +2,6 @@ package itest
 
 import (
 	"context"
-	"io/ioutil"
 	"path"
 	"testing"
 	"time"
@@ -24,9 +23,6 @@ const (
 func TestE2ESimple(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	cliDir := walle.TestTmpDir()
-	cliRootPb := path.Join(cliDir, "root.pb")
-	// cliTopoPb := path.Join(cliDir, "topology.pb")
 	w1Dir := walle.TestTmpDir()
 
 	// Bootstrap WALLE `itest` deployment.
@@ -42,10 +38,7 @@ func TestE2ESimple(t *testing.T) {
 	require.NoError(t, err)
 	s.Wait(t)
 
-	// Copy `root.pb` so client can use it for discovery.
-	rootPbData, err := ioutil.ReadFile(path.Join(w1Dir, "root.pb"))
-	require.NoError(t, err)
-	err = ioutil.WriteFile(cliRootPb, rootPbData, 0644)
+	rootTopology, err := wallelib.TopologyFromFile(path.Join(w1Dir, "root.pb"))
 	require.NoError(t, err)
 
 	// Start WALLE server.
@@ -61,8 +54,10 @@ func TestE2ESimple(t *testing.T) {
 	defer s.Stop(t)
 
 	// Read and update root topology to add a new cluster.
-	cli, err := wallelib.NewClientForTopology(ctx, "/topology/itest", cliRootPb, "", "")
+	rootD, err := wallelib.NewRootDiscovery(ctx, "/topology/itest", rootTopology)
 	require.NoError(t, err)
+	cli := wallelib.NewClient(ctx, rootD)
+
 	w, entry, err := wallelib.WaitAndClaim(ctx, cli, "/topology/itest", "e2e_test:1001", wallelib.LeaseMinimum)
 	require.NoError(t, err)
 	topo, err := wallelib.TopologyFromEntry(entry)
@@ -78,7 +73,7 @@ func TestE2ESimple(t *testing.T) {
 	_, waitC := w.PutEntry(entryData)
 	err = <-waitC
 	require.NoError(t, err)
-	w.Close()
+	w.Close(true)
 
 	// Wait a bit to make sure new topology is propagated to the server.
 	time.Sleep(5 * time.Second)
@@ -86,5 +81,5 @@ func TestE2ESimple(t *testing.T) {
 	w, entry, err = wallelib.WaitAndClaim(ctx, cli, "/cluster_a/1", "e2e_test:1001", wallelib.LeaseMinimum)
 	require.NoError(t, err)
 	require.EqualValues(t, 0, entry.EntryId)
-	w.Close()
+	w.Close(true)
 }

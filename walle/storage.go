@@ -56,7 +56,7 @@ func storageInitWithServerId(dbPath string, createIfNotExists bool, serverId str
 			panicOnErr(err)
 		}
 		if !createIfNotExists {
-			return nil, errors.Errorf("serverId doesn't exist in the database: %v", dbPath)
+			return nil, errors.Errorf("serverId doesn't exist in the database: %s", dbPath)
 		}
 		metaW, err := s.Mutate(metadataDS, nil)
 		panicOnErr(err)
@@ -79,7 +79,7 @@ func storageInitWithServerId(dbPath string, createIfNotExists bool, serverId str
 		streams:  make(map[string]StreamStorage),
 	}
 	if serverId != "" && serverId != r.serverId {
-		return nil, errors.Errorf("storage already has different serverId: %v vs %v", r.serverId, serverId)
+		return nil, errors.Errorf("storage already has different serverId: %s vs %s", r.serverId, serverId)
 	}
 	glog.Infof("storage: %s", hex.EncodeToString(serverIdB))
 

@@ -36,7 +36,6 @@ type Writer struct {
 	toCommitEntryId   int64
 	toCommitEntryMd5  []byte
 	commitTime        time.Time
-	commitNotify      chan struct{}
 
 	rootCtx    context.Context
 	rootCancel context.CancelFunc
@@ -65,7 +64,6 @@ func newWriter(
 		toCommitEntryId:   lastEntry.EntryId,
 		toCommitEntryMd5:  lastEntry.ChecksumMd5,
 		commitTime:        commitTime,
-		commitNotify:      make(chan struct{}),
 
 		rootCtx:    ctx,
 		rootCancel: cancel,
@@ -76,9 +74,25 @@ func newWriter(
 
 // Permanently closes writer and all outstanding PutEntry calls with it.
 // This call is thread safe and can be called at any time.
-func (w *Writer) Close() {
-	w.rootCancel()
-	<-w.rootCtx.Done()
+func (w *Writer) Close(tryFlush bool) {
+	defer w.rootCancel()
+	if !tryFlush {
+		return
+	}
+	_, committedEntryId, _, toCommitEntryId, toCommitEntryMd5 := w.safeCommittedEntryId()
+	if toCommitEntryId <= committedEntryId {
+		return
+	}
+	cli, err := w.c.ForStream(w.streamURI)
+	if err != nil {
+		return
+	}
+	_, _ = cli.PutEntry(w.rootCtx, &walleapi.PutEntryRequest{
+		StreamUri:         w.streamURI,
+		Entry:             &walleapi.Entry{WriterId: w.writerId},
+		CommittedEntryId:  toCommitEntryId,
+		CommittedEntryMd5: toCommitEntryMd5,
+	})
 }
 
 // Returns True, if at the time of the IsWriter call, this writer is still guaranteed
@@ -101,7 +115,7 @@ func (w *Writer) heartbeat() {
 		case <-time.After(shortBeat):
 		}
 		now := time.Now()
-		ts, committedEntryId, _, toCommitEntryId, toCommitEntryMd5, _ := w.safeCommittedEntryId()
+		ts, committedEntryId, _, toCommitEntryId, toCommitEntryMd5 := w.safeCommittedEntryId()
 		if ts.Add(shortBeat).After(now) ||
 			(committedEntryId == toCommitEntryId && ts.Add(w.longBeat).After(now)) {
 			continue
@@ -124,7 +138,7 @@ func (w *Writer) heartbeat() {
 					if err == context.Canceled ||
 						errStatus.Code() == codes.Canceled ||
 						errStatus.Code() == codes.FailedPrecondition {
-						w.Close() // If there is an urecoverable error, close the writer.
+						w.rootCancel() // If there is an urecoverable error, close the writer.
 						return true, err
 					}
 					if retryN > 5 {
@@ -151,12 +165,12 @@ func (w *Writer) PutEntry(data []byte) (*walleapi.Entry, <-chan error) {
 	entry.ChecksumMd5 = CalculateChecksumMd5(w.lastEntry.ChecksumMd5, data)
 	w.lastEntry = entry
 	go func() {
-		ctx, cancel := context.WithCancel(w.rootCtx)
-		defer cancel()
+		// ctx, cancel := context.WithCancel(w.rootCtx)
+		// defer cancel()
 		err := KeepTryingWithBackoff(
-			ctx, shortBeat, w.longBeat,
+			w.rootCtx, shortBeat, w.longBeat,
 			func(retryN uint) (bool, error) {
-				_, _, _, toCommitEntryId, toCommitEntryMd5, _ := w.safeCommittedEntryId()
+				_, _, _, toCommitEntryId, toCommitEntryMd5 := w.safeCommittedEntryId()
 				if toCommitEntryId > entry.EntryId {
 					toCommitEntryId = entry.EntryId
 					toCommitEntryMd5 = entry.ChecksumMd5
@@ -166,7 +180,7 @@ func (w *Writer) PutEntry(data []byte) (*walleapi.Entry, <-chan error) {
 					return false, err
 				}
 				now := time.Now()
-				_, err = cli.PutEntry(ctx, &walleapi.PutEntryRequest{
+				_, err = cli.PutEntry(w.rootCtx, &walleapi.PutEntryRequest{
 					StreamUri:         w.streamURI,
 					Entry:             entry,
 					CommittedEntryId:  toCommitEntryId,
@@ -175,25 +189,14 @@ func (w *Writer) PutEntry(data []byte) (*walleapi.Entry, <-chan error) {
 				if err == nil {
 					w.updateCommittedEntryId(
 						now, toCommitEntryId, toCommitEntryMd5, entry.EntryId, entry.ChecksumMd5)
-					for {
-						_, committedEntryId, _, _, _, notify := w.safeCommittedEntryId()
-						if committedEntryId >= entry.EntryId {
-							return true, nil
-						}
-						select {
-						case <-ctx.Done():
-							w.Close()
-							return true, ctx.Err()
-						case <-notify:
-						}
-					}
+					return true, nil
 				}
 
 				errStatus, _ := status.FromError(err)
 				if err == context.Canceled ||
 					errStatus.Code() == codes.Canceled ||
 					errStatus.Code() == codes.FailedPrecondition {
-					w.Close() // If there is an urecoverable error, close the writer.
+					w.rootCancel() // If there is an unrecoverable error, close the writer.
 					return true, err
 				}
 				if retryN > 5 {
@@ -207,10 +210,10 @@ func (w *Writer) PutEntry(data []byte) (*walleapi.Entry, <-chan error) {
 }
 
 func (w *Writer) safeCommittedEntryId() (
-	time.Time, int64, []byte, int64, []byte, <-chan struct{}) {
+	time.Time, int64, []byte, int64, []byte) {
 	w.committedEntryMx.Lock()
 	defer w.committedEntryMx.Unlock()
-	return w.commitTime, w.committedEntryId, w.committedEntryMd5, w.toCommitEntryId, w.toCommitEntryMd5, w.commitNotify
+	return w.commitTime, w.committedEntryId, w.committedEntryMd5, w.toCommitEntryId, w.toCommitEntryMd5
 }
 
 func (w *Writer) updateCommittedEntryId(
@@ -225,8 +228,6 @@ func (w *Writer) updateCommittedEntryId(
 	if committedEntryId > w.committedEntryId {
 		w.committedEntryId = committedEntryId
 		w.committedEntryMd5 = committedEntryMd5
-		close(w.commitNotify)
-		w.commitNotify = make(chan struct{})
 	}
 	if toCommitEntryId > w.committedEntryId {
 		w.toCommitEntryId = toCommitEntryId

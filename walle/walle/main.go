@@ -59,7 +59,7 @@ func main() {
 	glog.Infof("initializing storage: %s...", dbPath)
 	ss, err := walle.StorageInit(dbPath, true)
 	if err != nil {
-		glog.Fatalf("failed to initialize storage: %v", err)
+		glog.Fatal(err)
 	}
 	defer ss.Close()
 
@@ -74,21 +74,28 @@ func main() {
 		return
 	}
 
-	glog.Infof("initializing root discovery: %s - %v...", *rootURI, rootFile)
-	rootD, err := wallelib.NewRootDiscovery(ctx, *rootURI, rootFile)
+	glog.Infof("initializing root discovery: %s - %s...", *rootURI, rootFile)
+	rootTopology, err := wallelib.TopologyFromFile(rootFile)
 	if err != nil {
 		glog.Fatal(err)
 	}
+	rootD, err := wallelib.NewRootDiscovery(ctx, *rootURI, rootTopology)
+	if err != nil {
+		glog.Fatal(err)
+	}
+	go watchTopologyAndSave(ctx, rootD, rootFile)
 	var d wallelib.Discovery
 	if *topologyURI == "" || *topologyURI == *rootURI {
 		d = rootD
 	} else {
 		rootCli := wallelib.NewClient(ctx, rootD)
 		glog.Infof("initializing topology discovery: %s...", *topologyURI)
-		d, err = wallelib.NewDiscovery(ctx, rootCli, *rootURI, *topologyURI, topoFile)
+		topology, _ := wallelib.TopologyFromFile(topoFile) // ok to ignore errors.
+		d, err = wallelib.NewDiscovery(ctx, rootCli, *topologyURI, topology)
 		if err != nil {
 			glog.Fatal(err)
 		}
+		go watchTopologyAndSave(ctx, d, topoFile)
 	}
 	c := wallelib.NewClient(ctx, d)
 
@@ -99,7 +106,7 @@ func main() {
 
 	l, err := net.Listen("tcp", ":"+*port)
 	if err != nil {
-		glog.Fatalf("failed to listen: %v", err)
+		glog.Fatal(err)
 	}
 	notify := make(chan os.Signal, 10)
 	signal.Notify(notify, syscall.SIGTERM)
@@ -111,6 +118,20 @@ func main() {
 	}()
 	glog.Infof("starting WALLE server on port:%s...", *port)
 	if err := s.Serve(l); err != nil {
-		glog.Fatalf("failed to serve: %v", err)
+		glog.Fatal(err)
+	}
+}
+
+func watchTopologyAndSave(ctx context.Context, d wallelib.Discovery, f string) {
+	for {
+		t, notify := d.Topology()
+		if err := wallelib.TopologyToFile(t, f); err != nil {
+			glog.Warningf("saving topology to file failed: %s", err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-notify:
+		}
 	}
 }
