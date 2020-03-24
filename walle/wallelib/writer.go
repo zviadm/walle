@@ -22,10 +22,10 @@ func ClaimWriter(
 	c BasicClient,
 	streamURI string,
 	writerAddr string,
-	writerLease time.Duration) (*Writer, error) {
+	writerLease time.Duration) (*Writer, *walleapi.Entry, error) {
 	cli, err := c.ForStream(streamURI)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	resp, err := cli.ClaimWriter(
 		ctx, &walleapi.ClaimWriterRequest{
@@ -34,7 +34,7 @@ func ClaimWriter(
 			LeaseMs:    writerLease.Nanoseconds() / time.Millisecond.Nanoseconds(),
 		})
 	if err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, nil, errors.Wrap(err, "")
 	}
 	// TODO(zviad): Lease timer should be initialzied here.
 	_, err = cli.PutEntry(ctx, &walleapi.PutEntryRequest{
@@ -44,13 +44,13 @@ func ClaimWriter(
 		CommittedEntryMd5: resp.LastEntry.ChecksumMd5,
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, nil, errors.Wrap(err, "")
 	}
 	w := newWriter(
 		c, streamURI,
 		writerLease, writerAddr,
 		resp.WriterId, resp.LastEntry)
-	return w, nil
+	return w, resp.LastEntry, nil
 }
 
 // Writer is not thread safe. PutEntry calls must be issued serially.
@@ -109,15 +109,10 @@ func newWriter(
 }
 
 // Permanently closes writer and all outstanding PutEntry calls with it.
+// This call is thread safe and can be called at any time.
 func (w *Writer) Close() {
 	w.rootCancel()
 	<-w.rootCtx.Done()
-}
-
-// Returns last entry that was submitted for put request. Note that the entry
-// might not be committed yet.
-func (w *Writer) LastEntry() *walleapi.Entry {
-	return w.lastEntry
 }
 
 // Heartbeat makes background requests to the server if there are no active
