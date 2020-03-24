@@ -1,11 +1,14 @@
 package walle
 
 import (
+	"time"
+
 	"github.com/zviadm/walle/proto/walleapi"
 )
 
 // Storage is expected to be thread-safe.
-// Storage might cause panics for unrecoverable errors.
+// Storage might cause panics for unrecoverable errors due to bad disk i/o
+// or due to on disk data corruption issues.
 type Storage interface {
 	ServerId() string
 	Streams(localOnly bool) []string
@@ -20,33 +23,34 @@ type Storage interface {
 // StreamStorage is expected to be thread-safe.
 type StreamStorage interface {
 	StreamMetadata
-	StreamData
+	// Returns last committed entry and all the following not-yet committed entries.
+	LastEntries() []*walleapi.Entry
+	// Returns cursor to read committed entries starting at entryId.
+	ReadFrom(entryId int64) StreamCursor
+	CommitEntry(entryId int64, entryMd5 []byte) (success bool)
+	PutEntry(entry *walleapi.Entry, isCommitted bool) (success bool)
 }
 
 // StreamMetadata is expected to be thread-safe.
 type StreamMetadata interface {
 	StreamURI() string
-	WriterId() string // Perf sensitive. Needs to be in-memory.
-	// Expected to have internal check to make sure stored writerId never decreases.
-	UpdateWriterId(writerId string)
+	// WriterId() string // Perf sensitive. Needs to be in-memory.
+	WriterInfo() (writerId string, writerAddr string, lease time.Duration)
+	// Update call is expected to have an internal check to make sure stored writerId never decreases.
+	UpdateWriter(writerId string, writerAddr string, lease time.Duration)
 
 	Topology() *walleapi.StreamTopology
-	// Expected to have internal check to make sure toplogy version never decreases.
+	// Update call is expected to have an internal check to make sure toplogy version never decreases.
 	UpdateTopology(topology *walleapi.StreamTopology)
 	IsLocal() bool
-}
-
-// StreamData is expected to be thread-safe.
-type StreamData interface {
-	LastEntries() []*walleapi.Entry
-	ReadFrom(entryId int64) StreamCursor
-	CommitEntry(entryId int64, entryMd5 []byte) (success bool)
-	PutEntry(entry *walleapi.Entry, isCommitted bool) (success bool)
 
 	CommittedEntryIds() (noGapCommittedId int64, committedId int64, notify <-chan struct{})
 	UpdateNoGapCommittedId(entryId int64)
 }
 
+// StreamCursor can be used to read entries from StreamStorage. It is safe to call Close() on
+// already closed cursor. Cursor is also automatically closed once Next() exhausts all
+// committed entries.
 type StreamCursor interface {
 	Next() (*walleapi.Entry, bool)
 	Close()

@@ -5,6 +5,8 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/binary"
+	"sort"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -180,6 +182,47 @@ func (s *Server) commitMaxEntry(
 	return committed, nil
 }
 
+func (s *Server) WriterStatus(
+	ctx context.Context,
+	req *walleapi.WriterStatusRequest) (*walleapi.WriterStatusResponse, error) {
+	ss, ok := s.s.Stream(req.GetStreamUri(), true)
+	if !ok {
+		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found locally", req.GetStreamUri())
+	}
+	ssTopology := ss.Topology()
+	respMx := sync.Mutex{}
+	var resps []*walle_pb.WriterInfoResponse
+	_, err := s.broadcastRequest(ctx, ssTopology.ServerIds,
+		func(c walle_pb.WalleClient, serverId string) error {
+			resp, err := c.WriterInfo(ctx, &walle_pb.WriterInfoRequest{
+				ServerId:      serverId,
+				StreamUri:     req.StreamUri,
+				StreamVersion: ssTopology.Version,
+			})
+			respMx.Lock()
+			defer respMx.Unlock()
+			resps = append(resps, resp)
+			return err
+		})
+	if err != nil {
+		return nil, err
+	}
+	// Sort responses by (writerId, remainingLeaseMs) and choose one that majority is
+	// greather than or equal to.
+	sort.Slice(resps, func(i, j int) bool {
+		return (resps[i].GetWriterId() < resps[j].GetWriterId()) ||
+			(resps[i].GetWriterId() == resps[j].GetWriterId() &&
+				resps[i].GetRemainingLeaseMs() < resps[j].GetRemainingLeaseMs())
+	})
+	resp := resps[len(ssTopology.ServerIds)/2+1]
+	return &walleapi.WriterStatusResponse{
+		WriterId:         resp.WriterId,
+		WriterAddr:       resp.WriterAddr,
+		LeaseMs:          resp.LeaseMs,
+		RemainingLeaseMs: resp.RemainingLeaseMs,
+	}, nil
+}
+
 func (s *Server) PutEntry(
 	ctx context.Context, req *walleapi.PutEntryRequest) (*walleapi.PutEntryResponse, error) {
 
@@ -265,6 +308,8 @@ func makeWriterId() string {
 	return string(writerId)
 }
 
+// Broadcasts requests to all serverIds and returns list of serverIds that have succeeded.
+// Returns an error if majority didn't succeed.
 func (s *Server) broadcastRequest(
 	ctx context.Context,
 	serverIds []string,
@@ -275,7 +320,7 @@ func (s *Server) broadcastRequest(
 	for _, serverId := range serverIds {
 		var c walle_pb.WalleClient
 		var err error
-		// if serverId == s.serverId ==> c should be self wrapped server.
+		// TODO(zviad): if serverId == s.serverId ==> c should be self wrapped server.
 		c, err = s.c.ForServer(serverId)
 		if err != nil {
 			errs = append(errs, err)

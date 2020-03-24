@@ -3,6 +3,7 @@ package walle
 import (
 	"context"
 	"encoding/hex"
+	"time"
 
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
@@ -69,10 +70,23 @@ func (s *Server) NewWriter(
 	if err != nil {
 		return nil, err
 	}
-	if err := s.checkAndUpdateWriterId(ss, req.WriterId); err != nil {
+	ss.UpdateWriter(req.WriterId, req.WriterAddr, time.Duration(req.LeaseMs)*time.Millisecond)
+	return &walle_pb.NewWriterResponse{}, nil
+}
+
+func (s *Server) WriterInfo(
+	ctx context.Context,
+	req *walle_pb.WriterInfoRequest) (*walle_pb.WriterInfoResponse, error) {
+	ss, err := s.processRequestHeader(req)
+	if err != nil {
 		return nil, err
 	}
-	return &walle_pb.NewWriterResponse{}, nil
+	writerId, writerAddr, lease := ss.WriterInfo()
+	return &walle_pb.WriterInfoResponse{
+		WriterId:   writerId,
+		WriterAddr: writerAddr,
+		LeaseMs:    lease.Nanoseconds() / time.Millisecond.Nanoseconds(),
+	}, nil
 }
 
 func (s *Server) PutEntryInternal(
@@ -82,7 +96,7 @@ func (s *Server) PutEntryInternal(
 	if err != nil {
 		return nil, err
 	}
-	if err := s.checkAndUpdateWriterId(ss, req.Entry.WriterId); err != nil {
+	if err := s.checkAndUpdateWriterId(ctx, ss, req.Entry.WriterId); err != nil {
 		return nil, err
 	}
 	if req.Entry.EntryId == 0 || req.Entry.EntryId > req.CommittedEntryId {
@@ -180,20 +194,29 @@ func (s *Server) checkStreamVersion(ss StreamMetadata, reqStreamVersion int64) e
 	return errors.Errorf("stream[%s] incompatible version: %d vs %d", ss.StreamURI(), reqStreamVersion, version)
 }
 
-// Checks writerId if it is still active for a given streamURI, and updates if necessary.
-func (s *Server) checkAndUpdateWriterId(ss StreamMetadata, writerId string) error {
-	ssWriterId := ss.WriterId()
-	if writerId < ssWriterId {
-		return status.Errorf(codes.FailedPrecondition, "writer no longer active: %s < %s", writerId, ssWriterId)
-	}
-	// TODO(zviad): update heartbeat for `writerIds`.
+// Checks writerId if it is still active for a given streamURI. If newer writerId is supplied, will try
+// to get updated information from other servers because this server must have missed the NewWriter call.
+func (s *Server) checkAndUpdateWriterId(ctx context.Context, ss StreamMetadata, writerId string) error {
+	for {
+		ssWriterId, _, _ := ss.WriterInfo()
+		if writerId < ssWriterId {
+			return status.Errorf(codes.FailedPrecondition, "writer no longer active: %s < %s", writerId, ssWriterId)
+		}
 
-	if writerId == ssWriterId {
-		return nil
+		if writerId == ssWriterId {
+			// TODO(zviad): update heartbeat for `writerIds`.
+			return nil
+		}
+		resp, err := s.WriterStatus(ctx, &walleapi.WriterStatusRequest{StreamUri: ss.StreamURI()})
+		if err != nil {
+			return err
+		}
+		if resp.WriterId <= ssWriterId {
+			return status.Errorf(codes.Internal, "writerId is newer than majority?: %s > %s", writerId, ssWriterId)
+		}
+		glog.Infof(
+			"[%s] writerId: updating %s -> %s",
+			ss.StreamURI(), hex.EncodeToString([]byte(ssWriterId)), hex.EncodeToString([]byte(writerId)))
+		ss.UpdateWriter(resp.WriterId, resp.WriterAddr, time.Duration(resp.LeaseMs)*time.Millisecond)
 	}
-	glog.Infof(
-		"[%s] writerId: updating %s -> %s",
-		ss.StreamURI(), hex.EncodeToString([]byte(ssWriterId)), hex.EncodeToString([]byte(writerId)))
-	ss.UpdateWriterId(writerId)
-	return nil
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/wallelib"
@@ -23,6 +24,8 @@ type streamStorage struct {
 	topology *walleapi.StreamTopology
 
 	writerId        string
+	writerAddr      string
+	writerLease     time.Duration
 	committed       int64
 	noGapCommitted  int64
 	committedNotify chan struct{}
@@ -37,10 +40,8 @@ func createStreamStorage(
 	streamURI string,
 	topology *walleapi.StreamTopology,
 	sess *wt.Session) StreamStorage {
-	panicOnErr(
-		isValidStreamURI(streamURI))
-	panicOnErr(
-		sess.Create(streamDS(streamURI), &wt.DataSourceConfig{BlockCompressor: "snappy"}))
+	panicOnErr(isValidStreamURI(streamURI))
+	panicOnErr(sess.Create(streamDS(streamURI), &wt.DataSourceConfig{BlockCompressor: "snappy"}))
 
 	panicOnErr(sess.TxBegin())
 	metaW, err := sess.Mutate(metadataDS, nil)
@@ -50,16 +51,13 @@ func createStreamStorage(
 
 	v, err := topology.Marshal()
 	panicOnErr(err)
-	panicOnErr(
-		metaW.Insert([]byte(streamURI+sfxTopology), v))
-	panicOnErr(
-		metaW.Insert([]byte(streamURI+sfxWriterId), make([]byte, writerIdLen)))
-	panicOnErr(
-		metaW.Insert([]byte(streamURI+sfxCommittedId), make([]byte, 8)))
-	panicOnErr(
-		metaW.Insert([]byte(streamURI+sfxNoGapCommittedId), make([]byte, 8)))
-	panicOnErr(
-		streamW.Insert(make([]byte, 8), entry0B))
+	panicOnErr(metaW.Insert([]byte(streamURI+sfxTopology), v))
+	panicOnErr(metaW.Insert([]byte(streamURI+sfxWriterId), make([]byte, writerIdLen)))
+	panicOnErr(metaW.Insert([]byte(streamURI+sfxWriterAddr), []byte{}))
+	panicOnErr(metaW.Insert([]byte(streamURI+sfxWriterLeaseNs), make([]byte, 8)))
+	panicOnErr(metaW.Insert([]byte(streamURI+sfxCommittedId), make([]byte, 8)))
+	panicOnErr(metaW.Insert([]byte(streamURI+sfxNoGapCommittedId), make([]byte, 8)))
+	panicOnErr(streamW.Insert(make([]byte, 8), entry0B))
 	panicOnErr(sess.TxCommit())
 	panicOnErr(metaW.Close())
 	panicOnErr(streamW.Close())
@@ -98,6 +96,12 @@ func openStreamStorage(serverId string, streamURI string, sess *wt.Session) Stre
 	v, err = metaR.ReadUnsafeValue([]byte(streamURI + sfxWriterId))
 	panicOnErr(err)
 	r.writerId = string(v)
+	v, err = metaR.ReadUnsafeValue([]byte(streamURI + sfxWriterAddr))
+	panicOnErr(err)
+	r.writerAddr = string(v)
+	v, err = metaR.ReadUnsafeValue([]byte(streamURI + sfxWriterLeaseNs))
+	panicOnErr(err)
+	r.writerLease = time.Duration(binary.BigEndian.Uint64(v))
 	v, err = metaR.ReadUnsafeValue([]byte(streamURI + sfxCommittedId))
 	panicOnErr(err)
 	r.committed = int64(binary.BigEndian.Uint64(v))
@@ -148,21 +152,26 @@ func (m *streamStorage) StreamURI() string {
 	return m.streamURI
 }
 
-func (m *streamStorage) WriterId() string {
+func (m *streamStorage) WriterInfo() (string, string, time.Duration) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
-	return m.writerId
+	return m.writerId, m.writerAddr, m.writerLease
 }
 
-func (m *streamStorage) UpdateWriterId(writerId string) {
+func (m *streamStorage) UpdateWriter(
+	writerId string, writerAddr string, lease time.Duration) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	if writerId <= m.writerId {
 		return
 	}
 	m.writerId = writerId
-	panicOnErr(
-		m.metaW.Update([]byte(m.streamURI+sfxWriterId), []byte(m.writerId)))
+	m.writerAddr = writerAddr
+	m.writerLease = lease
+	panicOnErr(m.metaW.Update([]byte(m.streamURI+sfxWriterId), []byte(m.writerId)))
+	panicOnErr(m.metaW.Update([]byte(m.streamURI+sfxWriterAddr), []byte(m.writerAddr)))
+	binary.BigEndian.PutUint64(m.buf8, uint64(lease.Nanoseconds()))
+	panicOnErr(m.metaW.Update([]byte(m.streamURI+sfxWriterLeaseNs), []byte(m.buf8)))
 }
 
 func (m *streamStorage) LastEntries() []*walleapi.Entry {

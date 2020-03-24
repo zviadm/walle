@@ -125,6 +125,17 @@ func (m *mockClient) NewWriter(
 	return s.NewWriter(ctx, in)
 }
 
+func (m *mockClient) WriterInfo(
+	ctx context.Context,
+	in *walle_pb.WriterInfoRequest,
+	opts ...grpc.CallOption) (*walle_pb.WriterInfoResponse, error) {
+	s, err := m.m.Server(in.ServerId)
+	if err != nil {
+		return nil, err
+	}
+	return s.WriterInfo(ctx, in)
+}
+
 func (m *mockClient) LastEntries(
 	ctx context.Context,
 	in *walle_pb.LastEntriesRequest,
@@ -222,6 +233,16 @@ func (m *mockApiClient) ClaimWriter(
 		return nil, err
 	}
 	return s.ClaimWriter(ctx, in)
+}
+func (m *mockApiClient) WriterStatus(
+	ctx context.Context,
+	in *walleapi.WriterStatusRequest,
+	opts ...grpc.CallOption) (*walleapi.WriterStatusResponse, error) {
+	s, err := m.m.RandServer()
+	if err != nil {
+		return nil, err
+	}
+	return s.WriterStatus(ctx, in)
 }
 
 func (m *mockApiClient) PutEntry(

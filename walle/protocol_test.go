@@ -25,7 +25,7 @@ func TestProtocolClaimWriter(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	_, c := newMockSystem(ctx, topoSimple, "/tmp/tt_protocol_basic_new_writer")
-	w, err := wallelib.ClaimWriter(ctx, c, "/mock/1", time.Second)
+	w, err := wallelib.ClaimWriter(ctx, c, "/mock/1", time.Second, "testhost:1001")
 	require.NoError(t, err)
 	defer w.Close()
 
@@ -45,7 +45,7 @@ func TestProtocolClaimWriter(t *testing.T) {
 	require.NoError(t, err)
 
 	// Make sure clean writer transition works.
-	w2, err := wallelib.ClaimWriter(ctx, c, "/mock/1", time.Second)
+	w2, err := wallelib.ClaimWriter(ctx, c, "/mock/1", time.Second, "testhost:1001")
 	require.NoError(t, err)
 	defer w2.Close()
 
@@ -56,7 +56,7 @@ func TestProtocolGapRecovery(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	m, c := newMockSystem(ctx, topoSimple, TestTmpDir())
-	w, err := wallelib.ClaimWriter(ctx, c, "/mock/1", time.Second)
+	w, err := wallelib.ClaimWriter(ctx, c, "/mock/1", time.Second, "testhost:1001")
 	require.NoError(t, err)
 	defer w.Close()
 

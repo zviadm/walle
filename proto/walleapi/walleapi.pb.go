@@ -96,8 +96,11 @@ func (m *Entry) GetChecksumMd5() []byte {
 }
 
 type ClaimWriterRequest struct {
-	StreamUri            string   `protobuf:"bytes,1,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
-	LeaseMs              int64    `protobuf:"varint,2,opt,name=lease_ms,json=leaseMs,proto3" json:"lease_ms,omitempty"`
+	StreamUri string `protobuf:"bytes,1,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
+	// Free form address that can be used to identify and reach this Writer.
+	// Expected to be: <host>:<port> pair, but can be application specific.
+	WriterAddr           string   `protobuf:"bytes,2,opt,name=writer_addr,json=writerAddr,proto3" json:"writer_addr,omitempty"`
+	LeaseMs              int64    `protobuf:"varint,3,opt,name=lease_ms,json=leaseMs,proto3" json:"lease_ms,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -143,6 +146,13 @@ func (m *ClaimWriterRequest) GetStreamUri() string {
 	return ""
 }
 
+func (m *ClaimWriterRequest) GetWriterAddr() string {
+	if m != nil {
+		return m.WriterAddr
+	}
+	return ""
+}
+
 func (m *ClaimWriterRequest) GetLeaseMs() int64 {
 	if m != nil {
 		return m.LeaseMs
@@ -152,7 +162,7 @@ func (m *ClaimWriterRequest) GetLeaseMs() int64 {
 
 type ClaimWriterResponse struct {
 	WriterId             string   `protobuf:"bytes,1,opt,name=writer_id,json=writerId,proto3" json:"writer_id,omitempty"`
-	LastEntry            *Entry   `protobuf:"bytes,4,opt,name=last_entry,json=lastEntry,proto3" json:"last_entry,omitempty"`
+	LastEntry            *Entry   `protobuf:"bytes,2,opt,name=last_entry,json=lastEntry,proto3" json:"last_entry,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -205,6 +215,124 @@ func (m *ClaimWriterResponse) GetLastEntry() *Entry {
 	return nil
 }
 
+type WriterStatusRequest struct {
+	StreamUri            string   `protobuf:"bytes,1,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *WriterStatusRequest) Reset()         { *m = WriterStatusRequest{} }
+func (m *WriterStatusRequest) String() string { return proto.CompactTextString(m) }
+func (*WriterStatusRequest) ProtoMessage()    {}
+func (*WriterStatusRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_3b522378fad0fbf4, []int{3}
+}
+func (m *WriterStatusRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *WriterStatusRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_WriterStatusRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *WriterStatusRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_WriterStatusRequest.Merge(m, src)
+}
+func (m *WriterStatusRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *WriterStatusRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_WriterStatusRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_WriterStatusRequest proto.InternalMessageInfo
+
+func (m *WriterStatusRequest) GetStreamUri() string {
+	if m != nil {
+		return m.StreamUri
+	}
+	return ""
+}
+
+type WriterStatusResponse struct {
+	WriterId             string   `protobuf:"bytes,1,opt,name=writer_id,json=writerId,proto3" json:"writer_id,omitempty"`
+	WriterAddr           string   `protobuf:"bytes,2,opt,name=writer_addr,json=writerAddr,proto3" json:"writer_addr,omitempty"`
+	LeaseMs              int64    `protobuf:"varint,3,opt,name=lease_ms,json=leaseMs,proto3" json:"lease_ms,omitempty"`
+	RemainingLeaseMs     int64    `protobuf:"varint,4,opt,name=remaining_lease_ms,json=remainingLeaseMs,proto3" json:"remaining_lease_ms,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *WriterStatusResponse) Reset()         { *m = WriterStatusResponse{} }
+func (m *WriterStatusResponse) String() string { return proto.CompactTextString(m) }
+func (*WriterStatusResponse) ProtoMessage()    {}
+func (*WriterStatusResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_3b522378fad0fbf4, []int{4}
+}
+func (m *WriterStatusResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *WriterStatusResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_WriterStatusResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *WriterStatusResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_WriterStatusResponse.Merge(m, src)
+}
+func (m *WriterStatusResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *WriterStatusResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_WriterStatusResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_WriterStatusResponse proto.InternalMessageInfo
+
+func (m *WriterStatusResponse) GetWriterId() string {
+	if m != nil {
+		return m.WriterId
+	}
+	return ""
+}
+
+func (m *WriterStatusResponse) GetWriterAddr() string {
+	if m != nil {
+		return m.WriterAddr
+	}
+	return ""
+}
+
+func (m *WriterStatusResponse) GetLeaseMs() int64 {
+	if m != nil {
+		return m.LeaseMs
+	}
+	return 0
+}
+
+func (m *WriterStatusResponse) GetRemainingLeaseMs() int64 {
+	if m != nil {
+		return m.RemainingLeaseMs
+	}
+	return 0
+}
+
 type PutEntryRequest struct {
 	StreamUri            string   `protobuf:"bytes,1,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
 	Entry                *Entry   `protobuf:"bytes,2,opt,name=entry,proto3" json:"entry,omitempty"`
@@ -219,7 +347,7 @@ func (m *PutEntryRequest) Reset()         { *m = PutEntryRequest{} }
 func (m *PutEntryRequest) String() string { return proto.CompactTextString(m) }
 func (*PutEntryRequest) ProtoMessage()    {}
 func (*PutEntryRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_3b522378fad0fbf4, []int{3}
+	return fileDescriptor_3b522378fad0fbf4, []int{5}
 }
 func (m *PutEntryRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -286,7 +414,7 @@ func (m *PutEntryResponse) Reset()         { *m = PutEntryResponse{} }
 func (m *PutEntryResponse) String() string { return proto.CompactTextString(m) }
 func (*PutEntryResponse) ProtoMessage()    {}
 func (*PutEntryResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_3b522378fad0fbf4, []int{4}
+	return fileDescriptor_3b522378fad0fbf4, []int{6}
 }
 func (m *PutEntryResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -327,7 +455,7 @@ func (m *StreamEntriesRequest) Reset()         { *m = StreamEntriesRequest{} }
 func (m *StreamEntriesRequest) String() string { return proto.CompactTextString(m) }
 func (*StreamEntriesRequest) ProtoMessage()    {}
 func (*StreamEntriesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_3b522378fad0fbf4, []int{5}
+	return fileDescriptor_3b522378fad0fbf4, []int{7}
 }
 func (m *StreamEntriesRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -386,7 +514,7 @@ func (m *Topology) Reset()         { *m = Topology{} }
 func (m *Topology) String() string { return proto.CompactTextString(m) }
 func (*Topology) ProtoMessage()    {}
 func (*Topology) Descriptor() ([]byte, []int) {
-	return fileDescriptor_3b522378fad0fbf4, []int{6}
+	return fileDescriptor_3b522378fad0fbf4, []int{8}
 }
 func (m *Topology) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -448,7 +576,7 @@ func (m *StreamTopology) Reset()         { *m = StreamTopology{} }
 func (m *StreamTopology) String() string { return proto.CompactTextString(m) }
 func (*StreamTopology) ProtoMessage()    {}
 func (*StreamTopology) Descriptor() ([]byte, []int) {
-	return fileDescriptor_3b522378fad0fbf4, []int{7}
+	return fileDescriptor_3b522378fad0fbf4, []int{9}
 }
 func (m *StreamTopology) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -495,6 +623,8 @@ func init() {
 	proto.RegisterType((*Entry)(nil), "Entry")
 	proto.RegisterType((*ClaimWriterRequest)(nil), "ClaimWriterRequest")
 	proto.RegisterType((*ClaimWriterResponse)(nil), "ClaimWriterResponse")
+	proto.RegisterType((*WriterStatusRequest)(nil), "WriterStatusRequest")
+	proto.RegisterType((*WriterStatusResponse)(nil), "WriterStatusResponse")
 	proto.RegisterType((*PutEntryRequest)(nil), "PutEntryRequest")
 	proto.RegisterType((*PutEntryResponse)(nil), "PutEntryResponse")
 	proto.RegisterType((*StreamEntriesRequest)(nil), "StreamEntriesRequest")
@@ -507,44 +637,48 @@ func init() {
 func init() { proto.RegisterFile("walleapi/walleapi.proto", fileDescriptor_3b522378fad0fbf4) }
 
 var fileDescriptor_3b522378fad0fbf4 = []byte{
-	// 578 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x54, 0xdd, 0x6e, 0xd3, 0x30,
-	0x18, 0xad, 0x9b, 0x6d, 0x6d, 0xbe, 0x76, 0xac, 0x73, 0x0b, 0x94, 0x02, 0x55, 0x89, 0x34, 0xd4,
-	0x0b, 0xe4, 0x8e, 0xa2, 0x49, 0x53, 0xef, 0x00, 0xed, 0xa2, 0x42, 0x43, 0x28, 0x80, 0xa6, 0x71,
-	0x13, 0x65, 0x8d, 0xd9, 0xac, 0x25, 0x4d, 0x89, 0x9d, 0x4e, 0xe5, 0x2d, 0xb8, 0xe3, 0x21, 0xe0,
-	0x3d, 0xb8, 0xe4, 0x11, 0x50, 0x79, 0x11, 0x64, 0x3b, 0x69, 0x93, 0xb6, 0x42, 0xbb, 0xfb, 0x7e,
-	0xfc, 0x1d, 0x1f, 0x1f, 0x1f, 0x1b, 0xee, 0xdf, 0xb8, 0xbe, 0x4f, 0xdd, 0x09, 0xeb, 0xa5, 0x01,
-	0x99, 0x44, 0xa1, 0x08, 0xad, 0x29, 0x6c, 0x9f, 0x8c, 0x45, 0x34, 0xc3, 0x0f, 0xa0, 0x4c, 0x65,
-	0xe0, 0x30, 0xaf, 0x89, 0x3a, 0xa8, 0x6b, 0xd8, 0x25, 0x95, 0x0f, 0x3d, 0xfc, 0x10, 0xcc, 0x9b,
-	0x88, 0x09, 0x1a, 0xc9, 0x5e, 0xb1, 0x83, 0xba, 0xa6, 0x5d, 0xd6, 0x85, 0xa1, 0x87, 0x31, 0x6c,
-	0x79, 0xae, 0x70, 0x9b, 0x46, 0x07, 0x75, 0xab, 0xb6, 0x8a, 0xf1, 0x13, 0xa8, 0x8e, 0xae, 0xe8,
-	0xe8, 0x9a, 0xc7, 0x81, 0x13, 0x78, 0x47, 0xcd, 0x2d, 0xd5, 0xab, 0xa4, 0xb5, 0x53, 0xef, 0xc8,
-	0x7a, 0x0b, 0xf8, 0xb5, 0xef, 0xb2, 0xe0, 0x4c, 0xe1, 0xd8, 0xf4, 0x4b, 0x4c, 0xb9, 0xc0, 0x8f,
-	0x01, 0xb8, 0x88, 0xa8, 0x1b, 0x38, 0x71, 0xc4, 0x14, 0x0d, 0xd3, 0x36, 0x75, 0xe5, 0x63, 0xc4,
-	0x24, 0x47, 0x9f, 0xba, 0x9c, 0x3a, 0x01, 0x57, 0x3c, 0x0c, 0xbb, 0xa4, 0xf2, 0x53, 0x6e, 0x9d,
-	0x43, 0x3d, 0x87, 0xc7, 0x27, 0xe1, 0x98, 0xd3, 0x3c, 0x75, 0xb4, 0x42, 0xfd, 0x00, 0xc0, 0x77,
-	0xb9, 0x70, 0xd4, 0x39, 0x15, 0xc9, 0x4a, 0x7f, 0x87, 0x28, 0x39, 0x6c, 0x53, 0x76, 0x54, 0x68,
-	0xfd, 0x40, 0xb0, 0xf7, 0x2e, 0xd6, 0xc9, 0x2d, 0x89, 0x3e, 0x82, 0x6d, 0x0d, 0x5a, 0xcc, 0x81,
-	0xea, 0x22, 0x7e, 0x06, 0x78, 0x14, 0x06, 0x01, 0x13, 0x82, 0x7a, 0xce, 0x42, 0x74, 0x43, 0x1d,
-	0xa8, 0xb6, 0xe8, 0x9c, 0x24, 0xea, 0x13, 0xa8, 0xaf, 0xae, 0x5e, 0x6a, 0xba, 0x9f, 0x5f, 0x2e,
-	0x95, 0xc5, 0x50, 0x5b, 0xb2, 0xd5, 0x32, 0x58, 0xe7, 0xd0, 0x78, 0xaf, 0xc8, 0xc9, 0x32, 0xa3,
-	0xfc, 0x96, 0xc7, 0xb0, 0x60, 0xf7, 0x73, 0x14, 0x06, 0x4b, 0x8e, 0x5a, 0xf4, 0x8a, 0x2c, 0x26,
-	0xf4, 0xac, 0x6f, 0x45, 0x28, 0x7f, 0x08, 0x27, 0xa1, 0x1f, 0x5e, 0xce, 0x70, 0x13, 0x4a, 0x53,
-	0x1a, 0x71, 0x16, 0x8e, 0x53, 0x0f, 0x25, 0x29, 0x3e, 0x84, 0x92, 0xc6, 0x95, 0x37, 0x67, 0x74,
-	0x2b, 0xfd, 0x7b, 0x24, 0x9d, 0x22, 0x9a, 0x1a, 0xd7, 0x94, 0xd3, 0x65, 0x6a, 0x82, 0x46, 0x72,
-	0xbe, 0x69, 0xac, 0x4d, 0xe8, 0x46, 0x3a, 0xa1, 0xb3, 0xd6, 0x1b, 0xa8, 0x66, 0xa1, 0x70, 0x0d,
-	0x8c, 0x6b, 0x3a, 0x4b, 0x8e, 0x25, 0x43, 0x7c, 0x00, 0xdb, 0x53, 0xd7, 0x8f, 0x69, 0x72, 0x2f,
-	0x7b, 0xc9, 0xd6, 0x29, 0xae, 0xad, 0xbb, 0x83, 0xe2, 0x31, 0x6a, 0x0d, 0xa0, 0x9a, 0xdd, 0x65,
-	0x03, 0x58, 0x23, 0x0b, 0x66, 0x66, 0x66, 0xad, 0x21, 0xdc, 0xc9, 0x03, 0xff, 0x47, 0x18, 0x79,
-	0x05, 0x6a, 0x1f, 0x87, 0x79, 0x5a, 0x1b, 0x79, 0x05, 0xaa, 0x32, 0xf4, 0x78, 0xff, 0x27, 0x82,
-	0xf2, 0x99, 0x7c, 0xb2, 0x2f, 0x27, 0x0c, 0x0f, 0xa0, 0x92, 0x31, 0x39, 0xae, 0x93, 0xf5, 0x27,
-	0xd4, 0x6a, 0x90, 0x0d, 0xef, 0xc0, 0x2a, 0xe0, 0xe7, 0x50, 0x4e, 0x6d, 0x81, 0x6b, 0x64, 0xc5,
-	0xcf, 0xad, 0x7d, 0xb2, 0xe6, 0x99, 0x02, 0xee, 0xc3, 0x6e, 0xce, 0x35, 0xf8, 0x2e, 0xd9, 0xe4,
-	0xa2, 0x56, 0x62, 0x6f, 0xab, 0x70, 0x88, 0x5e, 0x1d, 0xff, 0x9a, 0xb7, 0xd1, 0xef, 0x79, 0x1b,
-	0xfd, 0x99, 0xb7, 0xd1, 0xf7, 0xbf, 0xed, 0xc2, 0xa7, 0xa7, 0x97, 0x4c, 0x5c, 0xc5, 0x17, 0x64,
-	0x14, 0x06, 0xbd, 0xaf, 0x53, 0xe6, 0x7a, 0x81, 0xfe, 0x83, 0x7a, 0xea, 0x03, 0x5a, 0xfc, 0x47,
-	0x17, 0x3b, 0x2a, 0x7f, 0xf1, 0x2f, 0x00, 0x00, 0xff, 0xff, 0x97, 0xd2, 0x33, 0xf1, 0xab, 0x04,
-	0x00, 0x00,
+	// 655 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x54, 0xcf, 0x4e, 0x13, 0x41,
+	0x18, 0xef, 0xb4, 0x40, 0xdb, 0xaf, 0x45, 0xca, 0xb4, 0x68, 0xad, 0x5a, 0xeb, 0x26, 0x98, 0x1e,
+	0xcc, 0x80, 0x55, 0x12, 0x42, 0xe2, 0x01, 0x0d, 0x87, 0x46, 0x49, 0xcc, 0xa2, 0x21, 0x78, 0xd9,
+	0x0c, 0x9d, 0x11, 0x26, 0xec, 0x76, 0xeb, 0xcc, 0x6e, 0x09, 0xbe, 0x85, 0x37, 0x2f, 0xbe, 0x81,
+	0x0f, 0xe2, 0xd1, 0x47, 0x30, 0x78, 0xf5, 0x21, 0xcc, 0xcc, 0xec, 0x96, 0x16, 0x36, 0xa6, 0x89,
+	0xb7, 0xef, 0xff, 0xf7, 0xfb, 0xfe, 0xc2, 0x9d, 0x73, 0xea, 0xfb, 0x9c, 0x8e, 0xc4, 0x46, 0x4a,
+	0x90, 0x91, 0x0c, 0xa3, 0xd0, 0x19, 0xc3, 0xe2, 0xde, 0x30, 0x92, 0x17, 0xf8, 0x2e, 0x94, 0xb8,
+	0x26, 0x3c, 0xc1, 0x9a, 0xa8, 0x83, 0xba, 0x05, 0xb7, 0x68, 0xf8, 0x3e, 0xc3, 0xf7, 0xa0, 0x7c,
+	0x2e, 0x45, 0xc4, 0xa5, 0xd6, 0xe5, 0x3b, 0xa8, 0x5b, 0x76, 0x4b, 0x56, 0xd0, 0x67, 0x18, 0xc3,
+	0x02, 0xa3, 0x11, 0x6d, 0x16, 0x3a, 0xa8, 0x5b, 0x75, 0x0d, 0x8d, 0x1f, 0x41, 0x75, 0x70, 0xca,
+	0x07, 0x67, 0x2a, 0x0e, 0xbc, 0x80, 0x6d, 0x35, 0x17, 0x8c, 0xae, 0x92, 0xca, 0xf6, 0xd9, 0x96,
+	0x13, 0x02, 0x7e, 0xe5, 0x53, 0x11, 0x1c, 0x9a, 0x38, 0x2e, 0xff, 0x14, 0x73, 0x15, 0xe1, 0x07,
+	0x00, 0x2a, 0x92, 0x9c, 0x06, 0x5e, 0x2c, 0x85, 0x81, 0x51, 0x76, 0xcb, 0x56, 0xf2, 0x5e, 0x0a,
+	0xfc, 0x10, 0x2a, 0x09, 0x10, 0xca, 0x98, 0x4c, 0xa0, 0x80, 0x15, 0xed, 0x32, 0x26, 0x75, 0x11,
+	0x3e, 0xa7, 0x8a, 0x7b, 0x81, 0x32, 0x80, 0x0a, 0x6e, 0xd1, 0xf0, 0xfb, 0xca, 0x39, 0x82, 0xfa,
+	0x4c, 0x42, 0x35, 0x0a, 0x87, 0x8a, 0xcf, 0xd6, 0x86, 0xae, 0xd5, 0xb6, 0x0e, 0xe0, 0x53, 0x15,
+	0x79, 0xa6, 0x11, 0x26, 0x5d, 0xa5, 0xb7, 0x44, 0x4c, 0xbf, 0xdc, 0xb2, 0xd6, 0x18, 0xd2, 0x79,
+	0x0e, 0x75, 0x1b, 0xf5, 0x20, 0xa2, 0x51, 0xac, 0xe6, 0x2b, 0xc6, 0xf9, 0x86, 0xa0, 0x31, 0xeb,
+	0x36, 0x0f, 0xa4, 0xff, 0x68, 0x01, 0x7e, 0x02, 0x58, 0xf2, 0x80, 0x8a, 0xa1, 0x18, 0x9e, 0x78,
+	0x13, 0xa3, 0x05, 0x63, 0x54, 0x9b, 0x68, 0xde, 0x24, 0x0d, 0xfb, 0x8e, 0x60, 0xe5, 0x6d, 0x6c,
+	0x4b, 0x9c, 0x73, 0x3e, 0xf7, 0x61, 0x31, 0xab, 0x55, 0x56, 0xa8, 0xd3, 0x0f, 0xc2, 0x20, 0x10,
+	0x51, 0xc4, 0x99, 0x37, 0xd9, 0x35, 0x8b, 0xb1, 0x36, 0xd1, 0xec, 0x25, 0x4b, 0x47, 0xa0, 0x7e,
+	0xdd, 0xfa, 0x6a, 0x95, 0x56, 0x67, 0xcd, 0xf5, 0x42, 0x61, 0xa8, 0x5d, 0xa1, 0xb5, 0x9d, 0x74,
+	0x8e, 0xa0, 0x71, 0x60, 0xc0, 0x69, 0xb1, 0xe0, 0x73, 0x4e, 0x06, 0x3b, 0xb0, 0xfc, 0x51, 0x86,
+	0xc1, 0x15, 0xc6, 0xbc, 0xc1, 0x58, 0xd1, 0xc2, 0x04, 0x9e, 0xf3, 0x25, 0x0f, 0xa5, 0x77, 0xe1,
+	0x28, 0xf4, 0xc3, 0x93, 0x0b, 0xdc, 0x84, 0xe2, 0x98, 0x4b, 0x25, 0xc2, 0x61, 0x7a, 0x3a, 0x09,
+	0x8b, 0x37, 0xa1, 0x68, 0xe3, 0xaa, 0x66, 0xbe, 0x53, 0xe8, 0x56, 0x7a, 0xb7, 0x49, 0xea, 0x45,
+	0x2c, 0x34, 0x65, 0x21, 0xa7, 0x66, 0xc6, 0x83, 0x4b, 0xed, 0xdf, 0x2c, 0xdc, 0xf0, 0xb0, 0x8a,
+	0xd4, 0xc3, 0x72, 0xad, 0xd7, 0x50, 0x9d, 0x0e, 0x85, 0x6b, 0x50, 0x38, 0xe3, 0x17, 0x49, 0x59,
+	0x9a, 0xc4, 0xeb, 0xb0, 0x38, 0xa6, 0x7e, 0xcc, 0x93, 0xb9, 0xac, 0x24, 0xa9, 0xd3, 0xb8, 0xae,
+	0xd5, 0xee, 0xe4, 0xb7, 0x51, 0x6b, 0x07, 0xaa, 0xd3, 0x59, 0x32, 0x82, 0x35, 0xa6, 0x83, 0x95,
+	0xa7, 0x7c, 0x9d, 0x3e, 0xdc, 0x9a, 0x0d, 0xfc, 0x8f, 0xc6, 0xe8, 0x11, 0x98, 0x3c, 0x9e, 0x60,
+	0xb6, 0x37, 0x7a, 0x04, 0x46, 0xd2, 0x67, 0xaa, 0xf7, 0x07, 0x41, 0xe9, 0x50, 0x7f, 0xaa, 0xdd,
+	0x91, 0xc0, 0x3b, 0x50, 0x99, 0x3a, 0x5d, 0x5c, 0x27, 0x37, 0x3f, 0x47, 0xab, 0x41, 0x32, 0xae,
+	0xdb, 0xc9, 0xe1, 0x17, 0x50, 0x9d, 0x3e, 0x32, 0xdc, 0x20, 0x19, 0xa7, 0xda, 0x5a, 0x23, 0x59,
+	0x97, 0xe8, 0xe4, 0xf0, 0x53, 0x28, 0xa5, 0x5b, 0x85, 0x6b, 0xe4, 0xda, 0x39, 0xb4, 0x56, 0xc9,
+	0x8d, 0x95, 0xcb, 0xe1, 0x1e, 0x2c, 0xcf, 0x2c, 0x1d, 0x5e, 0x23, 0x59, 0x4b, 0xd8, 0x4a, 0xae,
+	0xc3, 0xc9, 0x6d, 0xa2, 0x97, 0xdb, 0x3f, 0x2e, 0xdb, 0xe8, 0xe7, 0x65, 0x1b, 0xfd, 0xba, 0x6c,
+	0xa3, 0xaf, 0xbf, 0xdb, 0xb9, 0x0f, 0x8f, 0x4f, 0x44, 0x74, 0x1a, 0x1f, 0x93, 0x41, 0x18, 0x6c,
+	0x7c, 0x1e, 0x0b, 0xca, 0x02, 0xfb, 0xb9, 0x37, 0xcc, 0xdb, 0x9e, 0x7c, 0xf1, 0xe3, 0x25, 0xc3,
+	0x3f, 0xfb, 0x1b, 0x00, 0x00, 0xff, 0xff, 0x75, 0x75, 0xb8, 0x03, 0xe1, 0x05, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -560,6 +694,7 @@ const _ = grpc.SupportPackageIsVersion4
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type WalleApiClient interface {
 	ClaimWriter(ctx context.Context, in *ClaimWriterRequest, opts ...grpc.CallOption) (*ClaimWriterResponse, error)
+	WriterStatus(ctx context.Context, in *WriterStatusRequest, opts ...grpc.CallOption) (*WriterStatusResponse, error)
 	PutEntry(ctx context.Context, in *PutEntryRequest, opts ...grpc.CallOption) (*PutEntryResponse, error)
 	StreamEntries(ctx context.Context, in *StreamEntriesRequest, opts ...grpc.CallOption) (WalleApi_StreamEntriesClient, error)
 }
@@ -575,6 +710,15 @@ func NewWalleApiClient(cc *grpc.ClientConn) WalleApiClient {
 func (c *walleApiClient) ClaimWriter(ctx context.Context, in *ClaimWriterRequest, opts ...grpc.CallOption) (*ClaimWriterResponse, error) {
 	out := new(ClaimWriterResponse)
 	err := c.cc.Invoke(ctx, "/WalleApi/ClaimWriter", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *walleApiClient) WriterStatus(ctx context.Context, in *WriterStatusRequest, opts ...grpc.CallOption) (*WriterStatusResponse, error) {
+	out := new(WriterStatusResponse)
+	err := c.cc.Invoke(ctx, "/WalleApi/WriterStatus", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -625,6 +769,7 @@ func (x *walleApiStreamEntriesClient) Recv() (*Entry, error) {
 // WalleApiServer is the server API for WalleApi service.
 type WalleApiServer interface {
 	ClaimWriter(context.Context, *ClaimWriterRequest) (*ClaimWriterResponse, error)
+	WriterStatus(context.Context, *WriterStatusRequest) (*WriterStatusResponse, error)
 	PutEntry(context.Context, *PutEntryRequest) (*PutEntryResponse, error)
 	StreamEntries(*StreamEntriesRequest, WalleApi_StreamEntriesServer) error
 }
@@ -647,6 +792,24 @@ func _WalleApi_ClaimWriter_Handler(srv interface{}, ctx context.Context, dec fun
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(WalleApiServer).ClaimWriter(ctx, req.(*ClaimWriterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WalleApi_WriterStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WriterStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WalleApiServer).WriterStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/WalleApi/WriterStatus",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WalleApiServer).WriterStatus(ctx, req.(*WriterStatusRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -697,6 +860,10 @@ var _WalleApi_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ClaimWriter",
 			Handler:    _WalleApi_ClaimWriter_Handler,
+		},
+		{
+			MethodName: "WriterStatus",
+			Handler:    _WalleApi_WriterStatus_Handler,
 		},
 		{
 			MethodName: "PutEntry",
@@ -778,8 +945,14 @@ func (m *ClaimWriterRequest) MarshalTo(dAtA []byte) (int, error) {
 		i = encodeVarintWalleapi(dAtA, i, uint64(len(m.StreamUri)))
 		i += copy(dAtA[i:], m.StreamUri)
 	}
+	if len(m.WriterAddr) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintWalleapi(dAtA, i, uint64(len(m.WriterAddr)))
+		i += copy(dAtA[i:], m.WriterAddr)
+	}
 	if m.LeaseMs != 0 {
-		dAtA[i] = 0x10
+		dAtA[i] = 0x18
 		i++
 		i = encodeVarintWalleapi(dAtA, i, uint64(m.LeaseMs))
 	}
@@ -811,7 +984,7 @@ func (m *ClaimWriterResponse) MarshalTo(dAtA []byte) (int, error) {
 		i += copy(dAtA[i:], m.WriterId)
 	}
 	if m.LastEntry != nil {
-		dAtA[i] = 0x22
+		dAtA[i] = 0x12
 		i++
 		i = encodeVarintWalleapi(dAtA, i, uint64(m.LastEntry.Size()))
 		n1, err := m.LastEntry.MarshalTo(dAtA[i:])
@@ -819,6 +992,76 @@ func (m *ClaimWriterResponse) MarshalTo(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i += n1
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *WriterStatusRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *WriterStatusRequest) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.StreamUri) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintWalleapi(dAtA, i, uint64(len(m.StreamUri)))
+		i += copy(dAtA[i:], m.StreamUri)
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *WriterStatusResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *WriterStatusResponse) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.WriterId) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintWalleapi(dAtA, i, uint64(len(m.WriterId)))
+		i += copy(dAtA[i:], m.WriterId)
+	}
+	if len(m.WriterAddr) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintWalleapi(dAtA, i, uint64(len(m.WriterAddr)))
+		i += copy(dAtA[i:], m.WriterAddr)
+	}
+	if m.LeaseMs != 0 {
+		dAtA[i] = 0x18
+		i++
+		i = encodeVarintWalleapi(dAtA, i, uint64(m.LeaseMs))
+	}
+	if m.RemainingLeaseMs != 0 {
+		dAtA[i] = 0x20
+		i++
+		i = encodeVarintWalleapi(dAtA, i, uint64(m.RemainingLeaseMs))
 	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
@@ -1085,6 +1328,10 @@ func (m *ClaimWriterRequest) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovWalleapi(uint64(l))
 	}
+	l = len(m.WriterAddr)
+	if l > 0 {
+		n += 1 + l + sovWalleapi(uint64(l))
+	}
 	if m.LeaseMs != 0 {
 		n += 1 + sovWalleapi(uint64(m.LeaseMs))
 	}
@@ -1107,6 +1354,48 @@ func (m *ClaimWriterResponse) Size() (n int) {
 	if m.LastEntry != nil {
 		l = m.LastEntry.Size()
 		n += 1 + l + sovWalleapi(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *WriterStatusRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.StreamUri)
+	if l > 0 {
+		n += 1 + l + sovWalleapi(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *WriterStatusResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.WriterId)
+	if l > 0 {
+		n += 1 + l + sovWalleapi(uint64(l))
+	}
+	l = len(m.WriterAddr)
+	if l > 0 {
+		n += 1 + l + sovWalleapi(uint64(l))
+	}
+	if m.LeaseMs != 0 {
+		n += 1 + sovWalleapi(uint64(m.LeaseMs))
+	}
+	if m.RemainingLeaseMs != 0 {
+		n += 1 + sovWalleapi(uint64(m.RemainingLeaseMs))
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -1477,6 +1766,38 @@ func (m *ClaimWriterRequest) Unmarshal(dAtA []byte) error {
 			m.StreamUri = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field WriterAddr", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWalleapi
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthWalleapi
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthWalleapi
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.WriterAddr = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field LeaseMs", wireType)
 			}
@@ -1581,7 +1902,7 @@ func (m *ClaimWriterResponse) Unmarshal(dAtA []byte) error {
 			}
 			m.WriterId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 4:
+		case 2:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field LastEntry", wireType)
 			}
@@ -1617,6 +1938,248 @@ func (m *ClaimWriterResponse) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipWalleapi(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthWalleapi
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthWalleapi
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *WriterStatusRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowWalleapi
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: WriterStatusRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: WriterStatusRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StreamUri", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWalleapi
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthWalleapi
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthWalleapi
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.StreamUri = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipWalleapi(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthWalleapi
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthWalleapi
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *WriterStatusResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowWalleapi
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: WriterStatusResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: WriterStatusResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field WriterId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWalleapi
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthWalleapi
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthWalleapi
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.WriterId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field WriterAddr", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWalleapi
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthWalleapi
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthWalleapi
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.WriterAddr = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field LeaseMs", wireType)
+			}
+			m.LeaseMs = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWalleapi
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.LeaseMs |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RemainingLeaseMs", wireType)
+			}
+			m.RemainingLeaseMs = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowWalleapi
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.RemainingLeaseMs |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skipWalleapi(dAtA[iNdEx:])

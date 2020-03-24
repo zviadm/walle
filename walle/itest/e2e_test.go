@@ -63,7 +63,7 @@ func TestE2ESimple(t *testing.T) {
 	// Read and update root topology to add a new cluster.
 	cli, err := wallelib.NewClientForTopology(ctx, "/topology/itest", cliRootPb, "", "")
 	require.NoError(t, err)
-	w, err := wallelib.ClaimWriter(ctx, cli, "/topology/itest", time.Second)
+	w, err := wallelib.ClaimWriter(ctx, cli, "/topology/itest", time.Second, "e2e_test:1001")
 	require.NoError(t, err)
 	entry := w.LastEntry()
 	topo, err := wallelib.TopologyFromEntry(entry)
@@ -84,7 +84,7 @@ func TestE2ESimple(t *testing.T) {
 	// Wait a bit to make sure new topology is propagated to the server.
 	time.Sleep(5 * time.Second)
 
-	w, err = wallelib.ClaimWriter(ctx, cli, "/cluster_a/1", time.Second)
+	w, err = wallelib.ClaimWriter(ctx, cli, "/cluster_a/1", time.Second, "e2e_test:1001")
 	require.NoError(t, err)
 	require.EqualValues(t, 0, w.LastEntry().EntryId)
 	w.Close()

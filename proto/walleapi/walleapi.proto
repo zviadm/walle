@@ -3,6 +3,7 @@ option go_package = "github.com/zviadm/walle/proto/walleapi";
 
 service WalleApi {
 	rpc ClaimWriter(ClaimWriterRequest) returns (ClaimWriterResponse) {}
+	rpc WriterStatus(WriterStatusRequest) returns (WriterStatusResponse) {}
 	rpc PutEntry(PutEntryRequest) returns (PutEntryResponse) {}
 	rpc StreamEntries(StreamEntriesRequest) returns (stream Entry) {}
 }
@@ -17,11 +18,24 @@ message Entry {
 
 message ClaimWriterRequest {
 	string stream_uri = 1;
-	int64 lease_ms = 2;
+	// Free form address that can be used to identify and reach this Writer.
+	// Expected to be: <host>:<port> pair, but can be application specific.
+	string writer_addr = 2;
+	int64 lease_ms = 3;
 }
 message ClaimWriterResponse {
 	string writer_id = 1;
-	Entry last_entry = 4;
+	Entry last_entry = 2;
+}
+
+message WriterStatusRequest {
+	string stream_uri = 1;
+}
+message WriterStatusResponse {
+	string writer_id = 1;
+	string writer_addr = 2;
+	int64 lease_ms = 3;
+	int64 remaining_lease_ms = 4;
 }
 
 message PutEntryRequest {
