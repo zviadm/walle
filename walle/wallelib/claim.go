@@ -2,6 +2,7 @@ package wallelib
 
 import (
 	"context"
+	"math/rand"
 	"time"
 
 	"github.com/golang/glog"
@@ -77,10 +78,12 @@ func WaitAndClaim(
 				if status.RemainingLeaseMs == 0 {
 					break
 				}
+				sleepTime := time.Duration(status.RemainingLeaseMs)*time.Millisecond +
+					time.Duration(rand.Int63n(int64(retryDelay/100)))
 				select {
 				case <-ctx.Done():
 					return true, ctx.Err()
-				case <-time.After(time.Duration(status.RemainingLeaseMs) * time.Millisecond):
+				case <-time.After(sleepTime):
 				}
 			}
 			w, e, err = ClaimWriter(ctx, c, streamURI, writerAddr, writerLease)
