@@ -3,6 +3,7 @@ package walle
 import (
 	"context"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,10 +18,14 @@ var topoSimple = &walleapi.Topology{
 	Streams: map[string]*walleapi.StreamTopology{
 		"/mock/1": &walleapi.StreamTopology{
 			Version:   3,
-			ServerIds: []string{"s1", "s2", "s3"},
+			ServerIds: []string{"\x00\x01", "\x00\x02", "\x00\x03"},
 		},
 	},
-	Servers: map[string]string{"s1": "s1", "s2": "s2", "s3": "s3"},
+	Servers: map[string]string{
+		"\x00\x01": "localhost1:1001",
+		"\x00\x02": "localhost2:1001",
+		"\x00\x03": "localhost3:1001",
+	},
 }
 
 func TestProtocolClaimWriter(t *testing.T) {
@@ -68,6 +73,13 @@ func TestProtocolClaimWriter(t *testing.T) {
 	defer w2.Close(false)
 	require.NotEqual(t, wallelib.Exclusive, w.WriterState())
 	require.Equal(t, wallelib.Exclusive, w2.WriterState())
+
+	w2.Close(false)
+	time.Sleep(2 * writerTimeoutToResolve)
+	writerStatus, err = c.WriterStatus(ctx, &walleapi.WriterStatusRequest{StreamUri: "/mock/1"})
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(writerStatus.WriterAddr, "_internal:"), "writerStatus: %s", writerStatus)
+	require.LessOrEqual(t, writerStatus.RemainingLeaseMs, int64(0))
 
 	// TODO(zviad): Test at least few edgecases of claim writer reconciliations.
 }
@@ -127,7 +139,8 @@ func TestProtocolGapRecovery(t *testing.T) {
 	err = <-errC
 	require.NoError(t, err)
 
-	m.Toggle("s1", false)
+	serverIds := topoSimple.Streams["/mock/1"].ServerIds
+	m.Toggle(serverIds[0], false)
 	_, errC = w.PutEntry([]byte("d2"))
 	err = <-errC
 	require.NoError(t, err)
@@ -135,7 +148,7 @@ func TestProtocolGapRecovery(t *testing.T) {
 	err = <-errC
 	require.NoError(t, err)
 
-	m.Toggle("s2", false)
+	m.Toggle(serverIds[1], false)
 	eeD4, errC := w.PutEntry([]byte("d4"))
 	select {
 	case err = <-errC:
@@ -143,8 +156,8 @@ func TestProtocolGapRecovery(t *testing.T) {
 	case <-time.After(10 * time.Millisecond):
 	}
 
-	// s1 will need to create a GAP to succeed with the PutEntry request.
-	m.Toggle("s1", true)
+	// serverIds[0] will need to create a GAP to succeed with the PutEntry request.
+	m.Toggle(serverIds[0], true)
 	select {
 	case err = <-errC:
 	case <-time.After(time.Second):
@@ -154,12 +167,12 @@ func TestProtocolGapRecovery(t *testing.T) {
 
 	ctxTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	waitForCommitConvergence(t, ctxTimeout, m, "s1", "/mock/1", eeD4.EntryId)
+	waitForCommitConvergence(t, ctxTimeout, m, serverIds[0], "/mock/1", eeD4.EntryId)
 
-	m.Toggle("s2", true)
-	// If client heartbeat is working properly, once 's2' is healthy again, it should force
+	m.Toggle(serverIds[1], true)
+	// If client heartbeat is working properly, once 'serverIds[1]' is healthy again, it should force
 	// it to catchup with rest of the servers.
-	waitForCommitConvergence(t, ctxTimeout, m, "s2", "/mock/1", eeD4.EntryId)
+	waitForCommitConvergence(t, ctxTimeout, m, serverIds[1], "/mock/1", eeD4.EntryId)
 }
 
 func waitForCommitConvergence(
@@ -169,10 +182,10 @@ func waitForCommitConvergence(
 	serverId string,
 	streamURI string,
 	expectedCommitId int64) {
-	s1, _ := m.Server(serverId)
-	ss1, _ := s1.s.Stream(streamURI, false)
+	s, _ := m.Server(serverId)
+	ss, _ := s.s.Stream(streamURI, false)
 	for {
-		noGap, committed, notify := ss1.CommittedEntryIds()
+		noGap, committed, notify := ss.CommittedEntryIds()
 		if noGap == committed && committed == expectedCommitId {
 			break
 		}

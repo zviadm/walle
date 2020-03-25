@@ -69,16 +69,14 @@ func (s *Server) writerInfoWatcher(ctx context.Context) {
 			if time.Duration(wInfo.RemainingLeaseMs)*time.Millisecond >= -writerTimeoutToResolve {
 				continue
 			}
-			_, err = s.ClaimWriter(ctx, &walleapi.ClaimWriterRequest{
-				StreamUri:  streamURI,
-				WriterAddr: "_internal:" + hex.EncodeToString([]byte(s.s.ServerId())), // TODO(zviad): better string
-				LeaseMs:    0,
-			})
+			writerAddr := "_internal:" + hex.EncodeToString([]byte(s.s.ServerId())) // TODO(zviad): better string
+			resp, err := s.ClaimWriter(ctx,
+				&walleapi.ClaimWriterRequest{StreamUri: streamURI, WriterAddr: writerAddr})
 			if err != nil {
 				glog.Warningf("[ww:%s] writer resolve err: %s", streamURI, err)
 				continue
 			}
-			glog.Infof("[ww:%s] resolved stream with no active writer", streamURI)
+			glog.Infof("[ww:%s] resolved stream, %s @entry: %d", streamURI, writerAddr, resp.LastEntry.EntryId)
 		}
 	}
 }
