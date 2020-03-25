@@ -59,7 +59,7 @@ func (s *Server) writerInfoWatcher(ctx context.Context) {
 			}
 			_, _, _, remainingLease := ss.WriterInfo()
 			if remainingLease >= -writerTimeoutToResolve {
-				continue // Quick shortcut requiring no i/o for most cases.
+				continue // Quick shortcut, requiring no i/o for most common case.
 			}
 			wInfo, err := s.broadcastWriterInfo(ctx, ss)
 			if err != nil {
