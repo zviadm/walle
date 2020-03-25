@@ -17,9 +17,12 @@ type Server struct {
 	rootCtx context.Context
 	s       Storage
 	c       Client
+
+	topoMgr *topoManager
 }
 
 type Client interface {
+	wallelib.BasicClient
 	ForServer(serverId string) (walle_pb.WalleClient, error)
 }
 
@@ -28,7 +31,12 @@ func NewServer(
 	s Storage,
 	c Client,
 	d wallelib.Discovery) *Server {
-	r := &Server{rootCtx: ctx, s: s, c: c}
+	r := &Server{
+		rootCtx: ctx,
+		s:       s,
+		c:       c,
+		topoMgr: newTopoManager(c, "myaddr"),
+	}
 
 	topology, notify := d.Topology()
 	r.updateTopology(topology)

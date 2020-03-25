@@ -14,7 +14,7 @@ type Storage interface {
 	Streams(localOnly bool) []string
 	Stream(streamURI string, localOnly bool) (StreamStorage, bool)
 
-	NewStream(streamURI string, topology *walleapi.StreamTopology)
+	NewStream(streamURI string, topology *walleapi.StreamTopology) StreamStorage
 	//RemoveStream(streamURI string)
 
 	Close()

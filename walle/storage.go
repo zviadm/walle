@@ -142,11 +142,12 @@ func (m *storage) Stream(streamURI string, localOnly bool) (StreamStorage, bool)
 	return r, ok
 }
 
-func (m *storage) NewStream(streamURI string, t *walleapi.StreamTopology) {
+func (m *storage) NewStream(streamURI string, t *walleapi.StreamTopology) StreamStorage {
 	sess, err := m.c.OpenSession(nil)
 	panicOnErr(err)
 	s := createStreamStorage(m.serverId, streamURI, t, sess)
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	m.streams[streamURI] = s
+	return s
 }

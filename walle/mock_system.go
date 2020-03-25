@@ -36,7 +36,9 @@ func newMockSystem(
 		servers:     make(map[string]*Server, len(topology.Servers)),
 		isDisabled:  make(map[string]bool, len(topology.Servers)),
 	}
-	mClient := &mockClient{mSystem}
+	mApiClient := &mockApiClient{mSystem}
+	mClient := &mockClient{mApiClient, mSystem}
+
 	for serverId := range topology.Servers {
 		m, err := storageInitWithServerId(
 			path.Join(storagePath, hex.EncodeToString([]byte(serverId))+".walledb"),
@@ -48,7 +50,7 @@ func newMockSystem(
 		<-ctx.Done()
 		mSystem.cleanup()
 	}()
-	return mSystem, &mockApiClient{mSystem}
+	return mSystem, mApiClient
 }
 
 func (m *mockSystem) cleanup() {
@@ -99,6 +101,7 @@ func (m *mockSystem) Toggle(serverId string, enabled bool) {
 }
 
 type mockClient struct {
+	*mockApiClient
 	m *mockSystem
 }
 

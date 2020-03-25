@@ -3,6 +3,7 @@ package walle
 import (
 	"context"
 	"encoding/hex"
+	"strings"
 	"time"
 
 	"github.com/golang/glog"
@@ -32,10 +33,19 @@ func (s *Server) updateTopology(t *walleapi.Topology) {
 		ss, ok := s.s.Stream(streamURI, false)
 		if ok {
 			ss.UpdateTopology(streamT)
+		} else {
+			glog.Infof("[tw:%s] creating with topology: %+v", streamURI, streamT)
+			ss = s.s.NewStream(streamURI, streamT)
+		}
+
+		if !strings.HasPrefix(streamURI, "/topology/") {
 			continue
 		}
-		glog.Infof("[tw:%s] creating with topology: %+v", streamURI, streamT)
-		s.s.NewStream(streamURI, streamT)
+		if ss.IsLocal() {
+			s.topoMgr.Manage(s.rootCtx, streamURI)
+		} else {
+			s.topoMgr.StopManaging(s.rootCtx, streamURI)
+		}
 	}
 }
 
