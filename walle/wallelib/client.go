@@ -16,10 +16,6 @@ type BasicClient interface {
 	ForStream(streamURI string) (walleapi.WalleApiClient, error)
 }
 
-type DirectClient interface {
-	ForServer(serverId string) (walle_pb.WalleClient, error)
-}
-
 type client struct {
 	d Discovery
 

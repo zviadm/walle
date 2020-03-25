@@ -75,7 +75,7 @@ func WaitAndClaim(
 					glog.Warningf("[%s] writer: %s err: %s...", streamURI, writerAddr, err)
 					return false, err
 				}
-				if status.RemainingLeaseMs == 0 {
+				if status.RemainingLeaseMs <= 0 {
 					break
 				}
 				sleepTime := time.Duration(status.RemainingLeaseMs)*time.Millisecond +

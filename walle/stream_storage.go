@@ -177,11 +177,7 @@ func (m *streamStorage) UpdateWriter(
 	return true, remainingLease
 }
 func (m *streamStorage) unsafeRemainingLease() time.Duration {
-	r := m.renewedLease.Add(m.writerLease).Sub(time.Now())
-	if r > 0 {
-		return r
-	}
-	return 0
+	return m.renewedLease.Add(m.writerLease).Sub(time.Now())
 }
 func (m *streamStorage) RenewLease(writerId WriterId) {
 	m.mx.Lock()

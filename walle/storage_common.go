@@ -12,7 +12,6 @@ import (
 )
 
 type WriterId string
-type ServerId string
 
 func (w WriterId) Encode() string {
 	return string(w)
@@ -20,6 +19,13 @@ func (w WriterId) Encode() string {
 func (w WriterId) String() string {
 	return hex.EncodeToString([]byte(w))
 }
+
+// func (s ServerId) Encode() string {
+// 	return string(s)
+// }
+// func (s ServerId) String() string {
+// 	return hex.EncodeToString([]byte(s))
+// }
 
 const (
 	metadataDS = "table:metadata"

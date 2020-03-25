@@ -8,7 +8,6 @@ import (
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
-	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/wallelib"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -33,34 +32,10 @@ func NewServer(
 
 	topology, notify := d.Topology()
 	r.updateTopology(topology)
+	go r.writerInfoWatcher(ctx)
 	go r.topologyWatcher(ctx, d, notify)
 	go r.gapHandler(ctx)
 	return r
-}
-
-func (s *Server) topologyWatcher(ctx context.Context, d wallelib.Discovery, notify <-chan struct{}) {
-	for {
-		select {
-		case <-notify:
-		case <-ctx.Done():
-			return
-		}
-		var topology *walleapi.Topology
-		topology, notify = d.Topology()
-		glog.Infof("[tw] received version: %d", topology.Version)
-		s.updateTopology(topology)
-	}
-}
-func (s *Server) updateTopology(t *walleapi.Topology) {
-	for streamURI, streamT := range t.Streams {
-		ss, ok := s.s.Stream(streamURI, false)
-		if ok {
-			ss.UpdateTopology(streamT)
-			continue
-		}
-		glog.Infof("[tw:%s] creating with topology: %+v", streamURI, streamT)
-		s.s.NewStream(streamURI, streamT)
-	}
 }
 
 func (s *Server) NewWriter(
@@ -80,10 +55,12 @@ func (s *Server) NewWriter(
 	// lease doesn't expire since writer client can't heartbeat until this call succeeds.
 	sleepTill := time.Now().Add(remainingLease)
 	iterSleep := time.Duration(req.LeaseMs) * time.Millisecond / 10
-	iterN := int(remainingLease / iterSleep)
-	for idx := 0; idx < iterN; idx++ {
-		time.Sleep(iterSleep)
-		ss.RenewLease(reqWriterId)
+	if iterSleep > 0 {
+		iterN := int(remainingLease / iterSleep)
+		for idx := 0; idx < iterN; idx++ {
+			time.Sleep(iterSleep)
+			ss.RenewLease(reqWriterId)
+		}
 	}
 	if finalSleep := sleepTill.Sub(time.Now()); finalSleep > 0 {
 		time.Sleep(finalSleep)

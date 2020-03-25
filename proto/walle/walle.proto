@@ -14,7 +14,7 @@ service Walle {
 	rpc ReadEntries(ReadEntriesRequest) returns (stream Entry) {}
 
 	// Register new (serverId, serverAddr) pair in a specific topology.
-	rpc RegisterServer(RegisterServerRequest) returns (Entry) {}
+	// rpc RegisterServer(RegisterServerRequest) returns (RegisterServerResponse) {}
 }
 
 message NewWriterRequest {
@@ -70,6 +70,11 @@ message ReadEntriesRequest {
 }
 
 message RegisterServerRequest {
+	string topology_stream_uri = 1;
+	string server_id = 2;
+	string server_addr = 3;
+}
+message RegisterServerResponse {
 	string topology_stream_uri = 1;
 	string server_id = 2;
 	string server_addr = 3;
