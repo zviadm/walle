@@ -36,32 +36,6 @@ func NewClient(ctx context.Context, d Discovery) *client {
 	return c
 }
 
-// Helper wrapper to create new client for a specific topology. It is
-// important for `rootFile` to exist and contain correct address for at least
-// one server that serves rootURI stream.
-// func NewClientForTopology(
-// 	ctx context.Context,
-// 	rootURI string,
-// 	rootFile string,
-// 	topologyURI string,
-// 	topologyFile string) (*client, error) {
-// 	rootD, err := NewRootDiscovery(ctx, rootURI, rootFile)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	rootCli := NewClient(ctx, rootD)
-// 	if topologyURI == "" {
-// 		return rootCli, nil
-// 	}
-//
-// 	d, err := NewDiscovery(ctx, rootCli, rootURI, topologyURI, topologyFile)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	c := NewClient(ctx, d)
-// 	return c, nil
-// }
-
 func (c *client) watcher(ctx context.Context, notify <-chan struct{}) {
 	var topology *walleapi.Topology
 	for {

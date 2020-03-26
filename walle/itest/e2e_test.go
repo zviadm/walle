@@ -26,13 +26,13 @@ const (
 func TestE2ESimple(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	w1Dir := walle.TestTmpDir()
+	wDir := walle.TestTmpDir()
 	rootURI := "/topology/itest"
 
 	// Bootstrap WALLE `itest` deployment.
 	sBootstrap, err := servicelib.RunGoService(
 		ctx, wallePkg, []string{
-			"-walle.storage_dir", w1Dir,
+			"-walle.storage_dir", wDir,
 			"-walle.root_uri", rootURI,
 			"-walle.port", "5005",
 			"-walle.bootstrap_only",
@@ -42,7 +42,7 @@ func TestE2ESimple(t *testing.T) {
 	require.NoError(t, err)
 	sBootstrap.Wait(t)
 
-	rootTopology, err := wallelib.TopologyFromFile(path.Join(w1Dir, "root.pb"))
+	rootTopology, err := wallelib.TopologyFromFile(path.Join(wDir, "root.pb"))
 	require.NoError(t, err)
 	rootD, err := wallelib.NewRootDiscovery(ctx, rootURI, rootTopology)
 	require.NoError(t, err)
@@ -52,7 +52,7 @@ func TestE2ESimple(t *testing.T) {
 	// Start initial WALLE server.
 	s, err := servicelib.RunGoService(
 		ctx, wallePkg, []string{
-			"-walle.storage_dir", w1Dir,
+			"-walle.storage_dir", wDir,
 			"-walle.root_uri", rootURI,
 			"-walle.port", "5005",
 			"-logtostderr",
@@ -62,12 +62,14 @@ func TestE2ESimple(t *testing.T) {
 	defer s.Stop(t)
 
 	services := []*servicelib.Service{s}
-	for i := 0; i < 4; i++ {
-		s := expandTopology(t, ctx, walle.TestTmpDir(), strconv.Itoa(5006+i), topoMgr, rootURI)
+	for idx := 0; idx < 4; idx++ {
+		glog.Info("EXPANDING SERVER: ", idx+1)
+		s := expandTopology(t, ctx, walle.TestTmpDir(), strconv.Itoa(5006+idx), topoMgr, rootURI)
 		defer s.Stop(t)
 		services = append(services, s)
 	}
-	for _, s := range services {
+	for idx, s := range services {
+		glog.Info("REMOVING SERVER: ", idx)
 		shrinkTopology(t, ctx, s, topoMgr, rootURI)
 	}
 }
@@ -108,7 +110,6 @@ func expandTopology(
 	require.NoError(t, err)
 	return s
 }
-
 
 func serverIdsDiff(t *testing.T, serverIdsAll map[string]*walleapi.ServerInfo, serverIds []string) string {
 	for serverId := range serverIdsAll {

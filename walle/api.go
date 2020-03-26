@@ -359,7 +359,7 @@ func (s *Server) broadcastRequest(
 			}
 			errCode = errStatus.Code()
 		}
-		return nil, status.Errorf(errCode, "not enough success: %s <= %d\nerrs: %s", successIds, len(errs), errs)
+		return nil, status.Errorf(errCode, "not enough success: %s <= %d, errs: %s", len(successIds), len(errs), errs)
 	}
 	return successIds, nil
 }
