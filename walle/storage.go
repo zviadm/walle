@@ -7,10 +7,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/golang/glog"
 	"github.com/pkg/errors"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/wt"
+	"github.com/zviadm/zlog"
 )
 
 type storage struct {
@@ -66,7 +66,7 @@ func storageInitWithServerId(dbPath string, createIfNotExists bool, serverId str
 		} else {
 			serverIdB = make([]byte, serverIdLen)
 			rand.Read(serverIdB)
-			glog.Infof(
+			zlog.Infof(
 				"initializing new database: %s, with serverId: %s...",
 				dbPath, hex.EncodeToString(serverIdB))
 		}
@@ -81,7 +81,7 @@ func storageInitWithServerId(dbPath string, createIfNotExists bool, serverId str
 	if serverId != "" && serverId != r.serverId {
 		return nil, errors.Errorf("storage already has different serverId: %s vs %s", r.serverId, serverId)
 	}
-	glog.Infof("storage: %s", hex.EncodeToString(serverIdB))
+	zlog.Infof("storage: %s", hex.EncodeToString(serverIdB))
 
 	streamURIs := make(map[string]struct{})
 	panicOnErr(metaR.Reset())
@@ -104,7 +104,7 @@ func storageInitWithServerId(dbPath string, createIfNotExists bool, serverId str
 		sess, err := c.OpenSession(nil)
 		panicOnErr(err)
 		r.streams[streamURI] = openStreamStorage(r.serverId, streamURI, sess)
-		glog.Infof("stream: %s (isLocal? %t)", streamURI, r.streams[streamURI].IsLocal())
+		zlog.Infof("stream: %s (isLocal? %t)", streamURI, r.streams[streamURI].IsLocal())
 	}
 	return r, nil
 }

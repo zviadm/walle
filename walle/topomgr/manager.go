@@ -3,15 +3,20 @@ package topomgr
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/golang/glog"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/zviadm/walle/proto/topomgr"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/wallelib"
+	"github.com/zviadm/zlog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+)
+
+const (
+	managerLease = time.Second // TODO(zviad): should be configurable.
 )
 
 type Manager struct {
@@ -57,22 +62,21 @@ func (m *Manager) Manage(topologyURI string) {
 		cancel:     cancel,
 		notifyDone: notifyDone,
 	}
-	lease := wallelib.LeaseMinimum // TODO(zviad): should be configurable.
 	go func() {
 		defer close(notifyDone)
-		defer glog.Infof("[tm:%s] stopping management: %s", topologyURI, m.addr)
+		defer zlog.Infof("[tm:%s] stopping management: %s", topologyURI, m.addr)
 		for {
-			w, e, err := wallelib.WaitAndClaim(ctx, m.c, topologyURI, m.addr, lease)
+			w, e, err := wallelib.WaitAndClaim(ctx, m.c, topologyURI, m.addr, managerLease)
 			if err != nil {
 				return
 			}
 			topology, err := wallelib.TopologyFromEntry(e)
 			if err != nil || topology.Version != e.EntryId {
 				// This must never happen!
-				glog.Errorf("[tm:%s] unrecoverable err (%d): %s, %s", topologyURI, e.EntryId, topology, err)
+				zlog.Errorf("[tm:%s] unrecoverable err (%d): %s, %s", topologyURI, e.EntryId, topology, err)
 				topology = &walleapi.Topology{Version: e.EntryId} // TODO(zviad): Decide on best path forward here.
 			}
-			glog.Infof("[tm:%s] claimed writer: %s, version: %d", topologyURI, m.addr, topology.Version)
+			zlog.Infof("[tm:%s] claimed writer: %s, version: %d", topologyURI, m.addr, topology.Version)
 			m.mx.Lock()
 			m.perTopo[topologyURI].writer = w
 			m.perTopo[topologyURI].topology = topology
@@ -80,16 +84,15 @@ func (m *Manager) Manage(topologyURI string) {
 			for {
 				state, notify := w.WriterState()
 				if state == wallelib.Closed {
+					zlog.Warningf("[tm:%s] claim lost unexpectedly: %s", topologyURI, m.addr)
 					break
 				}
 				select {
 				case <-ctx.Done():
-					w.Close(true)
 					return
 				case <-notify:
 				}
 			}
-			glog.Warningf("[tm:%s] claim lost unexpectedly: %s", topologyURI, m.addr)
 		}
 	}()
 }
@@ -105,6 +108,9 @@ func (m *Manager) StopManaging(topologyURI string) {
 
 	m.mx.Lock()
 	defer m.mx.Unlock()
+	if w := m.perTopo[topologyURI].writer; w != nil {
+		w.Close(true)
+	}
 	m.perTopo[topologyURI] = nil
 }
 

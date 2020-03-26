@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang/glog"
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/zlog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -163,7 +163,7 @@ func (w *Writer) heartbeat() {
 						return true, err
 					}
 					if retryN > 5 {
-						glog.Warningf(
+						zlog.Warningf(
 							"[%s] Heartbeat %d->%d: %s...",
 							w.streamURI, committedEntryId, toCommit.EntryId, err)
 					}
@@ -224,7 +224,7 @@ func (w *Writer) PutEntry(data []byte) (*walleapi.Entry, <-chan error) {
 					return true, err
 				}
 				if retryN > 5 {
-					glog.Warningf("[%s:%d] PutEntry: %s, will retry...", w.streamURI, entry.EntryId, err)
+					zlog.Warningf("[%s:%d] PutEntry: %s, will retry...", w.streamURI, entry.EntryId, err)
 				}
 				return false, err
 			})

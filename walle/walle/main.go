@@ -11,7 +11,7 @@ import (
 	"syscall"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/golang/glog"
+	"github.com/zviadm/zlog"
 	"google.golang.org/grpc"
 
 	topomgr_pb "github.com/zviadm/walle/proto/topomgr"
@@ -40,10 +40,10 @@ func main() {
 	flag.Parse()
 	ctx, cancelAll := context.WithCancel(context.Background())
 	if *rootURI == "" {
-		glog.Fatal("must provide root streamURI using -walle.root_uri flag")
+		zlog.Fatal("must provide root streamURI using -walle.root_uri flag")
 	}
 	if *storageDir == "" {
-		glog.Fatal("must provide path to the storage using -walle.db_path flag")
+		zlog.Fatal("must provide path to the storage using -walle.db_path flag")
 	}
 	dbPath := path.Join(*storageDir, "walle.db")
 	rootFile := path.Join(*storageDir, "root.pb")
@@ -51,42 +51,42 @@ func main() {
 	if *host == "" {
 		hostname, err := os.Hostname()
 		if err != nil {
-			glog.Fatal(err)
+			zlog.Fatal(err)
 		}
 		*host = hostname
 	}
 	if *port == "" {
-		glog.Fatal("must provide port to listen on using -walle.port flag")
+		zlog.Fatal("must provide port to listen on using -walle.port flag")
 	}
 	serverInfo := &walleapi.ServerInfo{
 		Address: net.JoinHostPort(*host, *port),
 	}
-	glog.Infof("initializing storage: %s...", dbPath)
+	zlog.Infof("initializing storage: %s...", dbPath)
 	ss, err := walle.StorageInit(dbPath, true)
 	if err != nil {
-		glog.Fatal(err)
+		zlog.Fatal(err)
 	}
 	defer ss.Close()
 
 	if *bootstrapOnly {
 		err := walle.BootstrapRoot(ss, *rootURI, rootFile, serverInfo)
 		if err != nil {
-			glog.Fatal(err)
+			zlog.Fatal(err)
 		}
-		glog.Infof(
+		zlog.Infof(
 			"bootstrapped %s, server: %s - %s",
 			*rootURI, hex.EncodeToString([]byte(ss.ServerId())), serverInfo)
 		return
 	}
 
-	glog.Infof("initializing root discovery: %s - %s...", *rootURI, rootFile)
+	zlog.Infof("initializing root discovery: %s - %s...", *rootURI, rootFile)
 	rootTopology, err := wallelib.TopologyFromFile(rootFile)
 	if err != nil {
-		glog.Fatal(err)
+		zlog.Fatal(err)
 	}
 	rootD, err := wallelib.NewRootDiscovery(ctx, *rootURI, rootTopology)
 	if err != nil {
-		glog.Fatal(err)
+		zlog.Fatal(err)
 	}
 	rootCli := wallelib.NewClient(ctx, rootD)
 	go watchTopologyAndSave(ctx, rootD, rootFile)
@@ -97,11 +97,11 @@ func main() {
 		d = rootD
 		c = rootCli
 	} else {
-		glog.Infof("initializing topology discovery: %s...", *topologyURI)
+		zlog.Infof("initializing topology discovery: %s...", *topologyURI)
 		topology, _ := wallelib.TopologyFromFile(topoFile) // ok to ignore errors.
 		d, err = wallelib.NewDiscovery(ctx, rootCli, *topologyURI, topology)
 		if err != nil {
-			glog.Fatal(err)
+			zlog.Fatal(err)
 		}
 		go watchTopologyAndSave(ctx, d, topoFile)
 		c = wallelib.NewClient(ctx, d)
@@ -111,7 +111,7 @@ func main() {
 		rootCli, *topologyURI, d,
 		ss.ServerId(), serverInfo)
 	if err != nil {
-		glog.Fatal(err)
+		zlog.Fatal(err)
 	}
 
 	var topoMgr *topomgr.Manager
@@ -128,19 +128,19 @@ func main() {
 
 	l, err := net.Listen("tcp", ":"+*port)
 	if err != nil {
-		glog.Fatal(err)
+		zlog.Fatal(err)
 	}
 	notify := make(chan os.Signal, 10)
 	signal.Notify(notify, syscall.SIGTERM)
 	go func() {
 		<-notify
-		glog.Infof("terminating WALLE server...")
+		zlog.Infof("terminating WALLE server...")
 		cancelAll()
 		s.GracefulStop()
 	}()
-	glog.Infof("starting WALLE server on port:%s...", *port)
+	zlog.Infof("starting WALLE server on port:%s...", *port)
 	if err := s.Serve(l); err != nil {
-		glog.Fatal(err)
+		zlog.Fatal(err)
 	}
 }
 
@@ -148,7 +148,7 @@ func watchTopologyAndSave(ctx context.Context, d wallelib.Discovery, f string) {
 	for {
 		t, notify := d.Topology()
 		if err := wallelib.TopologyToFile(t, f); err != nil {
-			glog.Warningf("saving topology to file failed: %s", err)
+			zlog.Warningf("saving topology to file failed: %s", err)
 		}
 		select {
 		case <-ctx.Done():
@@ -172,7 +172,7 @@ func registerServerInfo(
 	}
 	// Must register new server before it can start serving anything.
 	// If registration fails, there is no point in starting up.
-	glog.Infof("updating serverInfo: %s -> %s ...", existingServerInfo, serverInfo)
+	zlog.Infof("updating serverInfo: %s -> %s ...", existingServerInfo, serverInfo)
 	topoMgr := topomgr.NewClient(root)
 	_, err := topoMgr.RegisterServer(ctx, &topomgr_pb.RegisterServerRequest{
 		TopologyUri: topologyURI,

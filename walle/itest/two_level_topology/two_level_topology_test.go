@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/glog"
 	"github.com/stretchr/testify/require"
 	topomgr_pb "github.com/zviadm/walle/proto/topomgr"
 	"github.com/zviadm/walle/proto/walleapi"
@@ -13,9 +12,10 @@ import (
 	"github.com/zviadm/walle/walle/itest"
 	"github.com/zviadm/walle/walle/topomgr"
 	"github.com/zviadm/walle/walle/wallelib"
+	"github.com/zviadm/zlog"
 )
 
-var _ = glog.Info
+var _ = zlog.Info
 
 func TestTwoLevelTopology(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)

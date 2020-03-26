@@ -85,7 +85,6 @@ func main() {
 	for _, pkg := range packages {
 		args = append(args, pkg)
 	}
-	args = append(args, "-logtostderr")
 
 	cmd := exec.Command("docker", args...)
 	cmd.Stdin = os.Stdin

@@ -2,6 +2,7 @@ package servicelib
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"os"
 	"os/exec"
@@ -11,8 +12,8 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/golang/glog"
 	"github.com/stretchr/testify/require"
+	"github.com/zviadm/zlog"
 )
 
 var goVer = runtime.Version()
@@ -23,6 +24,15 @@ type Service struct {
 	processState *os.ProcessState
 }
 
+type serviceLogger struct {
+	Prefix string
+}
+
+func (s *serviceLogger) Write(b []byte) (int, error) {
+	os.Stderr.WriteString(s.Prefix + string(b))
+	return len(b), nil
+}
+
 func RunGoService(
 	ctx context.Context,
 	pkg string,
@@ -30,7 +40,7 @@ func RunGoService(
 	waitOnPort string) (*Service, error) {
 
 	cmd := exec.Command(path.Join("/root", goVer, "bin/go"), "install", pkg)
-	glog.Infof("running: %s", cmd)
+	zlog.Infof("running: %s", cmd)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -39,10 +49,10 @@ func RunGoService(
 	}
 
 	cmd = exec.Command(path.Join("/root/.cache/goroot/bin", path.Base(pkg)), flags...)
-	glog.Infof("running: %s", cmd)
+	zlog.Infof("running: %s", cmd)
 	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stderr = &serviceLogger{Prefix: fmt.Sprintf("%s%5s   ", path.Base(pkg), waitOnPort)}
+	cmd.Stdout = cmd.Stderr
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}

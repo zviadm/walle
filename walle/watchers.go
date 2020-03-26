@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang/glog"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/topomgr"
 	"github.com/zviadm/walle/walle/wallelib"
+	"github.com/zviadm/zlog"
 )
 
 const (
@@ -30,7 +30,7 @@ func (s *Server) watchTopology(ctx context.Context, d wallelib.Discovery, topoMg
 				return
 			}
 			topology, notify = d.Topology()
-			glog.Infof("[tw] received version: %d", topology.Version)
+			zlog.Infof("[tw] received version: %d", topology.Version)
 			s.updateTopology(topology, topoMgr)
 		}
 	}()
@@ -41,7 +41,7 @@ func (s *Server) updateTopology(t *walleapi.Topology, topoMgr *topomgr.Manager) 
 		if ok {
 			ss.UpdateTopology(streamT)
 		} else {
-			glog.Infof("[tw:%s] creating with topology: %+v", streamURI, streamT)
+			zlog.Infof("[tw:%s] creating with topology: %+v", streamURI, streamT)
 			ss = s.s.NewStream(streamURI, streamT)
 		}
 
@@ -80,7 +80,7 @@ func (s *Server) writerInfoWatcher(ctx context.Context) {
 			}
 			wInfo, err := s.broadcastWriterInfo(ctx, ss)
 			if err != nil {
-				glog.Warningf("[ww:%s] writer info err: %s", streamURI, err)
+				zlog.Warningf("[ww:%s] writer info err: %s", streamURI, err)
 				continue
 			}
 			if time.Duration(wInfo.RemainingLeaseMs)*time.Millisecond >= -writerTimeoutToResolve {
@@ -90,10 +90,10 @@ func (s *Server) writerInfoWatcher(ctx context.Context) {
 			resp, err := s.ClaimWriter(ctx,
 				&walleapi.ClaimWriterRequest{StreamUri: streamURI, WriterAddr: writerAddr})
 			if err != nil {
-				glog.Warningf("[ww:%s] writer resolve err: %s", streamURI, err)
+				zlog.Warningf("[ww:%s] writer resolve err: %s", streamURI, err)
 				continue
 			}
-			glog.Infof("[ww:%s] resolved stream, %s @entry: %d", streamURI, writerAddr, resp.LastEntry.EntryId)
+			zlog.Infof("[ww:%s] resolved stream, %s @entry: %d", streamURI, writerAddr, resp.LastEntry.EntryId)
 		}
 	}
 }

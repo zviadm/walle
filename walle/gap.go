@@ -6,10 +6,10 @@ import (
 	"io"
 	"time"
 
-	"github.com/golang/glog"
 	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/zlog"
 )
 
 // Gap handler detects and fills gaps in streams in background.
@@ -26,9 +26,9 @@ func (s *Server) gapHandler(ctx context.Context) {
 			}
 			err := s.gapHandlerForStream(ctx, ss, noGapCommittedId, committedId)
 			if err != nil {
-				glog.Warningf("[gh:%s] error filling gap: %d -> %d, %s", ss.StreamURI(), noGapCommittedId, committedId, err)
+				zlog.Warningf("[gh:%s] error filling gap: %d -> %d, %s", ss.StreamURI(), noGapCommittedId, committedId, err)
 			}
-			glog.Infof("[gh:%s] gap filled: %d -> %d", ss.StreamURI(), noGapCommittedId, committedId)
+			zlog.Infof("[gh:%s] gap filled: %d -> %d", ss.StreamURI(), noGapCommittedId, committedId)
 		}
 		select {
 		case <-ctx.Done():
@@ -81,7 +81,7 @@ Main:
 
 		c, err := s.c.ForServer(serverId)
 		if err != nil {
-			glog.Warningf(
+			zlog.Warningf(
 				"[gh:%s] failed to connect to: %s for fetching entries: %s",
 				ss.StreamURI(), serverIdHex, err)
 			continue
@@ -96,7 +96,7 @@ Main:
 			EndEntryId:    endId,
 		})
 		if err != nil {
-			glog.Warningf(
+			zlog.Warningf(
 				"[gh:%s] failed to establish stream to: %s for fetching entries: %s",
 				ss.StreamURI(), serverIdHex, err)
 			continue
@@ -106,17 +106,17 @@ Main:
 			if err != nil {
 				if err == io.EOF {
 					if startId != endId {
-						glog.Errorf(
+						zlog.Errorf(
 							"[gh:%s] DEVELOPER_ERROR; unreachable code. server: %s is buggy!", ss.StreamURI(), serverIdHex)
 						continue Main
 					}
 					return nil
 				}
-				glog.Warningf("[gh:%s] failed to fetch all entries from: %s, %s", ss.StreamURI(), serverIdHex, err)
+				zlog.Warningf("[gh:%s] failed to fetch all entries from: %s, %s", ss.StreamURI(), serverIdHex, err)
 				continue Main
 			}
 			if entry.EntryId != startId {
-				glog.Errorf("[gh:%s] DEVELOPER_ERROR; unreachable code. server: %s is buggy!", ss.StreamURI(), serverIdHex)
+				zlog.Errorf("[gh:%s] DEVELOPER_ERROR; unreachable code. server: %s is buggy!", ss.StreamURI(), serverIdHex)
 				continue Main
 			}
 			startId += 1

@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/glog"
 	"github.com/stretchr/testify/require"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/wallelib"
+	"github.com/zviadm/zlog"
 )
 
 // Example simple topology.
@@ -112,7 +112,7 @@ func TestProtocolClaimBarrage(t *testing.T) {
 				if err != nil {
 					continue // This can happen if WaitAndClaim races.
 				}
-				glog.Info("Successful claim ", addr, " ", entry.EntryId)
+				zlog.Info("Successful claim ", addr, " ", entry.EntryId)
 				entries <- entry
 				return nil
 			}

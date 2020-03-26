@@ -1,4 +1,4 @@
-package quorum_resizing
+package resize_quorum
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/glog"
 	"github.com/stretchr/testify/require"
 	topomgr_pb "github.com/zviadm/walle/proto/topomgr"
 	"github.com/zviadm/walle/proto/walleapi"
@@ -15,12 +14,13 @@ import (
 	"github.com/zviadm/walle/walle/itest"
 	"github.com/zviadm/walle/walle/topomgr"
 	"github.com/zviadm/walle/walle/wallelib"
+	"github.com/zviadm/zlog"
 )
 
-func TestQuorumResizing(t *testing.T) {
+func TestResuizeQuorum(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	rootURI := "/topology/itest"
+	rootURI := "/topology/resize_quorum"
 	wDir := walle.TestTmpDir()
 
 	rootTopology := itest.BootstrapDeployment(t, ctx, rootURI, wDir, itest.WalleDefaultPort)
@@ -33,13 +33,13 @@ func TestQuorumResizing(t *testing.T) {
 	topoMgr := topomgr.NewClient(cli)
 	services := []*servicelib.Service{s}
 	for idx := 1; idx < 5; idx++ {
-		glog.Info("EXPANDING SERVER: ", idx)
+		zlog.Info("EXPANDING SERVER: ", idx)
 		s := expandTopology(t, ctx, topoMgr, rootURI, itest.WalleDefaultPort+idx)
 		defer s.Stop(t)
 		services = append(services, s)
 	}
 	for idx, s := range services {
-		glog.Info("REMOVING SERVER: ", idx)
+		zlog.Info("REMOVING SERVER: ", idx)
 		shrinkTopology(t, ctx, s, topoMgr, rootURI)
 	}
 }

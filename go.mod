@@ -9,7 +9,9 @@ require (
 	github.com/golang/protobuf v1.2.0
 	github.com/pkg/errors v0.8.1
 	github.com/stretchr/testify v1.4.0
+	github.com/zviadm/glog v0.0.0-20200326214804-bea93fc07ffa // indirect
 	github.com/zviadm/wt v0.0.0
+	github.com/zviadm/zlog v0.0.0-20200326214804-bea93fc07ffa
 	golang.org/dl v0.0.0-20200302224518-306f3096cb2f // indirect
 	google.golang.org/grpc v1.22.0
 )

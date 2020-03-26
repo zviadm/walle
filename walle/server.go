@@ -5,11 +5,11 @@ import (
 	"encoding/hex"
 	"time"
 
-	"github.com/golang/glog"
 	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/walle/topomgr"
 	"github.com/zviadm/walle/walle/wallelib"
+	"github.com/zviadm/zlog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -113,7 +113,7 @@ func (s *Server) PutEntryInternal(
 			if err != nil {
 				return nil, status.Errorf(codes.OutOfRange, "commit entryId: %d, fetch err: %s", req.CommittedEntryId, err)
 			}
-			glog.Infof("[%s] commit caught up to: %d (might have created a gap)", ss.StreamURI(), req.CommittedEntryId)
+			zlog.Infof("[%s] commit caught up to: %d (might have created a gap)", ss.StreamURI(), req.CommittedEntryId)
 		}
 	}
 	if req.Entry.EntryId == 0 {
@@ -217,7 +217,7 @@ func (s *Server) checkAndUpdateWriterId(ctx context.Context, ss StreamMetadata, 
 		if respWriterId <= ssWriterId {
 			return status.Errorf(codes.Internal, "writerId is newer than majority?: %s > %s", writerId, ssWriterId)
 		}
-		glog.Infof(
+		zlog.Infof(
 			"[%s] writerId: updating %s -> %s",
 			ss.StreamURI(), hex.EncodeToString([]byte(ssWriterId)), hex.EncodeToString([]byte(writerId)))
 		ss.UpdateWriter(respWriterId, resp.WriterAddr, time.Duration(resp.LeaseMs)*time.Millisecond)

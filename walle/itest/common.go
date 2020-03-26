@@ -11,14 +11,14 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/golang/glog"
 	"github.com/stretchr/testify/require"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/tt/servicelib"
 	"github.com/zviadm/walle/walle/wallelib"
+	"github.com/zviadm/zlog"
 )
 
-var _ = glog.Info // Force import of `glog`.
+var _ = zlog.Info // Force import of `zlog`.
 
 const (
 	WallePkg         = "../../walle"
@@ -38,7 +38,6 @@ func BootstrapDeployment(
 			"-walle.storage_dir", storageDir,
 			"-walle.port", strconv.Itoa(port),
 			"-walle.bootstrap_only",
-			"-logtostderr",
 		},
 		"")
 	require.NoError(t, err)
@@ -65,7 +64,6 @@ func RunWalle(
 			"-walle.topology_uri", topologyURI,
 			"-walle.storage_dir", storageDir,
 			"-walle.port", strconv.Itoa(port),
-			"-logtostderr",
 		},
 		strconv.Itoa(port))
 	require.NoError(t, err)

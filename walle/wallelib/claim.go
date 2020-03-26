@@ -5,9 +5,9 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/golang/glog"
 	"github.com/pkg/errors"
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/zlog"
 )
 
 // ClaimWriter attempts to forcefully take over as an exclusive writer, even if there
@@ -68,7 +68,7 @@ func WaitAndClaim(
 				if ctx.Err() != nil {
 					return true, err
 				}
-				glog.Warningf("[%s] writer: %s err: %s...", streamURI, writerAddr, err)
+				zlog.Warningf("[%s] writer: %s err: %s...", streamURI, writerAddr, err)
 				return false, err
 			}
 			var status *walleapi.WriterStatusResponse
@@ -78,7 +78,7 @@ func WaitAndClaim(
 					if ctx.Err() != nil {
 						return true, err
 					}
-					glog.Warningf("[%s] writer: %s err: %s...", streamURI, writerAddr, err)
+					zlog.Warningf("[%s] writer: %s err: %s...", streamURI, writerAddr, err)
 					return false, err
 				}
 				if status.RemainingLeaseMs <= 0 {
@@ -94,7 +94,7 @@ func WaitAndClaim(
 			}
 			w, e, err = ClaimWriter(ctx, c, streamURI, writerAddr, writerLease)
 			if err != nil && ctx.Err() == nil {
-				glog.Warningf(
+				zlog.Warningf(
 					"[%s] writer: %s claim attempt (%s: %d): %s...",
 					streamURI, writerAddr, status.WriterAddr, status.RemainingLeaseMs, err)
 			}
