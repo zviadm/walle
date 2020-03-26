@@ -4,6 +4,9 @@ import (
 	"context"
 	"math/rand"
 	"time"
+
+	"github.com/pkg/errors"
+	"github.com/zviadm/zlog"
 )
 
 func KeepTryingWithBackoff(
@@ -17,6 +20,12 @@ func KeepTryingWithBackoff(
 		if final || err == nil {
 			return err
 		}
+		if retryN > 3 {
+			stackTrace := errors.Wrap(err, "").(stackTracer).StackTrace()
+			stackFrame := stackTrace[1]
+			zlog.Warningf("%n (%s:%d) retry #%d, err: %s...",
+				stackFrame, stackFrame, stackFrame, retryN, err)
+		}
 		if backoffTime > maxBackoff {
 			backoffTime = maxBackoff
 		}
@@ -28,4 +37,8 @@ func KeepTryingWithBackoff(
 		case <-time.After(jitteredBackoffTime):
 		}
 	}
+}
+
+type stackTracer interface {
+	StackTrace() errors.StackTrace
 }

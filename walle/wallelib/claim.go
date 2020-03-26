@@ -7,7 +7,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/zviadm/walle/proto/walleapi"
-	"github.com/zviadm/zlog"
 )
 
 // ClaimWriter attempts to forcefully take over as an exclusive writer, even if there
@@ -65,20 +64,12 @@ func WaitAndClaim(
 		func(retryN uint) (bool, error) {
 			s, err := c.ForStream(streamURI)
 			if err != nil {
-				if ctx.Err() != nil {
-					return true, err
-				}
-				zlog.Warningf("[%s] writer: %s err: %s...", streamURI, writerAddr, err)
 				return false, err
 			}
 			var status *walleapi.WriterStatusResponse
 			for {
 				status, err = s.WriterStatus(ctx, &walleapi.WriterStatusRequest{StreamUri: streamURI})
 				if err != nil {
-					if ctx.Err() != nil {
-						return true, err
-					}
-					zlog.Warningf("[%s] writer: %s err: %s...", streamURI, writerAddr, err)
 					return false, err
 				}
 				if status.RemainingLeaseMs <= 0 {
@@ -93,11 +84,6 @@ func WaitAndClaim(
 				}
 			}
 			w, e, err = ClaimWriter(ctx, c, streamURI, writerAddr, writerLease)
-			if err != nil && ctx.Err() == nil {
-				zlog.Warningf(
-					"[%s] writer: %s claim attempt (%s: %d): %s...",
-					streamURI, writerAddr, status.WriterAddr, status.RemainingLeaseMs, err)
-			}
 			return err == nil, err
 		})
 	if err != nil {

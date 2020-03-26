@@ -112,7 +112,7 @@ func TestProtocolClaimBarrage(t *testing.T) {
 				if err != nil {
 					continue // This can happen if WaitAndClaim races.
 				}
-				zlog.Info("Successful claim ", addr, " ", entry.EntryId)
+				zlog.Info("successful claim ", addr, " ", entry.EntryId)
 				entries <- entry
 				return nil
 			}

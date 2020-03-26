@@ -134,11 +134,11 @@ func main() {
 	signal.Notify(notify, syscall.SIGTERM)
 	go func() {
 		<-notify
-		zlog.Infof("terminating WALLE server...")
+		zlog.Infof("terminating server...")
 		cancelAll()
 		s.GracefulStop()
 	}()
-	zlog.Infof("starting WALLE server on port:%s...", *port)
+	zlog.Infof("starting server on port:%s...", *port)
 	if err := s.Serve(l); err != nil {
 		zlog.Fatal(err)
 	}
@@ -148,7 +148,7 @@ func watchTopologyAndSave(ctx context.Context, d wallelib.Discovery, f string) {
 	for {
 		t, notify := d.Topology()
 		if err := wallelib.TopologyToFile(t, f); err != nil {
-			zlog.Warningf("saving topology to file failed: %s", err)
+			zlog.Warningf("err saving topology: %s", err)
 		}
 		select {
 		case <-ctx.Done():

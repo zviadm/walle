@@ -10,7 +10,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/zviadm/walle/proto/walleapi"
-	"github.com/zviadm/zlog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -86,7 +85,7 @@ func (d *discovery) watcher(ctx context.Context) {
 	for {
 		cli, err := d.root.ForStream(d.topologyURI)
 		if err != nil {
-			zlog.Warningf("[%s] watcher can't connect: %s...", d.topologyURI, err)
+			// zlog.Warningf("watcher can't connect: %s - %s...", d.topologyURI, err)
 			// TODO(zviad): exp backoff?
 			select {
 			case <-ctx.Done():
@@ -107,7 +106,7 @@ func (d *discovery) watcher(ctx context.Context) {
 				errStatus.Code() == codes.DeadlineExceeded {
 				continue
 			}
-			zlog.Warningf("[%s] watcher err: %s", d.topologyURI, err)
+			// zlog.Warningf("[%s] watcher err: %s", d.topologyURI, err)
 			// TODO(zviad): exp backoff?
 			select {
 			case <-ctx.Done():

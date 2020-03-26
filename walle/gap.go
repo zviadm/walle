@@ -26,9 +26,9 @@ func (s *Server) gapHandler(ctx context.Context) {
 			}
 			err := s.gapHandlerForStream(ctx, ss, noGapCommittedId, committedId)
 			if err != nil {
-				zlog.Warningf("[gh:%s] error filling gap: %d -> %d, %s", ss.StreamURI(), noGapCommittedId, committedId, err)
+				zlog.Warningf("[gh] err filling gap: %s %d -> %d, %s", ss.StreamURI(), noGapCommittedId, committedId, err)
 			}
-			zlog.Infof("[gh:%s] gap filled: %d -> %d", ss.StreamURI(), noGapCommittedId, committedId)
+			zlog.Infof("[gh] filled: %s %d -> %d", ss.StreamURI(), noGapCommittedId, committedId)
 		}
 		select {
 		case <-ctx.Done():
@@ -81,8 +81,9 @@ Main:
 
 		c, err := s.c.ForServer(serverId)
 		if err != nil {
+			// TODO(zviad): This error is expected, no need to log, or check connection at least.
 			zlog.Warningf(
-				"[gh:%s] failed to connect to: %s for fetching entries: %s",
+				"[gh] err connecting for %s, to: %s - %s",
 				ss.StreamURI(), serverIdHex, err)
 			continue
 		}
@@ -97,7 +98,7 @@ Main:
 		})
 		if err != nil {
 			zlog.Warningf(
-				"[gh:%s] failed to establish stream to: %s for fetching entries: %s",
+				"[gh] err establishing stream for %s, to: %s - %s",
 				ss.StreamURI(), serverIdHex, err)
 			continue
 		}
@@ -107,23 +108,21 @@ Main:
 				if err == io.EOF {
 					if startId != endId {
 						zlog.Errorf(
-							"[gh:%s] DEVELOPER_ERROR; unreachable code. server: %s is buggy!", ss.StreamURI(), serverIdHex)
+							"[gh] DEVELOPER_ERROR; unreachable code. %s server: %s is buggy!", ss.StreamURI(), serverIdHex)
 						continue Main
 					}
 					return nil
 				}
-				zlog.Warningf("[gh:%s] failed to fetch all entries from: %s, %s", ss.StreamURI(), serverIdHex, err)
+				zlog.Warningf("[gh] err fetching entries for: %s from: %s - %s", ss.StreamURI(), serverIdHex, err)
 				continue Main
 			}
 			if entry.EntryId != startId {
-				zlog.Errorf("[gh:%s] DEVELOPER_ERROR; unreachable code. server: %s is buggy!", ss.StreamURI(), serverIdHex)
+				zlog.Errorf("[gh] DEVELOPER_ERROR; unreachable code. %s server: %s is buggy!", ss.StreamURI(), serverIdHex)
 				continue Main
 			}
 			startId += 1
 			ok := ss.PutEntry(entry, true)
-			if !ok {
-				panic("DeveloperError; Putting CommittedEntry must always succeed!")
-			}
+			panicOnNotOk(ok, "putting committed entry must always succeed!")
 			if processEntry != nil {
 				if err := processEntry(entry); err != nil {
 					return err

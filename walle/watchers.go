@@ -41,7 +41,7 @@ func (s *Server) updateTopology(t *walleapi.Topology, topoMgr *topomgr.Manager) 
 		if ok {
 			ss.UpdateTopology(streamT)
 		} else {
-			zlog.Infof("[tw:%s] creating with topology: %+v", streamURI, streamT)
+			zlog.Infof("[tw] creating with topology: %s %+s", streamURI, streamT)
 			ss = s.s.NewStream(streamURI, streamT)
 		}
 
@@ -80,7 +80,7 @@ func (s *Server) writerInfoWatcher(ctx context.Context) {
 			}
 			wInfo, err := s.broadcastWriterInfo(ctx, ss)
 			if err != nil {
-				zlog.Warningf("[ww:%s] writer info err: %s", streamURI, err)
+				zlog.Warningf("[ww] err fetching writerInfo %s: %s", streamURI, err)
 				continue
 			}
 			if time.Duration(wInfo.RemainingLeaseMs)*time.Millisecond >= -writerTimeoutToResolve {
@@ -90,10 +90,10 @@ func (s *Server) writerInfoWatcher(ctx context.Context) {
 			resp, err := s.ClaimWriter(ctx,
 				&walleapi.ClaimWriterRequest{StreamUri: streamURI, WriterAddr: writerAddr})
 			if err != nil {
-				zlog.Warningf("[ww:%s] writer resolve err: %s", streamURI, err)
+				zlog.Warningf("[ww] err resolving %s: %s", streamURI, err)
 				continue
 			}
-			zlog.Infof("[ww:%s] resolved stream, %s @entry: %d", streamURI, writerAddr, resp.LastEntry.EntryId)
+			zlog.Infof("[ww] resolved stream %s @entry: %d", streamURI, resp.LastEntry.EntryId)
 		}
 	}
 }

@@ -64,7 +64,7 @@ func (m *Manager) Manage(topologyURI string) {
 	}
 	go func() {
 		defer close(notifyDone)
-		defer zlog.Infof("[tm:%s] stopping management: %s", topologyURI, m.addr)
+		defer zlog.Infof("[tm] stopping management: %s", topologyURI)
 		for {
 			w, e, err := wallelib.WaitAndClaim(ctx, m.c, topologyURI, m.addr, managerLease)
 			if err != nil {
@@ -73,10 +73,10 @@ func (m *Manager) Manage(topologyURI string) {
 			topology, err := wallelib.TopologyFromEntry(e)
 			if err != nil || topology.Version != e.EntryId {
 				// This must never happen!
-				zlog.Errorf("[tm:%s] unrecoverable err (%d): %s, %s", topologyURI, e.EntryId, topology, err)
+				zlog.Errorf("[tm] unrecoverable err %s:%d - %s - %s", topologyURI, e.EntryId, topology, err)
 				topology = &walleapi.Topology{Version: e.EntryId} // TODO(zviad): Decide on best path forward here.
 			}
-			zlog.Infof("[tm:%s] claimed writer: %s, version: %d", topologyURI, m.addr, topology.Version)
+			zlog.Infof("[tm] claimed writer: %s, version: %d", topologyURI, topology.Version)
 			m.mx.Lock()
 			m.perTopo[topologyURI].writer = w
 			m.perTopo[topologyURI].topology = topology
@@ -84,7 +84,7 @@ func (m *Manager) Manage(topologyURI string) {
 			for {
 				state, notify := w.WriterState()
 				if state == wallelib.Closed {
-					zlog.Warningf("[tm:%s] claim lost unexpectedly: %s", topologyURI, m.addr)
+					zlog.Warningf("[tm] claim lost unexpectedly: %s", topologyURI)
 					break
 				}
 				select {
@@ -111,7 +111,7 @@ func (m *Manager) StopManaging(topologyURI string) {
 	if w := m.perTopo[topologyURI].writer; w != nil {
 		w.Close(true)
 	}
-	m.perTopo[topologyURI] = nil
+	delete(m.perTopo, topologyURI)
 }
 
 func (m *Manager) perTopoMX(topologyURI string) (p *perTopoData, unlock func(), err error) {

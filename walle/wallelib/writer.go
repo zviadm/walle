@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/zviadm/walle/proto/walleapi"
-	"github.com/zviadm/zlog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -162,11 +161,6 @@ func (w *Writer) heartbeat() {
 						w.rootCancel() // If there is an urecoverable error, close the writer.
 						return true, err
 					}
-					if retryN > 5 {
-						zlog.Warningf(
-							"[%s] Heartbeat %d->%d: %s...",
-							w.streamURI, committedEntryId, toCommit.EntryId, err)
-					}
 				}
 				return err == nil, err
 			})
@@ -222,9 +216,6 @@ func (w *Writer) PutEntry(data []byte) (*walleapi.Entry, <-chan error) {
 					errStatus.Code() == codes.FailedPrecondition {
 					w.rootCancel() // If there is an unrecoverable error, close the writer.
 					return true, err
-				}
-				if retryN > 5 {
-					zlog.Warningf("[%s:%d] PutEntry: %s, will retry...", w.streamURI, entry.EntryId, err)
 				}
 				return false, err
 			})
