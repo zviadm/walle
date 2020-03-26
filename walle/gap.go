@@ -9,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/walle/walle/wallelib"
 	"github.com/zviadm/zlog"
 )
 
@@ -81,10 +82,11 @@ Main:
 
 		c, err := s.c.ForServer(serverId)
 		if err != nil {
-			// TODO(zviad): This error is expected, no need to log, or check connection at least.
-			zlog.Warningf(
-				"[gh] err connecting for %s, to: %s - %s",
-				ss.StreamURI(), serverIdHex, err)
+			if err != wallelib.ErrConnUnavailable {
+				zlog.Warningf(
+					"[gh] err connecting for %s, to: %s - %s",
+					ss.StreamURI(), serverIdHex, err)
+			}
 			continue
 		}
 		streamCtx, cancel := context.WithCancel(ctx)

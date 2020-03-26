@@ -25,6 +25,8 @@ type client struct {
 	preferred map[string][]string // streamURI -> []serverId
 }
 
+var ErrConnUnavailable = errors.New("connection in TransientFailure")
+
 func NewClient(ctx context.Context, d Discovery) *client {
 	c := &client{
 		d:     d,
@@ -80,7 +82,7 @@ func (c *client) ForStream(streamURI string) (walleapi.WalleApiClient, error) {
 		return nil, errors.Errorf("streamURI: %s, not found in topology", streamURI)
 	}
 	preferredMajority := (len(preferredIds) + 1) / 2
-	var oneErr error
+	var oneErr error = ErrConnUnavailable
 	for idx := 0; idx < len(preferredIds); idx++ {
 		var serverId string
 		if idx < preferredMajority {
@@ -101,8 +103,8 @@ func (c *client) ForStream(streamURI string) (walleapi.WalleApiClient, error) {
 		}
 		return walleapi.NewWalleApiClient(conn), nil
 	}
-	return nil, errors.Errorf(
-		"connections to servers for: %s are all in failed state, err: %s", streamURI, oneErr)
+	return nil, errors.Wrapf(
+		oneErr, "no server available for: %s", streamURI)
 }
 
 func (c *client) ForServer(serverId string) (walle_pb.WalleClient, error) {
@@ -111,6 +113,9 @@ func (c *client) ForServer(serverId string) (walle_pb.WalleClient, error) {
 	conn, err := c.unsafeServerConn(serverId)
 	if err != nil {
 		return nil, err
+	}
+	if conn.GetState() == connectivity.TransientFailure {
+		return nil, ErrConnUnavailable
 	}
 	return walle_pb.NewWalleClient(conn), nil
 }

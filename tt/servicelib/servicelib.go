@@ -29,7 +29,17 @@ type serviceLogger struct {
 }
 
 func (s *serviceLogger) Write(b []byte) (int, error) {
-	os.Stderr.WriteString(s.Prefix + string(b))
+	prevIdx := 0
+	for idx := 0; idx < len(b); idx++ {
+		if b[idx] != '\n' {
+			continue
+		}
+		os.Stderr.WriteString(s.Prefix + string(b[prevIdx:idx+1]))
+		prevIdx = idx + 1
+	}
+	if prevIdx != len(b) {
+		os.Stderr.WriteString(s.Prefix + string(b[prevIdx:]))
+	}
 	return len(b), nil
 }
 
