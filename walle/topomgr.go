@@ -54,7 +54,7 @@ func (m *topoManager) Manage(ctx context.Context, topologyURI string) {
 	lease := time.Second // should be configurable.
 	go func() {
 		defer close(notifyDone)
-		defer glog.Infof("[tm:%s] stopping managing...", topologyURI)
+		defer glog.Infof("[tm:%s] stopping management: %s", topologyURI, m.addr)
 		for {
 			w, e, err := wallelib.WaitAndClaim(ctx, m.c, topologyURI, m.addr, lease)
 			if err != nil {
@@ -83,7 +83,7 @@ func (m *topoManager) Manage(ctx context.Context, topologyURI string) {
 				case <-notify:
 				}
 			}
-			glog.Infof("[tm:%s] claim lost unexpectedly...", topologyURI)
+			glog.Warningf("[tm:%s] claim lost unexpectedly: %s", topologyURI, m.addr)
 		}
 	}()
 }
