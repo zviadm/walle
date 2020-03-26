@@ -1,4 +1,4 @@
-package walle
+package topomgr
 
 import (
 	"context"
@@ -12,15 +12,15 @@ import (
 	"google.golang.org/grpc"
 )
 
-type topoMgrClient struct {
+type client struct {
 	c wallelib.BasicClient
 }
 
-func NewTopoMgrClient(c wallelib.BasicClient) topomgr.TopoManagerClient {
-	return &topoMgrClient{c}
+func NewClient(c wallelib.BasicClient) topomgr.TopoManagerClient {
+	return &client{c}
 }
 
-func (t *topoMgrClient) connect(
+func (t *client) connect(
 	ctx context.Context,
 	topologyURI string) (*grpc.ClientConn, error) {
 	var conn *grpc.ClientConn
@@ -47,7 +47,7 @@ func (t *topoMgrClient) connect(
 	return conn, err
 }
 
-func (t *topoMgrClient) FetchTopology(
+func (t *client) FetchTopology(
 	ctx context.Context, in *topomgr.FetchTopologyRequest, opts ...grpc.CallOption) (*walleapi.Topology, error) {
 	conn, err := t.connect(ctx, in.TopologyUri)
 	if err != nil {
@@ -56,7 +56,7 @@ func (t *topoMgrClient) FetchTopology(
 	defer conn.Close()
 	return topomgr.NewTopoManagerClient(conn).FetchTopology(ctx, in, opts...)
 }
-func (t *topoMgrClient) UpdateTopology(
+func (t *client) UpdateTopology(
 	ctx context.Context, in *topomgr.UpdateTopologyRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
 	conn, err := t.connect(ctx, in.TopologyUri)
 	if err != nil {
@@ -65,7 +65,7 @@ func (t *topoMgrClient) UpdateTopology(
 	defer conn.Close()
 	return topomgr.NewTopoManagerClient(conn).UpdateTopology(ctx, in, opts...)
 }
-func (t *topoMgrClient) RegisterServer(
+func (t *client) RegisterServer(
 	ctx context.Context, in *topomgr.RegisterServerRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
 	conn, err := t.connect(ctx, in.TopologyUri)
 	if err != nil {

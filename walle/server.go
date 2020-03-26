@@ -7,8 +7,8 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
-	"github.com/zviadm/walle/proto/topomgr"
 	walle_pb "github.com/zviadm/walle/proto/walle"
+	"github.com/zviadm/walle/walle/topomgr"
 	"github.com/zviadm/walle/walle/wallelib"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -19,7 +19,7 @@ type Server struct {
 	s       Storage
 	c       Client
 
-	topoMgr *topoManager
+	topoMgr *topomgr.Manager
 }
 
 type Client interface {
@@ -32,26 +32,17 @@ func NewServer(
 	s Storage,
 	c Client,
 	d wallelib.Discovery,
-	topoMgrAddr string) *Server {
+	topoMgr *topomgr.Manager) *Server {
 	r := &Server{
 		rootCtx: ctx,
 		s:       s,
 		c:       c,
 	}
-	if topoMgrAddr != "" {
-		r.topoMgr = newTopoManager(c, topoMgrAddr)
-	}
 
-	topology, notify := d.Topology()
-	r.updateTopology(topology)
+	r.watchTopology(ctx, d, topoMgr)
 	go r.writerInfoWatcher(ctx)
-	go r.topologyWatcher(ctx, d, notify)
 	go r.gapHandler(ctx)
 	return r
-}
-
-func (s *Server) TopoMgr() topomgr.TopoManagerServer {
-	return s.topoMgr
 }
 
 func (s *Server) NewWriter(

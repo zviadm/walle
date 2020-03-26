@@ -8,6 +8,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/walle/walle/topomgr"
 	"github.com/zviadm/walle/walle/wallelib"
 )
 
@@ -15,20 +16,26 @@ const (
 	writerTimeoutToResolve = time.Second // TODO(zviad): should this be a flag?
 )
 
-func (s *Server) topologyWatcher(ctx context.Context, d wallelib.Discovery, notify <-chan struct{}) {
-	for {
-		select {
-		case <-notify:
-		case <-ctx.Done():
-			return
+func (s *Server) watchTopology(ctx context.Context, d wallelib.Discovery, topoMgr *topomgr.Manager) {
+	topology, notify := d.Topology()
+	s.updateTopology(topology, topoMgr)
+	go func() {
+		if topoMgr != nil {
+			defer topoMgr.Close()
 		}
-		var topology *walleapi.Topology
-		topology, notify = d.Topology()
-		glog.Infof("[tw] received version: %d", topology.Version)
-		s.updateTopology(topology)
-	}
+		for {
+			select {
+			case <-notify:
+			case <-ctx.Done():
+				return
+			}
+			topology, notify = d.Topology()
+			glog.Infof("[tw] received version: %d", topology.Version)
+			s.updateTopology(topology, topoMgr)
+		}
+	}()
 }
-func (s *Server) updateTopology(t *walleapi.Topology) {
+func (s *Server) updateTopology(t *walleapi.Topology, topoMgr *topomgr.Manager) {
 	for streamURI, streamT := range t.Streams {
 		ss, ok := s.s.Stream(streamURI, false)
 		if ok {
@@ -38,13 +45,13 @@ func (s *Server) updateTopology(t *walleapi.Topology) {
 			ss = s.s.NewStream(streamURI, streamT)
 		}
 
-		if !strings.HasPrefix(streamURI, "/topology/") {
+		if topoMgr == nil || !strings.HasPrefix(streamURI, "/topology/") {
 			continue
 		}
 		if ss.IsLocal() {
-			s.topoMgr.Manage(s.rootCtx, streamURI)
+			topoMgr.Manage(streamURI)
 		} else {
-			s.topoMgr.StopManaging(s.rootCtx, streamURI)
+			topoMgr.StopManaging(streamURI)
 		}
 	}
 }

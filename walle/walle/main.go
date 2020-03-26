@@ -14,10 +14,11 @@ import (
 	"github.com/golang/glog"
 	"google.golang.org/grpc"
 
-	"github.com/zviadm/walle/proto/topomgr"
+	topomgr_pb "github.com/zviadm/walle/proto/topomgr"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle"
+	"github.com/zviadm/walle/walle/topomgr"
 	"github.com/zviadm/walle/walle/wallelib"
 )
 
@@ -113,16 +114,16 @@ func main() {
 		glog.Fatal(err)
 	}
 
-	topoMgrAddr := ""
+	var topoMgr *topomgr.Manager
 	if *rootURI == *topologyURI {
-		topoMgrAddr = serverInfo.Address
+		topoMgr = topomgr.NewManager(rootCli, serverInfo.Address)
 	}
-	ws := walle.NewServer(ctx, ss, c, d, topoMgrAddr)
+	ws := walle.NewServer(ctx, ss, c, d, topoMgr)
 	s := grpc.NewServer()
 	walle_pb.RegisterWalleServer(s, ws)
 	walleapi.RegisterWalleApiServer(s, ws)
-	if topoMgr := ws.TopoMgr(); topoMgr != nil {
-		topomgr.RegisterTopoManagerServer(s, topoMgr)
+	if topoMgr != nil {
+		topomgr_pb.RegisterTopoManagerServer(s, topoMgr)
 	}
 
 	l, err := net.Listen("tcp", ":"+*port)
@@ -172,8 +173,8 @@ func registerServerInfo(
 	// Must register new server before it can start serving anything.
 	// If registration fails, there is no point in starting up.
 	glog.Infof("updating serverInfo: %s -> %s ...", existingServerInfo, serverInfo)
-	topoMgrCli := walle.NewTopoMgrClient(root)
-	_, err := topoMgrCli.RegisterServer(ctx, &topomgr.RegisterServerRequest{
+	topoMgr := topomgr.NewClient(root)
+	_, err := topoMgr.RegisterServer(ctx, &topomgr_pb.RegisterServerRequest{
 		TopologyUri: topologyURI,
 		ServerId:    serverId,
 		ServerInfo:  serverInfo,

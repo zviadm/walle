@@ -47,11 +47,18 @@ func NewDiscovery(
 	topologyURI string,
 	topology *walleapi.Topology) (Discovery, error) {
 	if topology.GetVersion() == 0 {
-		cli, err := root.ForStream(topologyURI)
-		if err != nil {
-			return nil, err
-		}
-		topology, err = streamUpdates(ctx, cli, topologyURI, -1)
+		retryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		err := KeepTryingWithBackoff(
+			retryCtx, time.Second/10, time.Second,
+			func(retryN uint) (bool, error) {
+				cli, err := root.ForStream(topologyURI)
+				if err != nil {
+					return false, err
+				}
+				topology, err = streamUpdates(retryCtx, cli, topologyURI, -1)
+				return true, err
+			})
 		if err != nil {
 			return nil, err
 		}

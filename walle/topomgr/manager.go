@@ -1,20 +1,20 @@
-package walle
+package topomgr
 
 import (
 	"context"
 	"sync"
-	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/glog"
 	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/pkg/errors"
 	"github.com/zviadm/walle/proto/topomgr"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/wallelib"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
-type topoManager struct {
+type Manager struct {
 	c    wallelib.BasicClient
 	addr string
 
@@ -29,29 +29,35 @@ type perTopoData struct {
 	topology   *walleapi.Topology
 }
 
-func newTopoManager(c wallelib.BasicClient, addr string) *topoManager {
-	return &topoManager{
+func NewManager(c wallelib.BasicClient, addr string) *Manager {
+	return &Manager{
 		c:       c,
 		addr:    addr,
 		perTopo: make(map[string]*perTopoData),
 	}
 }
 
-// manage & stopManaging calls aren't thread-safe, must be called from a single thread only.
-func (m *topoManager) Manage(ctx context.Context, topologyURI string) {
-	m.mx.Lock()
-	defer m.mx.Unlock()
+// Manage, StopManaging & Close calls aren't thread-safe, must be called from a single thread only.
+func (m *Manager) Close() {
+	for topologyURI, _ := range m.perTopo {
+		m.StopManaging(topologyURI)
+	}
+}
+
+// Manage, StopManaging & Close calls aren't thread-safe, must be called from a single thread only.
+func (m *Manager) Manage(topologyURI string) {
 	if _, ok := m.perTopo[topologyURI]; ok {
 		return
 	}
-
-	ctx, cancel := context.WithCancel(ctx)
+	m.mx.Lock()
+	defer m.mx.Unlock()
+	ctx, cancel := context.WithCancel(context.Background())
 	notifyDone := make(chan struct{})
 	m.perTopo[topologyURI] = &perTopoData{
 		cancel:     cancel,
 		notifyDone: notifyDone,
 	}
-	lease := time.Second // should be configurable.
+	lease := wallelib.LeaseMinimum // TODO(zviad): should be configurable.
 	go func() {
 		defer close(notifyDone)
 		defer glog.Infof("[tm:%s] stopping management: %s", topologyURI, m.addr)
@@ -89,22 +95,48 @@ func (m *topoManager) Manage(ctx context.Context, topologyURI string) {
 }
 
 // manage & stopManaging calls aren't thread-safe, must be called from a single thread only.
-func (m *topoManager) StopManaging(ctx context.Context, topologyURI string) {
-	m.mx.Lock()
-	defer m.mx.Unlock()
+func (m *Manager) StopManaging(topologyURI string) {
 	perTopo, ok := m.perTopo[topologyURI]
 	if !ok {
 		return
 	}
 	perTopo.cancel()
-	notify := perTopo.notifyDone
-	m.mx.Unlock()
-	<-notify
+	<-perTopo.notifyDone
+
 	m.mx.Lock()
+	defer m.mx.Unlock()
 	m.perTopo[topologyURI] = nil
 }
 
-func (m *topoManager) RegisterServer(
+func (m *Manager) perTopoMX(topologyURI string) (p *perTopoData, unlock func(), err error) {
+	m.mx.Lock()
+	defer func() {
+		if err != nil {
+			m.mx.Unlock()
+		}
+	}()
+	p, ok := m.perTopo[topologyURI]
+	if !ok || p.writer == nil {
+		return nil, nil, status.Errorf(codes.FailedPrecondition, "not serving: %s", topologyURI)
+	}
+	writerState, _ := p.writer.WriterState()
+	if writerState != wallelib.Exclusive {
+		return nil, nil, status.Errorf(codes.FailedPrecondition,
+			"writer no longer exclusive: %s - %s", topologyURI, writerState)
+	}
+	return p, m.mx.Unlock, err
+}
+
+func (p *perTopoData) updateTopology() <-chan error {
+	topologyB, err := p.topology.Marshal()
+	if err != nil {
+		panic(err) // this must never happen, crashing is the only sane solution.
+	}
+	_, errC := p.writer.PutEntry(topologyB)
+	return errC
+}
+
+func (m *Manager) RegisterServer(
 	ctx context.Context,
 	req *topomgr.RegisterServerRequest) (*empty.Empty, error) {
 	updateErr, err := m.registerServer(req)
@@ -114,45 +146,35 @@ func (m *topoManager) RegisterServer(
 	return &empty.Empty{}, nil
 }
 
-func (m *topoManager) registerServer(req *topomgr.RegisterServerRequest) (<-chan error, error) {
-	m.mx.Lock()
-	defer m.mx.Unlock()
-	perTopo, ok := m.perTopo[req.TopologyUri]
-	if !ok || perTopo.writer == nil {
-		return nil, errors.Errorf("not serving topologyURI: %s", req.TopologyUri)
+func (m *Manager) registerServer(req *topomgr.RegisterServerRequest) (<-chan error, error) {
+	p, unlock, err := m.perTopoMX(req.TopologyUri)
+	if err != nil {
+		return nil, err
 	}
-	writerState, _ := perTopo.writer.WriterState()
-	if writerState != wallelib.Exclusive {
-		return nil, errors.Errorf("topologyURI: %s writer no longer exclusive: %s", req.TopologyUri, writerState)
-	}
-	if proto.Equal(perTopo.topology.Servers[req.ServerId], req.ServerInfo) {
+	defer unlock()
+
+	if proto.Equal(p.topology.Servers[req.ServerId], req.ServerInfo) {
 		errC := make(chan error, 1)
 		errC <- nil
 		return errC, nil
 	}
-	perTopo.topology.Version += 1
-	perTopo.topology.Servers[req.ServerId] = req.ServerInfo
-	topologyB, err := perTopo.topology.Marshal()
-	panicOnErr(err) // this must never happen, crashing is the only sane solution.
-	_, errC := perTopo.writer.PutEntry(topologyB)
-	return errC, nil
+	p.topology.Version += 1
+	if p.topology.Servers == nil {
+		p.topology.Servers = make(map[string]*walleapi.ServerInfo, 1)
+	}
+	p.topology.Servers[req.ServerId] = req.ServerInfo
+	return p.updateTopology(), nil
 }
 
-func (m *topoManager) FetchTopology(
+func (m *Manager) FetchTopology(
 	ctx context.Context,
 	req *topomgr.FetchTopologyRequest) (*walleapi.Topology, error) {
-	m.mx.Lock()
-	defer m.mx.Unlock()
-	perTopo, ok := m.perTopo[req.TopologyUri]
-	if !ok || perTopo.writer == nil {
-		return nil, errors.Errorf("not serving topologyURI: %s", req.TopologyUri)
+	p, unlock, err := m.perTopoMX(req.TopologyUri)
+	if err != nil {
+		return nil, err
 	}
-	entry := perTopo.writer.Committed()
-	writerState, _ := perTopo.writer.WriterState()
-	if writerState != wallelib.Exclusive {
-		return nil, errors.Errorf("topologyURI: %s writer no longer exclusive: %s", req.TopologyUri, writerState)
-	}
-
+	defer unlock()
+	entry := p.writer.Committed()
 	topology, err := wallelib.TopologyFromEntry(entry)
 	if err != nil {
 		return nil, err
@@ -160,7 +182,7 @@ func (m *topoManager) FetchTopology(
 	return topology, nil
 }
 
-func (m *topoManager) UpdateTopology(
+func (m *Manager) UpdateTopology(
 	ctx context.Context,
 	req *topomgr.UpdateTopologyRequest) (*empty.Empty, error) {
 	updateErr, err := m.updateTopology(ctx, req)
@@ -170,31 +192,21 @@ func (m *topoManager) UpdateTopology(
 	return &empty.Empty{}, nil
 }
 
-func (m *topoManager) updateTopology(
+func (m *Manager) updateTopology(
 	ctx context.Context,
 	req *topomgr.UpdateTopologyRequest) (<-chan error, error) {
-	m.mx.Lock()
-	defer m.mx.Unlock()
-	perTopo, ok := m.perTopo[req.TopologyUri]
-	if !ok || perTopo.writer == nil {
-		return nil, errors.Errorf("not serving topologyURI: %s", req.TopologyUri)
-	}
-	writerState, _ := perTopo.writer.WriterState()
-	if writerState != wallelib.Exclusive {
-		return nil, errors.Errorf("topologyURI: %s writer no longer exclusive: %s", req.TopologyUri, writerState)
-	}
-	if perTopo.topology.GetVersion()+1 != req.Topology.Version {
-		return nil, errors.Errorf(
-			"topologyURI: %s topology version mismatch: %d + 1 != %d",
-			req.TopologyUri, perTopo.topology.GetVersion(), req.Topology.Version)
-	}
-	perTopo.topology = req.Topology
-	topologyB, err := perTopo.topology.Marshal()
+	p, unlock, err := m.perTopoMX(req.TopologyUri)
 	if err != nil {
 		return nil, err
 	}
-	_, updateErr := perTopo.writer.PutEntry(topologyB)
-	return updateErr, err
+	defer unlock()
+	if p.topology.GetVersion()+1 != req.Topology.Version {
+		return nil, status.Errorf(codes.FailedPrecondition,
+			"topology version mismatch: %s - %d + 1 != %d",
+			req.TopologyUri, p.topology.GetVersion(), req.Topology.Version)
+	}
+	p.topology = req.Topology
+	return p.updateTopology(), nil
 }
 
 func resolveUpdateErr(ctx context.Context, updateErr <-chan error, err error) error {
