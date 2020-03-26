@@ -65,6 +65,9 @@ func WaitAndClaim(
 		func(retryN uint) (bool, error) {
 			s, err := c.ForStream(streamURI)
 			if err != nil {
+				if ctx.Err() != nil {
+					return true, err
+				}
 				glog.Warningf("[%s] writer: %s err: %s...", streamURI, writerAddr, err)
 				return false, err
 			}
@@ -72,6 +75,9 @@ func WaitAndClaim(
 			for {
 				status, err = s.WriterStatus(ctx, &walleapi.WriterStatusRequest{StreamUri: streamURI})
 				if err != nil {
+					if ctx.Err() != nil {
+						return true, err
+					}
 					glog.Warningf("[%s] writer: %s err: %s...", streamURI, writerAddr, err)
 					return false, err
 				}
@@ -87,7 +93,7 @@ func WaitAndClaim(
 				}
 			}
 			w, e, err = ClaimWriter(ctx, c, streamURI, writerAddr, writerLease)
-			if err != nil {
+			if err != nil && ctx.Err() == nil {
 				glog.Warningf(
 					"[%s] writer: %s claim attempt (%s: %d): %s...",
 					streamURI, writerAddr, status.WriterAddr, status.RemainingLeaseMs, err)

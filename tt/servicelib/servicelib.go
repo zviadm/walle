@@ -85,8 +85,10 @@ func (s *Service) Wait(t *testing.T) {
 	require.EqualValues(t, 0, s.processState.ExitCode())
 }
 func (s *Service) Stop(t *testing.T) {
-	err := s.cmd.Process.Signal(syscall.SIGTERM)
-	require.NoError(t, err)
+	if s.IsDone() == nil {
+		err := s.cmd.Process.Signal(syscall.SIGTERM)
+		require.NoError(t, err)
+	}
 	s.Wait(t)
 }
 

@@ -2,6 +2,7 @@ package walle
 
 import (
 	"context"
+	"encoding/hex"
 	"io"
 	"time"
 
@@ -76,10 +77,13 @@ Main:
 		if serverId == s.s.ServerId() {
 			continue
 		}
+		serverIdHex := hex.EncodeToString([]byte(serverId))
 
 		c, err := s.c.ForServer(serverId)
 		if err != nil {
-			glog.Warningf("[gh:%s] failed to connect to: %s for fetching entries: %s", ss.StreamURI(), serverId, err)
+			glog.Warningf(
+				"[gh:%s] failed to connect to: %s for fetching entries: %s",
+				ss.StreamURI(), serverIdHex, err)
 			continue
 		}
 		streamCtx, cancel := context.WithCancel(ctx)
@@ -92,7 +96,9 @@ Main:
 			EndEntryId:    endId,
 		})
 		if err != nil {
-			glog.Warningf("[gh:%s] failed to establish stream to: %s for fetching entries: %s", ss.StreamURI(), serverId, err)
+			glog.Warningf(
+				"[gh:%s] failed to establish stream to: %s for fetching entries: %s",
+				ss.StreamURI(), serverIdHex, err)
 			continue
 		}
 		for {
@@ -100,16 +106,17 @@ Main:
 			if err != nil {
 				if err == io.EOF {
 					if startId != endId {
-						glog.Errorf("[gh:%s] DEVELOPER_ERROR; unreachable code. server: %s is buggy!", ss.StreamURI(), serverId)
+						glog.Errorf(
+							"[gh:%s] DEVELOPER_ERROR; unreachable code. server: %s is buggy!", ss.StreamURI(), serverIdHex)
 						continue Main
 					}
 					return nil
 				}
-				glog.Warningf("[gh:%s] failed to fetch all entries from: %s, %s", ss.StreamURI(), serverId, err)
+				glog.Warningf("[gh:%s] failed to fetch all entries from: %s, %s", ss.StreamURI(), serverIdHex, err)
 				continue Main
 			}
 			if entry.EntryId != startId {
-				glog.Errorf("[gh:%s] DEVELOPER_ERROR; unreachable code. server: %s is buggy!", ss.StreamURI(), serverId)
+				glog.Errorf("[gh:%s] DEVELOPER_ERROR; unreachable code. server: %s is buggy!", ss.StreamURI(), serverIdHex)
 				continue Main
 			}
 			startId += 1

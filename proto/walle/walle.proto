@@ -12,9 +12,6 @@ service Walle {
 	// NOTE: ReadEntries only returns committed entries. If it hits a GAP or end of the stream,
 	// it will return NOT_FOUND error.
 	rpc ReadEntries(ReadEntriesRequest) returns (stream Entry) {}
-
-	// Register new (serverId, serverAddr) pair in a specific topology.
-	// rpc RegisterServer(RegisterServerRequest) returns (RegisterServerResponse) {}
 }
 
 message NewWriterRequest {
@@ -67,15 +64,4 @@ message ReadEntriesRequest {
 
 	int64 start_entry_id = 4;
 	int64 end_entry_id = 5;
-}
-
-message RegisterServerRequest {
-	string topology_stream_uri = 1;
-	string server_id = 2;
-	string server_addr = 3;
-}
-message RegisterServerResponse {
-	string topology_stream_uri = 1;
-	string server_id = 2;
-	string server_addr = 3;
 }

@@ -6,7 +6,7 @@ import (
 	"github.com/zviadm/walle/walle/wallelib"
 )
 
-func BootstrapRoot(s Storage, rootURI string, rootFile string, addr string) error {
+func BootstrapRoot(s Storage, rootURI string, rootFile string, rootInfo *walleapi.ServerInfo) error {
 	var entryId int64 = 1
 	rootPb := &walleapi.Topology{
 		Version: entryId,
@@ -16,7 +16,7 @@ func BootstrapRoot(s Storage, rootURI string, rootFile string, addr string) erro
 				ServerIds: []string{s.ServerId()},
 			},
 		},
-		Servers: map[string]string{s.ServerId(): addr},
+		Servers: map[string]*walleapi.ServerInfo{s.ServerId(): rootInfo},
 	}
 	if err := wallelib.TopologyToFile(rootPb, rootFile); err != nil {
 		return err

@@ -1,0 +1,28 @@
+syntax = "proto3";
+option go_package = "github.com/zviadm/walle/proto/topomgr";
+
+import "google/protobuf/empty.proto";
+import "walleapi/walleapi.proto";
+
+service TopoManager {
+	rpc FetchTopology(FetchTopologyRequest) returns (Topology) {}
+	// TODO(zviad): This method may not be needed.
+	rpc UpdateTopology(UpdateTopologyRequest) returns (google.protobuf.Empty) {}
+
+	// Register new (serverId, serverAddr) pair in a specific topology.
+	rpc RegisterServer(RegisterServerRequest) returns (google.protobuf.Empty) {}
+}
+
+message FetchTopologyRequest {
+	string topology_uri = 1;
+}
+message UpdateTopologyRequest {
+	string topology_uri = 1;
+	Topology topology = 2;
+}
+
+message RegisterServerRequest {
+	string topology_uri = 1;
+	string server_id = 2;
+	ServerInfo server_info = 3;
+}

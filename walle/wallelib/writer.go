@@ -41,6 +41,7 @@ type Writer struct {
 	committedEntryMx  sync.Mutex
 	committedEntryId  int64
 	committedEntryMd5 []byte
+	toCommit          *walleapi.Entry
 	toCommitEntryId   int64
 	toCommitEntryMd5  []byte
 	commitTime        time.Time
@@ -69,8 +70,7 @@ func newWriter(
 		lastEntry:         lastEntry,
 		committedEntryId:  lastEntry.EntryId,
 		committedEntryMd5: lastEntry.ChecksumMd5,
-		toCommitEntryId:   lastEntry.EntryId,
-		toCommitEntryMd5:  lastEntry.ChecksumMd5,
+		toCommit:          lastEntry,
 		commitTime:        commitTime,
 
 		rootCtx:    ctx,
@@ -87,8 +87,8 @@ func (w *Writer) Close(tryFlush bool) {
 	if !tryFlush {
 		return
 	}
-	_, committedEntryId, _, toCommitEntryId, toCommitEntryMd5 := w.safeCommittedEntryId()
-	if toCommitEntryId <= committedEntryId {
+	_, committedEntryId, _, toCommit := w.safeCommittedEntryId()
+	if toCommit.EntryId <= committedEntryId {
 		return
 	}
 	cli, err := w.c.ForStream(w.streamURI)
@@ -98,8 +98,8 @@ func (w *Writer) Close(tryFlush bool) {
 	_, _ = cli.PutEntry(w.rootCtx, &walleapi.PutEntryRequest{
 		StreamUri:         w.streamURI,
 		Entry:             &walleapi.Entry{WriterId: w.writerId},
-		CommittedEntryId:  toCommitEntryId,
-		CommittedEntryMd5: toCommitEntryMd5,
+		CommittedEntryId:  toCommit.EntryId,
+		CommittedEntryMd5: toCommit.ChecksumMd5,
 	})
 }
 
@@ -117,6 +117,13 @@ func (w *Writer) WriterState() (state WriterState, closeNotify <-chan struct{}) 
 	return Exclusive, w.rootCtx.Done()
 }
 
+// Returns last entry that was successfully put in the stream.
+func (w *Writer) Committed() *walleapi.Entry {
+	w.committedEntryMx.Lock()
+	defer w.committedEntryMx.Unlock()
+	return w.toCommit
+}
+
 // Heartbeat makes background requests to the server if there are no active
 // PutEntry calls happening. This makes sure that entries will be marked as committed fast,
 // even if there are no PutEntry calls, and also makes sure that servers are aware that
@@ -129,9 +136,9 @@ func (w *Writer) heartbeat() {
 		case <-time.After(shortBeat):
 		}
 		now := time.Now()
-		ts, committedEntryId, _, toCommitEntryId, toCommitEntryMd5 := w.safeCommittedEntryId()
+		ts, committedEntryId, _, toCommit := w.safeCommittedEntryId()
 		if ts.Add(shortBeat).After(now) ||
-			(committedEntryId == toCommitEntryId && ts.Add(w.longBeat).After(now)) {
+			(committedEntryId == toCommit.EntryId && ts.Add(w.longBeat).After(now)) {
 			continue
 		}
 		err := KeepTryingWithBackoff(
@@ -144,8 +151,8 @@ func (w *Writer) heartbeat() {
 				_, err = cli.PutEntry(w.rootCtx, &walleapi.PutEntryRequest{
 					StreamUri:         w.streamURI,
 					Entry:             &walleapi.Entry{WriterId: w.writerId},
-					CommittedEntryId:  toCommitEntryId,
-					CommittedEntryMd5: toCommitEntryMd5,
+					CommittedEntryId:  toCommit.EntryId,
+					CommittedEntryMd5: toCommit.ChecksumMd5,
 				})
 				if err != nil {
 					errStatus, _ := status.FromError(err)
@@ -158,14 +165,15 @@ func (w *Writer) heartbeat() {
 					if retryN > 5 {
 						glog.Warningf(
 							"[%s] Heartbeat %d->%d: %s...",
-							w.streamURI, committedEntryId, toCommitEntryId, err)
+							w.streamURI, committedEntryId, toCommit.EntryId, err)
 					}
 				}
 				return err == nil, err
 			})
-		if err == nil {
-			w.updateCommittedEntryId(now, toCommitEntryId, toCommitEntryMd5, toCommitEntryId, toCommitEntryMd5)
+		if err != nil {
+			return
 		}
+		w.updateCommittedEntryId(now, toCommit.EntryId, toCommit.ChecksumMd5, toCommit)
 	}
 }
 
@@ -184,10 +192,12 @@ func (w *Writer) PutEntry(data []byte) (*walleapi.Entry, <-chan error) {
 		err := KeepTryingWithBackoff(
 			w.rootCtx, shortBeat, w.longBeat,
 			func(retryN uint) (bool, error) {
-				_, _, _, toCommitEntryId, toCommitEntryMd5 := w.safeCommittedEntryId()
+				_, _, _, toCommit := w.safeCommittedEntryId()
+				toCommitEntryId := toCommit.EntryId
+				toCommitChecksumMd5 := toCommit.ChecksumMd5
 				if toCommitEntryId > entry.EntryId {
 					toCommitEntryId = entry.EntryId
-					toCommitEntryMd5 = entry.ChecksumMd5
+					toCommitChecksumMd5 = entry.ChecksumMd5
 				}
 				cli, err := w.c.ForStream(w.streamURI)
 				if err != nil {
@@ -198,11 +208,11 @@ func (w *Writer) PutEntry(data []byte) (*walleapi.Entry, <-chan error) {
 					StreamUri:         w.streamURI,
 					Entry:             entry,
 					CommittedEntryId:  toCommitEntryId,
-					CommittedEntryMd5: toCommitEntryMd5,
+					CommittedEntryMd5: toCommitChecksumMd5,
 				})
 				if err == nil {
 					w.updateCommittedEntryId(
-						now, toCommitEntryId, toCommitEntryMd5, entry.EntryId, entry.ChecksumMd5)
+						now, toCommitEntryId, toCommitChecksumMd5, entry)
 					return true, nil
 				}
 
@@ -223,17 +233,14 @@ func (w *Writer) PutEntry(data []byte) (*walleapi.Entry, <-chan error) {
 	return entry, r
 }
 
-func (w *Writer) safeCommittedEntryId() (
-	time.Time, int64, []byte, int64, []byte) {
+func (w *Writer) safeCommittedEntryId() (time.Time, int64, []byte, *walleapi.Entry) {
 	w.committedEntryMx.Lock()
 	defer w.committedEntryMx.Unlock()
-	return w.commitTime, w.committedEntryId, w.committedEntryMd5, w.toCommitEntryId, w.toCommitEntryMd5
+	return w.commitTime, w.committedEntryId, w.committedEntryMd5, w.toCommit
 }
 
 func (w *Writer) updateCommittedEntryId(
-	ts time.Time,
-	committedEntryId int64, committedEntryMd5 []byte,
-	toCommitEntryId int64, toCommitEntryMd5 []byte) {
+	ts time.Time, committedEntryId int64, committedEntryMd5 []byte, toCommit *walleapi.Entry) {
 	w.committedEntryMx.Lock()
 	defer w.committedEntryMx.Unlock()
 	if ts.After(w.commitTime) {
@@ -243,9 +250,8 @@ func (w *Writer) updateCommittedEntryId(
 		w.committedEntryId = committedEntryId
 		w.committedEntryMd5 = committedEntryMd5
 	}
-	if toCommitEntryId > w.committedEntryId {
-		w.toCommitEntryId = toCommitEntryId
-		w.toCommitEntryMd5 = toCommitEntryMd5
+	if toCommit.EntryId > w.toCommit.EntryId {
+		w.toCommit = toCommit
 	}
 }
 

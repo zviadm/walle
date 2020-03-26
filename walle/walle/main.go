@@ -10,9 +10,11 @@ import (
 	"path"
 	"syscall"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/golang/glog"
 	"google.golang.org/grpc"
 
+	"github.com/zviadm/walle/proto/topomgr"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle"
@@ -55,7 +57,9 @@ func main() {
 	if *port == "" {
 		glog.Fatal("must provide port to listen on using -walle.port flag")
 	}
-	addr := net.JoinHostPort(*host, *port)
+	serverInfo := &walleapi.ServerInfo{
+		Address: net.JoinHostPort(*host, *port),
+	}
 	glog.Infof("initializing storage: %s...", dbPath)
 	ss, err := walle.StorageInit(dbPath, true)
 	if err != nil {
@@ -64,13 +68,13 @@ func main() {
 	defer ss.Close()
 
 	if *bootstrapOnly {
-		err := walle.BootstrapRoot(ss, *rootURI, rootFile, addr)
+		err := walle.BootstrapRoot(ss, *rootURI, rootFile, serverInfo)
 		if err != nil {
 			glog.Fatal(err)
 		}
 		glog.Infof(
 			"bootstrapped %s, server: %s - %s",
-			*rootURI, hex.EncodeToString([]byte(ss.ServerId())), addr)
+			*rootURI, hex.EncodeToString([]byte(ss.ServerId())), serverInfo)
 		return
 	}
 
@@ -83,12 +87,15 @@ func main() {
 	if err != nil {
 		glog.Fatal(err)
 	}
+	rootCli := wallelib.NewClient(ctx, rootD)
 	go watchTopologyAndSave(ctx, rootD, rootFile)
 	var d wallelib.Discovery
+	var c walle.Client
 	if *topologyURI == "" || *topologyURI == *rootURI {
+		*topologyURI = *rootURI
 		d = rootD
+		c = rootCli
 	} else {
-		rootCli := wallelib.NewClient(ctx, rootD)
 		glog.Infof("initializing topology discovery: %s...", *topologyURI)
 		topology, _ := wallelib.TopologyFromFile(topoFile) // ok to ignore errors.
 		d, err = wallelib.NewDiscovery(ctx, rootCli, *topologyURI, topology)
@@ -96,13 +103,27 @@ func main() {
 			glog.Fatal(err)
 		}
 		go watchTopologyAndSave(ctx, d, topoFile)
+		c = wallelib.NewClient(ctx, d)
 	}
-	c := wallelib.NewClient(ctx, d)
+	err = registerServerInfo(
+		ctx,
+		rootCli, *topologyURI, d,
+		ss.ServerId(), serverInfo)
+	if err != nil {
+		glog.Fatal(err)
+	}
 
-	ws := walle.NewServer(ctx, ss, c, d)
+	topoMgrAddr := ""
+	if *rootURI == *topologyURI {
+		topoMgrAddr = serverInfo.Address
+	}
+	ws := walle.NewServer(ctx, ss, c, d, topoMgrAddr)
 	s := grpc.NewServer()
 	walle_pb.RegisterWalleServer(s, ws)
 	walleapi.RegisterWalleApiServer(s, ws)
+	if topoMgr := ws.TopoMgr(); topoMgr != nil {
+		topomgr.RegisterTopoManagerServer(s, topoMgr)
+	}
 
 	l, err := net.Listen("tcp", ":"+*port)
 	if err != nil {
@@ -134,4 +155,28 @@ func watchTopologyAndSave(ctx context.Context, d wallelib.Discovery, f string) {
 		case <-notify:
 		}
 	}
+}
+
+func registerServerInfo(
+	ctx context.Context,
+	root wallelib.BasicClient,
+	topologyURI string,
+	topologyD wallelib.Discovery,
+	serverId string,
+	serverInfo *walleapi.ServerInfo) error {
+	topology, _ := topologyD.Topology()
+	existingServerInfo, ok := topology.GetServers()[serverId]
+	if ok && proto.Equal(existingServerInfo, serverInfo) {
+		return nil
+	}
+	// Must register new server before it can start serving anything.
+	// If registration fails, there is no point in starting up.
+	glog.Infof("updating serverInfo: %s -> %s ...", existingServerInfo, serverInfo)
+	topoMgrCli := walle.NewTopoMgrClient(root)
+	_, err := topoMgrCli.RegisterServer(ctx, &topomgr.RegisterServerRequest{
+		TopologyUri: topologyURI,
+		ServerId:    serverId,
+		ServerInfo:  serverInfo,
+	})
+	return err
 }

@@ -146,12 +146,12 @@ func (c *client) unsafeServerConn(serverId string) (*grpc.ClientConn, error) {
 	if ok {
 		return conn, nil
 	}
-	serverAddr, ok := c.topology.Servers[serverId]
+	serverInfo, ok := c.topology.Servers[serverId]
 	if !ok {
 		return nil, errors.Errorf("serverId: %s, not found in topology", serverId)
 	}
 	// TODO(zviad): Decide what to do about security...
-	conn, err := grpc.Dial(serverAddr, grpc.WithInsecure()) // Non-Blocking Dial.
+	conn, err := grpc.Dial(serverInfo.Address, grpc.WithInsecure()) // Non-Blocking Dial.
 	if err != nil {
 		return nil, err
 	}

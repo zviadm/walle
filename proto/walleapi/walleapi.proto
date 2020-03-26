@@ -56,11 +56,15 @@ message Topology {
 	int64 version = 1;
 	// maps streamURI -> StreamTopology
 	map<string, StreamTopology> streams = 2;
-	// maps ServerID -> ADDR
-	map<string, string> servers = 3;
+	// maps ServerID -> ServerInfo
+	map<string, ServerInfo> servers = 3;
 }
 
 message StreamTopology {
 	int64 version = 1;
 	repeated string server_ids = 2;
+}
+
+message ServerInfo {
+	string address = 1;
 }

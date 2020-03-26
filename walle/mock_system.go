@@ -44,7 +44,7 @@ func newMockSystem(
 			path.Join(storagePath, hex.EncodeToString([]byte(serverId))+".walledb"),
 			true, serverId)
 		panicOnErr(err)
-		mSystem.servers[serverId] = NewServer(ctx, m, mClient, mSystem)
+		mSystem.servers[serverId] = NewServer(ctx, m, mClient, mSystem, "")
 	}
 	go func() {
 		<-ctx.Done()

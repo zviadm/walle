@@ -7,6 +7,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
+	"github.com/zviadm/walle/proto/topomgr"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/walle/wallelib"
 	"google.golang.org/grpc/codes"
@@ -30,12 +31,15 @@ func NewServer(
 	ctx context.Context,
 	s Storage,
 	c Client,
-	d wallelib.Discovery) *Server {
+	d wallelib.Discovery,
+	topoMgrAddr string) *Server {
 	r := &Server{
 		rootCtx: ctx,
 		s:       s,
 		c:       c,
-		topoMgr: newTopoManager(c, "myaddr"),
+	}
+	if topoMgrAddr != "" {
+		r.topoMgr = newTopoManager(c, topoMgrAddr)
 	}
 
 	topology, notify := d.Topology()
@@ -44,6 +48,10 @@ func NewServer(
 	go r.topologyWatcher(ctx, d, notify)
 	go r.gapHandler(ctx)
 	return r
+}
+
+func (s *Server) TopoMgr() topomgr.TopoManagerServer {
+	return s.topoMgr
 }
 
 func (s *Server) NewWriter(

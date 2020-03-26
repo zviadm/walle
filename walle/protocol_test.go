@@ -21,10 +21,10 @@ var topoSimple = &walleapi.Topology{
 			ServerIds: []string{"\x00\x01", "\x00\x02", "\x00\x03"},
 		},
 	},
-	Servers: map[string]string{
-		"\x00\x01": "localhost1:1001",
-		"\x00\x02": "localhost2:1001",
-		"\x00\x03": "localhost3:1001",
+	Servers: map[string]*walleapi.ServerInfo{
+		"\x00\x01": &walleapi.ServerInfo{Address: "localhost1:1001"},
+		"\x00\x02": &walleapi.ServerInfo{Address: "localhost2:1001"},
+		"\x00\x03": &walleapi.ServerInfo{Address: "localhost3:1001"},
 	},
 }
 
