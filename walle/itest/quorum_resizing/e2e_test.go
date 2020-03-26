@@ -1,4 +1,4 @@
-package itest
+package quorum_resizing
 
 import (
 	"context"
@@ -20,21 +20,22 @@ import (
 var _ = glog.Info
 
 const (
-	wallePkg = "../walle"
+	wallePkg = "../../walle"
 )
 
-func TestE2ESimple(t *testing.T) {
+func TestQuorumResizing(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	wDir := walle.TestTmpDir()
 	rootURI := "/topology/itest"
+	wPort := 5005
 
 	// Bootstrap WALLE `itest` deployment.
 	sBootstrap, err := servicelib.RunGoService(
 		ctx, wallePkg, []string{
 			"-walle.storage_dir", wDir,
 			"-walle.root_uri", rootURI,
-			"-walle.port", "5005",
+			"-walle.port", strconv.Itoa(wPort),
 			"-walle.bootstrap_only",
 			"-logtostderr",
 		},
@@ -64,7 +65,7 @@ func TestE2ESimple(t *testing.T) {
 	services := []*servicelib.Service{s}
 	for idx := 0; idx < 4; idx++ {
 		glog.Info("EXPANDING SERVER: ", idx+1)
-		s := expandTopology(t, ctx, walle.TestTmpDir(), strconv.Itoa(5006+idx), topoMgr, rootURI)
+		s := expandTopology(t, ctx, walle.TestTmpDir(), strconv.Itoa(wPort+idx+1), topoMgr, rootURI)
 		defer s.Stop(t)
 		services = append(services, s)
 	}
