@@ -2,6 +2,8 @@ package topomgr
 
 import (
 	"context"
+	"reflect"
+	"time"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/empty"
@@ -63,35 +65,61 @@ func (m *Manager) UpdateServerIds(
 	if err != nil {
 		return nil, err
 	}
-	changed, err := verifyAndDiffMembershipChange(p.topology, req.StreamUri, req.ServerIds)
-	if err != nil || !changed {
-		unlock()
-		return nil, err
-	}
+	prevEquals := reflect.DeepEqual(
+		p.topology.Streams[req.StreamUri].GetServerIds(),
+		p.topology.Streams[req.StreamUri].GetPrevServerIds())
 	requiredStreamVersion := p.topology.Streams[req.StreamUri].GetVersion()
+	changed, err := verifyAndDiffMembershipChange(p.topology, req.StreamUri, req.ServerIds)
+	if err != nil || (!changed && prevEquals) {
+		defer unlock()
+		return &topomgr.UpdateServerIdsResponse{
+			TopologyVersion: p.topology.Version,
+			StreamVersion:   requiredStreamVersion,
+		}, err
+	}
 	unlock()
 
-	if requiredStreamVersion > 0 {
-		streamC, err := m.c.ForStream(req.StreamUri)
-		if err != nil {
-			return nil, err
-		}
-		wStatus, err := streamC.WriterStatus(ctx, &walleapi.WriterStatusRequest{StreamUri: req.StreamUri})
-		if err != nil {
-			return nil, err
-		}
-		if wStatus.StreamVersion != requiredStreamVersion {
-			return nil, status.Errorf(codes.Unavailable,
-				"servers for %s don't have up-to-date stream version: %d < %d",
-				req.StreamUri, wStatus.StreamVersion, requiredStreamVersion)
-		}
+	nUpdates := 1
+	if changed {
+		nUpdates += 1
 	}
-
-	resp, updateErr, err := m.updateServerIds(ctx, req, requiredStreamVersion)
-	if err := resolveUpdateErr(ctx, updateErr, err); err != nil {
-		return nil, err
+	var resp *topomgr.UpdateServerIdsResponse
+	var updateErr <-chan error
+	for i := 0; i < nUpdates; i++ {
+		if requiredStreamVersion > 0 {
+			if err := m.waitForStreamVersion(
+				ctx, req.StreamUri, requiredStreamVersion); err != nil {
+				return nil, err
+			}
+		}
+		resp, updateErr, err = m.updateServerIds(ctx, req, requiredStreamVersion)
+		if err := resolveUpdateErr(ctx, updateErr, err); err != nil {
+			return nil, err
+		}
+		requiredStreamVersion = resp.StreamVersion
 	}
 	return resp, nil
+}
+
+func (m *Manager) waitForStreamVersion(
+	ctx context.Context, streamURI string, streamVersion int64) error {
+	return wallelib.KeepTryingWithBackoff(ctx, wallelib.LeaseMinimum, time.Second,
+		func(retryN uint) (bool, error) {
+			streamC, err := m.c.ForStream(streamURI)
+			if err != nil {
+				return true, err
+			}
+			wStatus, err := streamC.WriterStatus(ctx, &walleapi.WriterStatusRequest{StreamUri: streamURI})
+			if err != nil {
+				return (retryN >= 2), err
+			}
+			if wStatus.StreamVersion != streamVersion {
+				return (retryN >= 2), status.Errorf(codes.Unavailable,
+					"servers for %s don't have up-to-date stream version: %d < %d",
+					streamURI, wStatus.StreamVersion, streamVersion)
+			}
+			return true, nil
+		})
 }
 
 func (m *Manager) updateServerIds(
@@ -107,14 +135,17 @@ func (m *Manager) updateServerIds(
 		return nil, nil, status.Errorf(codes.Unavailable, "conflict with concurrent topology update for: %s", req.StreamUri)
 	}
 	p.topology.Version += 1
+	streamT := p.topology.Streams[req.StreamUri]
 	if requiredStreamVersion == 0 {
-		p.topology.Streams[req.StreamUri] = &walleapi.StreamTopology{}
+		streamT = &walleapi.StreamTopology{ServerIds: req.ServerIds}
+		p.topology.Streams[req.StreamUri] = streamT
 	}
-	p.topology.Streams[req.StreamUri].Version += 1
-	p.topology.Streams[req.StreamUri].ServerIds = req.ServerIds
+	streamT.Version += 1
+	streamT.PrevServerIds = streamT.ServerIds
+	streamT.ServerIds = req.ServerIds
 	r := &topomgr.UpdateServerIdsResponse{
 		TopologyVersion: p.topology.Version,
-		StreamVersion:   p.topology.Streams[req.StreamUri].Version,
+		StreamVersion:   streamT.Version,
 	}
 	updateErr := p.commitTopology()
 	return r, updateErr, nil

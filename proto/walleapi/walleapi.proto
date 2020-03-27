@@ -67,7 +67,10 @@ message StreamTopology {
 	// version `x-1` and at version `x+1`. This allows seamless transition
 	// between versions as long as majority of the members keep up.
 	int64 version = 1;
+	// Current serverIds for the stream.
 	repeated string server_ids = 2;
+	// ServerIds from `version-1` for the stream.
+	repeated string prev_server_ids = 3;
 }
 
 message ServerInfo {

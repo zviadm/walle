@@ -96,29 +96,12 @@ func shrinkTopology(
 
 	serverIds := topology.Streams[rootURI].ServerIds[1:]
 	zlog.Info("--- shrinking to: ", serverAddrs(topology.Servers, serverIds))
-	resp, err := topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
+	_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
 		TopologyUri: rootURI,
 		StreamUri:   rootURI,
 		ServerIds:   serverIds,
 	})
 	require.NoError(t, err)
-
-	if len(serverIds) == 1 {
-		// When shrinking from 2->1 node, we need to make sure topology updates are propagated
-		// before shutting down the removed node. Otherwise quorum will be lost and state won't
-		// converge.
-		streamC, err := cli.ForStream(rootURI)
-		require.NoError(t, err)
-		for {
-			wStatus, err := streamC.WriterStatus(ctx, &walleapi.WriterStatusRequest{StreamUri: rootURI})
-			require.NoError(t, err)
-			if wStatus.StreamVersion >= resp.StreamVersion {
-				break
-			}
-			time.Sleep(10 * time.Millisecond)
-		}
-	}
-
 	s.Stop(t)
 }
 

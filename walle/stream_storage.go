@@ -146,6 +146,11 @@ func (m *streamStorage) IsLocal() bool {
 			return true
 		}
 	}
+	for _, serverId := range m.topology.PrevServerIds {
+		if serverId == m.serverId {
+			return true
+		}
+	}
 	return false
 }
 

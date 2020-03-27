@@ -194,7 +194,7 @@ func (s *Server) commitMaxEntry(
 func (s *Server) WriterStatus(
 	ctx context.Context,
 	req *walleapi.WriterStatusRequest) (*walleapi.WriterStatusResponse, error) {
-	ss, ok := s.s.Stream(req.GetStreamUri(), false)
+	ss, ok := s.s.Stream(req.GetStreamUri(), true)
 	if !ok {
 		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found locally", req.GetStreamUri())
 	}
