@@ -174,7 +174,7 @@ func registerServerInfo(
 	// If registration fails, there is no point in starting up.
 	zlog.Infof("updating serverInfo: %s -> %s ...", existingServerInfo, serverInfo)
 	topoMgr := topomgr.NewClient(root)
-	_, err := topoMgr.RegisterServer(ctx, &topomgr_pb.RegisterServerRequest{
+	_, err := topoMgr.UpdateServerInfo(ctx, &topomgr_pb.UpdateServerInfoRequest{
 		TopologyUri: topologyURI,
 		ServerId:    serverId,
 		ServerInfo:  serverInfo,

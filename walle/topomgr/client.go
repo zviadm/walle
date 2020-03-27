@@ -65,12 +65,21 @@ func (t *client) UpdateTopology(
 	defer conn.Close()
 	return topomgr.NewTopoManagerClient(conn).UpdateTopology(ctx, in, opts...)
 }
-func (t *client) RegisterServer(
-	ctx context.Context, in *topomgr.RegisterServerRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+func (t *client) UpdateServerInfo(
+	ctx context.Context, in *topomgr.UpdateServerInfoRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
 	conn, err := t.connect(ctx, in.TopologyUri)
 	if err != nil {
 		return nil, err
 	}
 	defer conn.Close()
-	return topomgr.NewTopoManagerClient(conn).RegisterServer(ctx, in, opts...)
+	return topomgr.NewTopoManagerClient(conn).UpdateServerInfo(ctx, in, opts...)
+}
+func (t *client) UpdateServerIds(
+	ctx context.Context, in *topomgr.UpdateServerIdsRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	conn, err := t.connect(ctx, in.TopologyUri)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+	return topomgr.NewTopoManagerClient(conn).UpdateServerIds(ctx, in, opts...)
 }

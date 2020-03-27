@@ -127,7 +127,7 @@ func (m *UpdateTopologyRequest) GetTopology() *walleapi.Topology {
 	return nil
 }
 
-type RegisterServerRequest struct {
+type UpdateServerInfoRequest struct {
 	TopologyUri          string               `protobuf:"bytes,1,opt,name=topology_uri,json=topologyUri,proto3" json:"topology_uri,omitempty"`
 	ServerId             string               `protobuf:"bytes,2,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
 	ServerInfo           *walleapi.ServerInfo `protobuf:"bytes,3,opt,name=server_info,json=serverInfo,proto3" json:"server_info,omitempty"`
@@ -136,18 +136,18 @@ type RegisterServerRequest struct {
 	XXX_sizecache        int32                `json:"-"`
 }
 
-func (m *RegisterServerRequest) Reset()         { *m = RegisterServerRequest{} }
-func (m *RegisterServerRequest) String() string { return proto.CompactTextString(m) }
-func (*RegisterServerRequest) ProtoMessage()    {}
-func (*RegisterServerRequest) Descriptor() ([]byte, []int) {
+func (m *UpdateServerInfoRequest) Reset()         { *m = UpdateServerInfoRequest{} }
+func (m *UpdateServerInfoRequest) String() string { return proto.CompactTextString(m) }
+func (*UpdateServerInfoRequest) ProtoMessage()    {}
+func (*UpdateServerInfoRequest) Descriptor() ([]byte, []int) {
 	return fileDescriptor_4b9802c6f2bebbad, []int{2}
 }
-func (m *RegisterServerRequest) XXX_Unmarshal(b []byte) error {
+func (m *UpdateServerInfoRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *RegisterServerRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *UpdateServerInfoRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_RegisterServerRequest.Marshal(b, m, deterministic)
+		return xxx_messageInfo_UpdateServerInfoRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalTo(b)
@@ -157,35 +157,98 @@ func (m *RegisterServerRequest) XXX_Marshal(b []byte, deterministic bool) ([]byt
 		return b[:n], nil
 	}
 }
-func (m *RegisterServerRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_RegisterServerRequest.Merge(m, src)
+func (m *UpdateServerInfoRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UpdateServerInfoRequest.Merge(m, src)
 }
-func (m *RegisterServerRequest) XXX_Size() int {
+func (m *UpdateServerInfoRequest) XXX_Size() int {
 	return m.Size()
 }
-func (m *RegisterServerRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_RegisterServerRequest.DiscardUnknown(m)
+func (m *UpdateServerInfoRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_UpdateServerInfoRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_RegisterServerRequest proto.InternalMessageInfo
+var xxx_messageInfo_UpdateServerInfoRequest proto.InternalMessageInfo
 
-func (m *RegisterServerRequest) GetTopologyUri() string {
+func (m *UpdateServerInfoRequest) GetTopologyUri() string {
 	if m != nil {
 		return m.TopologyUri
 	}
 	return ""
 }
 
-func (m *RegisterServerRequest) GetServerId() string {
+func (m *UpdateServerInfoRequest) GetServerId() string {
 	if m != nil {
 		return m.ServerId
 	}
 	return ""
 }
 
-func (m *RegisterServerRequest) GetServerInfo() *walleapi.ServerInfo {
+func (m *UpdateServerInfoRequest) GetServerInfo() *walleapi.ServerInfo {
 	if m != nil {
 		return m.ServerInfo
+	}
+	return nil
+}
+
+type UpdateServerIdsRequest struct {
+	TopologyUri          string   `protobuf:"bytes,1,opt,name=topology_uri,json=topologyUri,proto3" json:"topology_uri,omitempty"`
+	StreamUri            string   `protobuf:"bytes,2,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
+	ServerIds            []string `protobuf:"bytes,3,rep,name=server_ids,json=serverIds,proto3" json:"server_ids,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *UpdateServerIdsRequest) Reset()         { *m = UpdateServerIdsRequest{} }
+func (m *UpdateServerIdsRequest) String() string { return proto.CompactTextString(m) }
+func (*UpdateServerIdsRequest) ProtoMessage()    {}
+func (*UpdateServerIdsRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_4b9802c6f2bebbad, []int{3}
+}
+func (m *UpdateServerIdsRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *UpdateServerIdsRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_UpdateServerIdsRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *UpdateServerIdsRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UpdateServerIdsRequest.Merge(m, src)
+}
+func (m *UpdateServerIdsRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *UpdateServerIdsRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_UpdateServerIdsRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UpdateServerIdsRequest proto.InternalMessageInfo
+
+func (m *UpdateServerIdsRequest) GetTopologyUri() string {
+	if m != nil {
+		return m.TopologyUri
+	}
+	return ""
+}
+
+func (m *UpdateServerIdsRequest) GetStreamUri() string {
+	if m != nil {
+		return m.StreamUri
+	}
+	return ""
+}
+
+func (m *UpdateServerIdsRequest) GetServerIds() []string {
+	if m != nil {
+		return m.ServerIds
 	}
 	return nil
 }
@@ -193,35 +256,39 @@ func (m *RegisterServerRequest) GetServerInfo() *walleapi.ServerInfo {
 func init() {
 	proto.RegisterType((*FetchTopologyRequest)(nil), "FetchTopologyRequest")
 	proto.RegisterType((*UpdateTopologyRequest)(nil), "UpdateTopologyRequest")
-	proto.RegisterType((*RegisterServerRequest)(nil), "RegisterServerRequest")
+	proto.RegisterType((*UpdateServerInfoRequest)(nil), "UpdateServerInfoRequest")
+	proto.RegisterType((*UpdateServerIdsRequest)(nil), "UpdateServerIdsRequest")
 }
 
 func init() { proto.RegisterFile("topomgr/topomgr.proto", fileDescriptor_4b9802c6f2bebbad) }
 
 var fileDescriptor_4b9802c6f2bebbad = []byte{
-	// 341 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0x12, 0x2d, 0xc9, 0x2f, 0xc8,
-	0xcf, 0x4d, 0x2f, 0xd2, 0x87, 0xd2, 0x7a, 0x05, 0x45, 0xf9, 0x25, 0xf9, 0x52, 0xd2, 0xe9, 0xf9,
-	0xf9, 0xe9, 0x39, 0xa9, 0xfa, 0x60, 0x5e, 0x52, 0x69, 0x9a, 0x7e, 0x6a, 0x6e, 0x41, 0x49, 0x25,
-	0x54, 0x52, 0xbc, 0x3c, 0x31, 0x27, 0x27, 0x35, 0xb1, 0x20, 0x53, 0x1f, 0xc6, 0x80, 0x48, 0x28,
-	0x59, 0x72, 0x89, 0xb8, 0xa5, 0x96, 0x24, 0x67, 0x84, 0xe4, 0x17, 0xe4, 0xe7, 0xe4, 0xa7, 0x57,
-	0x06, 0xa5, 0x16, 0x96, 0xa6, 0x16, 0x97, 0x08, 0x29, 0x72, 0xf1, 0x94, 0x40, 0x85, 0xe2, 0x4b,
-	0x8b, 0x32, 0x25, 0x18, 0x15, 0x18, 0x35, 0x38, 0x83, 0xb8, 0x61, 0x62, 0xa1, 0x45, 0x99, 0x4a,
-	0x89, 0x5c, 0xa2, 0xa1, 0x05, 0x29, 0x89, 0x25, 0xa9, 0xa4, 0xeb, 0x15, 0x52, 0xe5, 0xe2, 0x80,
-	0x71, 0x25, 0x98, 0x14, 0x18, 0x35, 0xb8, 0x8d, 0x38, 0xf5, 0xe0, 0xc6, 0xc0, 0xa5, 0x94, 0x5a,
-	0x19, 0xb9, 0x44, 0x83, 0x52, 0xd3, 0x33, 0x8b, 0x4b, 0x52, 0x8b, 0x82, 0x53, 0x8b, 0xca, 0x52,
-	0x8b, 0x48, 0xb0, 0x43, 0x9a, 0x8b, 0xb3, 0x18, 0xac, 0x27, 0x3e, 0x33, 0x05, 0x6c, 0x09, 0x67,
-	0x10, 0x07, 0x44, 0xc0, 0x33, 0x45, 0x48, 0x87, 0x8b, 0x1b, 0x26, 0x99, 0x97, 0x96, 0x2f, 0xc1,
-	0x0c, 0x76, 0x03, 0xb7, 0x1e, 0xc4, 0x12, 0xcf, 0xbc, 0xb4, 0xfc, 0x20, 0xae, 0x62, 0x38, 0xdb,
-	0xe8, 0x14, 0x23, 0x17, 0x37, 0xc8, 0x79, 0xbe, 0x89, 0x79, 0x89, 0xe9, 0xa9, 0x45, 0x42, 0xc6,
-	0x5c, 0xbc, 0x28, 0xa1, 0x26, 0x24, 0xaa, 0x87, 0x2d, 0x14, 0xa5, 0x10, 0x9e, 0x52, 0x62, 0x10,
-	0x72, 0xe2, 0xe2, 0x43, 0x0d, 0x2f, 0x21, 0x31, 0x3d, 0xac, 0x01, 0x28, 0x25, 0xa6, 0x07, 0x89,
-	0x4b, 0x3d, 0x58, 0x5c, 0xea, 0xb9, 0x82, 0xe2, 0x12, 0x62, 0x06, 0x6a, 0x78, 0x08, 0x89, 0xe9,
-	0x61, 0x0d, 0x20, 0xdc, 0x66, 0x38, 0x99, 0x9f, 0x78, 0x24, 0xc7, 0x78, 0xe1, 0x91, 0x1c, 0xe3,
-	0x83, 0x47, 0x72, 0x8c, 0x33, 0x1e, 0xcb, 0x31, 0x44, 0xa9, 0xa6, 0x67, 0x96, 0x64, 0x94, 0x26,
-	0xe9, 0x25, 0xe7, 0xe7, 0xea, 0x57, 0x95, 0x65, 0x26, 0xa6, 0xe4, 0x42, 0x92, 0x09, 0x24, 0x2d,
-	0xc1, 0xd2, 0x59, 0x12, 0x1b, 0x98, 0x6b, 0x0c, 0x08, 0x00, 0x00, 0xff, 0xff, 0xb9, 0x5a, 0x95,
-	0xcc, 0x81, 0x02, 0x00, 0x00,
+	// 386 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x53, 0xcb, 0x6a, 0xc2, 0x40,
+	0x14, 0x35, 0x0a, 0xc5, 0xdc, 0xf4, 0xc5, 0x50, 0x35, 0x28, 0x0d, 0x36, 0x20, 0xb8, 0x28, 0x13,
+	0xd0, 0x45, 0xe9, 0x56, 0x5a, 0xc1, 0x45, 0x37, 0xb6, 0x6e, 0xba, 0x91, 0xd1, 0x8c, 0x31, 0x90,
+	0x38, 0xe9, 0x64, 0x62, 0xb1, 0x3f, 0xd0, 0x1f, 0xe8, 0xa2, 0x9f, 0xd4, 0x65, 0x3f, 0xa1, 0xd8,
+	0x1f, 0x29, 0x66, 0x1c, 0x5b, 0x45, 0x0b, 0xae, 0x32, 0xf7, 0x9e, 0xcc, 0x3d, 0x87, 0x7b, 0xce,
+	0x40, 0x41, 0xb0, 0x88, 0x85, 0x1e, 0x77, 0x96, 0x5f, 0x1c, 0x71, 0x26, 0x58, 0xb9, 0xe2, 0x31,
+	0xe6, 0x05, 0xd4, 0x49, 0xab, 0x41, 0x32, 0x72, 0x68, 0x18, 0x89, 0xd9, 0x12, 0x2c, 0x3d, 0x93,
+	0x20, 0xa0, 0x24, 0xf2, 0x1d, 0x75, 0x90, 0x80, 0x7d, 0x0d, 0x67, 0x6d, 0x2a, 0x86, 0xe3, 0x07,
+	0x16, 0xb1, 0x80, 0x79, 0xb3, 0x2e, 0x7d, 0x4a, 0x68, 0x2c, 0xd0, 0x05, 0x1c, 0x8a, 0x65, 0xab,
+	0x9f, 0x70, 0xdf, 0xd4, 0xaa, 0x5a, 0x5d, 0xef, 0x1a, 0xaa, 0xd7, 0xe3, 0xbe, 0x4d, 0xa0, 0xd0,
+	0x8b, 0x5c, 0x22, 0xe8, 0xfe, 0x77, 0x51, 0x0d, 0xf2, 0xaa, 0x34, 0xb3, 0x55, 0xad, 0x6e, 0x34,
+	0x74, 0xbc, 0x1a, 0xb3, 0x82, 0xec, 0x57, 0x0d, 0x4a, 0x92, 0xe3, 0x9e, 0xf2, 0x29, 0xe5, 0x9d,
+	0xc9, 0x88, 0xed, 0xc1, 0x52, 0x01, 0x3d, 0x4e, 0xef, 0xf5, 0x7d, 0x37, 0xa5, 0xd1, 0xbb, 0x79,
+	0xd9, 0xe8, 0xb8, 0xe8, 0x12, 0x0c, 0x05, 0x4e, 0x46, 0xcc, 0xcc, 0xa5, 0x2a, 0x0c, 0xfc, 0x87,
+	0x08, 0xe2, 0xd5, 0xd9, 0x9e, 0x41, 0x71, 0x4d, 0x88, 0x1b, 0xef, 0xa1, 0xe3, 0x1c, 0x20, 0x16,
+	0x9c, 0x92, 0x30, 0xfd, 0x41, 0x0a, 0xd1, 0x65, 0x47, 0xc1, 0x4a, 0x66, 0x6c, 0xe6, 0xaa, 0xb9,
+	0x14, 0x56, 0x3c, 0x8d, 0xb7, 0x2c, 0x18, 0x8b, 0xdd, 0xdc, 0x91, 0x09, 0xf1, 0x28, 0x47, 0x4d,
+	0x38, 0x5a, 0xb3, 0x0c, 0x15, 0xf0, 0x36, 0x0b, 0xcb, 0xbf, 0x1b, 0xb5, 0x33, 0xa8, 0x05, 0xc7,
+	0xeb, 0x66, 0xa1, 0x22, 0xde, 0xea, 0x5e, 0xb9, 0x88, 0x65, 0x90, 0xb0, 0x0a, 0x12, 0xbe, 0x5d,
+	0x04, 0xc9, 0xce, 0xa0, 0x36, 0x9c, 0x6e, 0x9a, 0x81, 0x4c, 0xbc, 0xc3, 0x9f, 0x7f, 0xe6, 0xdc,
+	0xc0, 0xc9, 0xc6, 0x2e, 0x51, 0x09, 0x6f, 0xdf, 0xee, 0xee, 0x29, 0xad, 0xab, 0x8f, 0xb9, 0xa5,
+	0x7d, 0xce, 0x2d, 0xed, 0x6b, 0x6e, 0x69, 0xef, 0xdf, 0x56, 0xe6, 0xb1, 0xe6, 0xf9, 0x62, 0x9c,
+	0x0c, 0xf0, 0x90, 0x85, 0xce, 0xcb, 0xd4, 0x27, 0x6e, 0x28, 0xd3, 0x2e, 0x9f, 0x84, 0x7a, 0x2e,
+	0x83, 0x83, 0xb4, 0x6c, 0xfe, 0x04, 0x00, 0x00, 0xff, 0xff, 0x7b, 0xfd, 0x4e, 0xc6, 0x48, 0x03,
+	0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -239,8 +306,8 @@ type TopoManagerClient interface {
 	FetchTopology(ctx context.Context, in *FetchTopologyRequest, opts ...grpc.CallOption) (*walleapi.Topology, error)
 	// TODO(zviad): This method may not be needed.
 	UpdateTopology(ctx context.Context, in *UpdateTopologyRequest, opts ...grpc.CallOption) (*empty.Empty, error)
-	// Register new (serverId, serverAddr) pair in a specific topology.
-	RegisterServer(ctx context.Context, in *RegisterServerRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	UpdateServerInfo(ctx context.Context, in *UpdateServerInfoRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	UpdateServerIds(ctx context.Context, in *UpdateServerIdsRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 }
 
 type topoManagerClient struct {
@@ -269,9 +336,18 @@ func (c *topoManagerClient) UpdateTopology(ctx context.Context, in *UpdateTopolo
 	return out, nil
 }
 
-func (c *topoManagerClient) RegisterServer(ctx context.Context, in *RegisterServerRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+func (c *topoManagerClient) UpdateServerInfo(ctx context.Context, in *UpdateServerInfoRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
-	err := c.cc.Invoke(ctx, "/TopoManager/RegisterServer", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/TopoManager/UpdateServerInfo", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *topoManagerClient) UpdateServerIds(ctx context.Context, in *UpdateServerIdsRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/TopoManager/UpdateServerIds", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -283,8 +359,8 @@ type TopoManagerServer interface {
 	FetchTopology(context.Context, *FetchTopologyRequest) (*walleapi.Topology, error)
 	// TODO(zviad): This method may not be needed.
 	UpdateTopology(context.Context, *UpdateTopologyRequest) (*empty.Empty, error)
-	// Register new (serverId, serverAddr) pair in a specific topology.
-	RegisterServer(context.Context, *RegisterServerRequest) (*empty.Empty, error)
+	UpdateServerInfo(context.Context, *UpdateServerInfoRequest) (*empty.Empty, error)
+	UpdateServerIds(context.Context, *UpdateServerIdsRequest) (*empty.Empty, error)
 }
 
 func RegisterTopoManagerServer(s *grpc.Server, srv TopoManagerServer) {
@@ -327,20 +403,38 @@ func _TopoManager_UpdateTopology_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
-func _TopoManager_RegisterServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RegisterServerRequest)
+func _TopoManager_UpdateServerInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateServerInfoRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(TopoManagerServer).RegisterServer(ctx, in)
+		return srv.(TopoManagerServer).UpdateServerInfo(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/TopoManager/RegisterServer",
+		FullMethod: "/TopoManager/UpdateServerInfo",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TopoManagerServer).RegisterServer(ctx, req.(*RegisterServerRequest))
+		return srv.(TopoManagerServer).UpdateServerInfo(ctx, req.(*UpdateServerInfoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TopoManager_UpdateServerIds_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateServerIdsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TopoManagerServer).UpdateServerIds(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/TopoManager/UpdateServerIds",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TopoManagerServer).UpdateServerIds(ctx, req.(*UpdateServerIdsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -358,8 +452,12 @@ var _TopoManager_serviceDesc = grpc.ServiceDesc{
 			Handler:    _TopoManager_UpdateTopology_Handler,
 		},
 		{
-			MethodName: "RegisterServer",
-			Handler:    _TopoManager_RegisterServer_Handler,
+			MethodName: "UpdateServerInfo",
+			Handler:    _TopoManager_UpdateServerInfo_Handler,
+		},
+		{
+			MethodName: "UpdateServerIds",
+			Handler:    _TopoManager_UpdateServerIds_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -430,7 +528,7 @@ func (m *UpdateTopologyRequest) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
-func (m *RegisterServerRequest) Marshal() (dAtA []byte, err error) {
+func (m *UpdateServerInfoRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalTo(dAtA)
@@ -440,7 +538,7 @@ func (m *RegisterServerRequest) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *RegisterServerRequest) MarshalTo(dAtA []byte) (int, error) {
+func (m *UpdateServerInfoRequest) MarshalTo(dAtA []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -466,6 +564,54 @@ func (m *RegisterServerRequest) MarshalTo(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i += n2
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *UpdateServerIdsRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *UpdateServerIdsRequest) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.TopologyUri) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintTopomgr(dAtA, i, uint64(len(m.TopologyUri)))
+		i += copy(dAtA[i:], m.TopologyUri)
+	}
+	if len(m.StreamUri) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintTopomgr(dAtA, i, uint64(len(m.StreamUri)))
+		i += copy(dAtA[i:], m.StreamUri)
+	}
+	if len(m.ServerIds) > 0 {
+		for _, s := range m.ServerIds {
+			dAtA[i] = 0x1a
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
+		}
 	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
@@ -518,7 +664,7 @@ func (m *UpdateTopologyRequest) Size() (n int) {
 	return n
 }
 
-func (m *RegisterServerRequest) Size() (n int) {
+func (m *UpdateServerInfoRequest) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -535,6 +681,32 @@ func (m *RegisterServerRequest) Size() (n int) {
 	if m.ServerInfo != nil {
 		l = m.ServerInfo.Size()
 		n += 1 + l + sovTopomgr(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *UpdateServerIdsRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.TopologyUri)
+	if l > 0 {
+		n += 1 + l + sovTopomgr(uint64(l))
+	}
+	l = len(m.StreamUri)
+	if l > 0 {
+		n += 1 + l + sovTopomgr(uint64(l))
+	}
+	if len(m.ServerIds) > 0 {
+		for _, s := range m.ServerIds {
+			l = len(s)
+			n += 1 + l + sovTopomgr(uint64(l))
+		}
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -763,7 +935,7 @@ func (m *UpdateTopologyRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *RegisterServerRequest) Unmarshal(dAtA []byte) error {
+func (m *UpdateServerInfoRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -786,10 +958,10 @@ func (m *RegisterServerRequest) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: RegisterServerRequest: wiretype end group for non-group")
+			return fmt.Errorf("proto: UpdateServerInfoRequest: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: RegisterServerRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: UpdateServerInfoRequest: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -891,6 +1063,156 @@ func (m *RegisterServerRequest) Unmarshal(dAtA []byte) error {
 			if err := m.ServerInfo.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTopomgr(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthTopomgr
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthTopomgr
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *UpdateServerIdsRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTopomgr
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: UpdateServerIdsRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: UpdateServerIdsRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TopologyUri", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTopomgr
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTopomgr
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthTopomgr
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.TopologyUri = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StreamUri", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTopomgr
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTopomgr
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthTopomgr
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.StreamUri = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ServerIds", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTopomgr
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTopomgr
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthTopomgr
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ServerIds = append(m.ServerIds, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

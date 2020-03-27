@@ -9,8 +9,8 @@ service TopoManager {
 	// TODO(zviad): This method may not be needed.
 	rpc UpdateTopology(UpdateTopologyRequest) returns (google.protobuf.Empty) {}
 
-	// Register new (serverId, serverAddr) pair in a specific topology.
-	rpc RegisterServer(RegisterServerRequest) returns (google.protobuf.Empty) {}
+	rpc UpdateServerInfo(UpdateServerInfoRequest) returns (google.protobuf.Empty) {}
+	rpc UpdateServerIds(UpdateServerIdsRequest) returns (google.protobuf.Empty) {}
 }
 
 message FetchTopologyRequest {
@@ -21,8 +21,13 @@ message UpdateTopologyRequest {
 	Topology topology = 2;
 }
 
-message RegisterServerRequest {
+message UpdateServerInfoRequest {
 	string topology_uri = 1;
 	string server_id = 2;
 	ServerInfo server_info = 3;
+}
+message UpdateServerIdsRequest {
+	string topology_uri = 1;
+	string stream_uri = 2;
+	repeated string server_ids = 3;
 }
