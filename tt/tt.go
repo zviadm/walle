@@ -73,7 +73,7 @@ func main() {
 		"--memory-swap", "1gb",
 		"walle:latest", // TODO(zviad): control with a cfg/flag
 		"/root/go1.14/bin/go",
-		"test", "-p", "1",
+		"test", "-p", "1", "-failfast",
 	}
 	if *vFlag {
 		args = append(args, "-v")
