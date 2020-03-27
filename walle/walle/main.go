@@ -10,7 +10,7 @@ import (
 	"path"
 	"syscall"
 
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 	"github.com/zviadm/zlog"
 	"google.golang.org/grpc"
 
