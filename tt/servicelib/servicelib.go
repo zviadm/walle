@@ -18,6 +18,9 @@ import (
 
 var goVer = runtime.Version()
 
+var installMx sync.Mutex
+var pkgsInstalled = make(map[string]struct{})
+
 type Service struct {
 	cmd          *exec.Cmd
 	cv           *sync.Cond
@@ -43,22 +46,34 @@ func (s *serviceLogger) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
-func RunGoService(
-	ctx context.Context,
-	pkg string,
-	flags []string,
-	waitOnPort string) (*Service, error) {
-
+func installPkg(pkg string) error {
+	installMx.Lock()
+	defer installMx.Unlock()
+	if _, ok := pkgsInstalled[pkg]; ok {
+		return nil
+	}
 	cmd := exec.Command(path.Join("/root", goVer, "bin/go"), "install", pkg)
 	zlog.Infof("running: %s", cmd)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
+		return err
+	}
+	pkgsInstalled[pkg] = struct{}{}
+	return nil
+}
+
+func RunGoService(
+	ctx context.Context,
+	pkg string,
+	flags []string,
+	waitOnPort string) (*Service, error) {
+
+	if err := installPkg(pkg); err != nil {
 		return nil, err
 	}
-
-	cmd = exec.Command(path.Join("/root/.cache/goroot/bin", path.Base(pkg)), flags...)
+	cmd := exec.Command(path.Join("/root/.cache/goroot/bin", path.Base(pkg)), flags...)
 	zlog.Infof("running: %s", cmd)
 	cmd.Stdin = os.Stdin
 	cmd.Stderr = &serviceLogger{Prefix: fmt.Sprintf("%s%5s   ", path.Base(pkg), waitOnPort)}

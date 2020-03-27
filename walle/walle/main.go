@@ -8,7 +8,9 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"sync/atomic"
 	"syscall"
+	"time"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/zviadm/zlog"
@@ -39,6 +41,9 @@ func main() {
 
 	flag.Parse()
 	ctx, cancelAll := context.WithCancel(context.Background())
+	var cancelDeadline atomic.Value
+	cancelDeadline.Store(time.Time{})
+
 	if *rootURI == "" {
 		zlog.Fatal("must provide root streamURI using -walle.root_uri flag")
 	}
@@ -66,7 +71,12 @@ func main() {
 	if err != nil {
 		zlog.Fatal(err)
 	}
-	defer ss.Close()
+	defer func() {
+		time.Sleep(cancelDeadline.Load().(time.Time).Sub(time.Now()))
+		zlog.Infof("closing storage...")
+		ss.Close()
+		zlog.Infof("storage closed and flushed")
+	}()
 
 	if *bootstrapOnly {
 		err := walle.BootstrapRoot(ss, *rootURI, rootFile, serverInfo)
@@ -134,8 +144,9 @@ func main() {
 	signal.Notify(notify, syscall.SIGTERM)
 	go func() {
 		<-notify
-		zlog.Infof("terminating server...")
+		zlog.Infof("starting graceful shutdown...")
 		cancelAll()
+		cancelDeadline.Store(time.Now().Add(time.Second))
 		s.GracefulStop()
 	}()
 	zlog.Infof("starting server on port:%s...", *port)

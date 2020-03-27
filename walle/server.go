@@ -69,10 +69,9 @@ func (s *Server) NewWriter(
 			ss.RenewLease(reqWriterId)
 		}
 	}
-	if finalSleep := sleepTill.Sub(time.Now()); finalSleep > 0 {
-		time.Sleep(finalSleep)
-		ss.RenewLease(reqWriterId)
-	}
+	finalSleep := sleepTill.Sub(time.Now())
+	time.Sleep(finalSleep)
+	ss.RenewLease(reqWriterId)
 	return &walle_pb.NewWriterResponse{}, nil
 }
 

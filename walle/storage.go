@@ -112,7 +112,7 @@ func storageInitWithServerId(dbPath string, createIfNotExists bool, serverId str
 func (m *storage) Close() {
 	m.mx.Lock()
 	defer m.mx.Unlock()
-	m.c.Close()
+	panicOnErr(m.c.Close())
 }
 
 func (m *storage) ServerId() string {
@@ -143,11 +143,11 @@ func (m *storage) Stream(streamURI string, localOnly bool) (StreamStorage, bool)
 }
 
 func (m *storage) NewStream(streamURI string, t *walleapi.StreamTopology) StreamStorage {
+	m.mx.Lock()
+	defer m.mx.Unlock()
 	sess, err := m.c.OpenSession(nil)
 	panicOnErr(err)
 	s := createStreamStorage(m.serverId, streamURI, t, sess)
-	m.mx.Lock()
-	defer m.mx.Unlock()
 	m.streams[streamURI] = s
 	return s
 }

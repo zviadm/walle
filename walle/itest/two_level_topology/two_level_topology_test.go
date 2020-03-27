@@ -22,6 +22,8 @@ func TestTwoLevelTopology(t *testing.T) {
 	wDir := walle.TestTmpDir()
 	rootURI := "/topology/itest"
 	topologyT1URI := "/topology/t1"
+	t1URIs := []string{"/t1/0", "/t1/1", "/t1/2", "/t1/3"}
+
 	rootTopology := itest.BootstrapDeployment(t, ctx, rootURI, wDir, itest.WalleDefaultPort)
 	s := itest.RunWalle(t, ctx, rootURI, "", rootTopology, wDir, itest.WalleDefaultPort)
 	defer s.Stop(t)
@@ -40,12 +42,28 @@ func TestTwoLevelTopology(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Start regular WALLE server.
-	s0 := itest.RunWalle(
-		t, ctx, rootURI, topologyT1URI, rootTopology, walle.TestTmpDir(), itest.WalleDefaultPort+1)
-	defer s0.Stop(t)
+	// Start regular WALLE servers serving in `/topology/t1`.
+	nT1 := 3
+	for i := 0; i < nT1; i++ {
+		sT1 := itest.RunWalle(
+			t, ctx, rootURI, topologyT1URI, rootTopology, walle.TestTmpDir(), itest.WalleDefaultPort+i+1)
+		defer sT1.Stop(t)
+	}
 
 	topology, err = topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: topologyT1URI})
 	require.NoError(t, err)
-	require.EqualValues(t, 1, len(topology.Servers))
+	var serverIds []string
+	for serverId := range topology.Servers {
+		serverIds = append(serverIds, serverId)
+	}
+	require.EqualValues(t, nT1, len(serverIds))
+	for _, t1URI := range t1URIs {
+		_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
+			TopologyUri: topologyT1URI,
+			StreamUri:   t1URI,
+			ServerIds:   serverIds,
+		})
+		require.NoError(t, err)
+	}
+
 }
