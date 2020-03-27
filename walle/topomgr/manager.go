@@ -2,17 +2,18 @@ package topomgr
 
 import (
 	"context"
+	"flag"
 	"sync"
-	"time"
 
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/wallelib"
 	"github.com/zviadm/zlog"
 )
 
-const (
-	managerLease = time.Second // TODO(zviad): should be configurable.
-)
+var flagManagerLease = flag.Duration(
+	"walle.topomgr_lease", wallelib.LeaseMinimum,
+	"Lease duration for internal topology manager. Default should be fine in most circumstances, "+
+		"unless root cluster is deployed across really high latency network.")
 
 type Manager struct {
 	c    wallelib.BasicClient
@@ -61,7 +62,7 @@ func (m *Manager) Manage(topologyURI string) {
 		defer close(notifyDone)
 		defer zlog.Infof("[tm] stopping management: %s", topologyURI)
 		for {
-			w, e, err := wallelib.WaitAndClaim(ctx, m.c, topologyURI, m.addr, managerLease)
+			w, e, err := wallelib.WaitAndClaim(ctx, m.c, topologyURI, m.addr, *flagManagerLease)
 			if err != nil {
 				return
 			}
