@@ -12,7 +12,7 @@ func BootstrapRoot(s Storage, rootURI string, rootFile string, rootInfo *walleap
 		Version: entryId,
 		Streams: map[string]*walleapi.StreamTopology{
 			rootURI: &walleapi.StreamTopology{
-				Version:   entryId,
+				Version:   1,
 				ServerIds: []string{s.ServerId()},
 			},
 		},

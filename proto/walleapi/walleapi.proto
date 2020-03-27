@@ -35,6 +35,7 @@ message WriterStatusResponse {
 	string writer_addr = 1;
 	int64 lease_ms = 2;
 	int64 remaining_lease_ms = 3;
+	int64 stream_version = 4;
 }
 
 message PutEntryRequest {
@@ -52,15 +53,19 @@ message StreamEntriesRequest {
 }
 
 message Topology {
-	// Matches EntryId where it is written in the stream.
+	// Matches EntryId of the stream it gets written to.
 	int64 version = 1;
-	// maps streamURI -> StreamTopology
+	// Maps streamURI -> StreamTopology
 	map<string, StreamTopology> streams = 2;
-	// maps ServerID -> ServerInfo
+	// Maps ServerID -> ServerInfo
 	map<string, ServerInfo> servers = 3;
 }
 
 message StreamTopology {
+	// Monotonically increasing `version` for the stream members.
+	// StreamTopology at version `x` is compatible with topology at
+	// version `x-1` and at version `x+1`. This allows seamless transition
+	// between versions as long as majority of the members keep up.
 	int64 version = 1;
 	repeated string server_ids = 2;
 }
