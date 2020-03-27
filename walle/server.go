@@ -89,6 +89,7 @@ func (s *Server) WriterInfo(
 		WriterAddr:       writerAddr,
 		LeaseMs:          lease.Nanoseconds() / time.Millisecond.Nanoseconds(),
 		RemainingLeaseMs: remainingLease.Nanoseconds() / time.Millisecond.Nanoseconds(),
+		StreamVersion:    ss.Topology().Version,
 	}, nil
 }
 
@@ -111,7 +112,7 @@ func (s *Server) PutEntryInternal(
 			// TODO(zviad): Should we first wait/retry CommitEntry? Maybe PutEntry calls are on the way already.
 			err := s.fetchAndStoreEntries(ctx, ss, req.CommittedEntryId, req.CommittedEntryId+1, nil)
 			if err != nil {
-				return nil, status.Errorf(codes.OutOfRange, "commit entryId: %d, fetch err: %s", req.CommittedEntryId, err)
+				return nil, status.Errorf(codes.OutOfRange, "commit entryId: %d - %s", req.CommittedEntryId, err)
 			}
 			zlog.Infof("[%s] commit caught up to: %d (might have created a gap)", ss.StreamURI(), req.CommittedEntryId)
 		}

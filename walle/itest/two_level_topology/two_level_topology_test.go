@@ -7,7 +7,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 	topomgr_pb "github.com/zviadm/walle/proto/topomgr"
-	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle"
 	"github.com/zviadm/walle/walle/itest"
 	"github.com/zviadm/walle/walle/topomgr"
@@ -34,20 +33,12 @@ func TestTwoLevelTopology(t *testing.T) {
 
 	topology, err := topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
 	require.NoError(t, err)
-	topology.Version += 1
-	topology.Streams[topologyT1URI] = &walleapi.StreamTopology{
-		Version:   topology.Version,
-		ServerIds: topology.Streams[rootURI].ServerIds,
-	}
-	_, err = topoMgr.UpdateTopology(ctx, &topomgr_pb.UpdateTopologyRequest{
+	_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
 		TopologyUri: rootURI,
-		Topology:    topology,
+		StreamUri:   topologyT1URI,
+		ServerIds:   topology.Streams[rootURI].ServerIds,
 	})
 	require.NoError(t, err)
-
-	// // Need to wait a bit to make sure topology update is propagated to the root
-	// // server, so it starts serving the
-	// time.Sleep(time.Second)
 
 	// Start regular WALLE server.
 	s0 := itest.RunWalle(

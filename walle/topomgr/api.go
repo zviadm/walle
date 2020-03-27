@@ -35,9 +35,6 @@ func (m *Manager) updateServerInfo(req *topomgr.UpdateServerInfoRequest) (<-chan
 		return errC, nil
 	}
 	p.topology.Version += 1
-	if p.topology.Servers == nil {
-		p.topology.Servers = make(map[string]*walleapi.ServerInfo, 1)
-	}
 	p.topology.Servers[req.ServerId] = req.ServerInfo
 	return p.commitTopology(), nil
 }
@@ -58,58 +55,20 @@ func (m *Manager) FetchTopology(
 	return topology, nil
 }
 
-func (m *Manager) UpdateTopology(
-	ctx context.Context,
-	req *topomgr.UpdateTopologyRequest) (*empty.Empty, error) {
-	updateErr, err := m.updateTopology(ctx, req)
-	if err := resolveUpdateErr(ctx, updateErr, err); err != nil {
-		return nil, err
-	}
-	return &empty.Empty{}, nil
-}
-
-func (m *Manager) updateTopology(
-	ctx context.Context,
-	req *topomgr.UpdateTopologyRequest) (<-chan error, error) {
-	p, unlock, err := m.perTopoMX(req.TopologyUri)
-	if err != nil {
-		return nil, err
-	}
-	defer unlock()
-	if p.topology.GetVersion()+1 != req.Topology.Version {
-		return nil, status.Errorf(codes.FailedPrecondition,
-			"topology version mismatch: %s - %d + 1 != %d",
-			req.TopologyUri, p.topology.GetVersion(), req.Topology.Version)
-	}
-	p.topology = req.Topology
-	return p.commitTopology(), nil
-}
-
 func (m *Manager) UpdateServerIds(
 	ctx context.Context,
 	req *topomgr.UpdateServerIdsRequest) (*empty.Empty, error) {
-	updateErr, err := m.updateServerIds(ctx, req)
-	if err := resolveUpdateErr(ctx, updateErr, err); err != nil {
-		return nil, err
-	}
-	return &empty.Empty{}, nil
-}
 
-func (m *Manager) updateServerIds(
-	ctx context.Context,
-	req *topomgr.UpdateServerIdsRequest) (<-chan error, error) {
 	p, unlock, err := m.perTopoMX(req.TopologyUri)
 	if err != nil {
 		return nil, err
 	}
-	streamT, ok := p.topology.Streams[req.StreamUri]
-	// verifyServerIds(p.topology.Servers, serverIds)
-	// TODO(zviad): check `req` for validity first.
-	// TODO(zviad): perform a diff check between: streamT.ServerIds vs req.ServerIds
-	var requiredStreamVersion int64 = 0
-	if ok {
-		requiredStreamVersion = streamT.Version
+	changed, err := verifyAndDiffMembershipChange(p.topology, req.StreamUri, req.ServerIds)
+	if err != nil || !changed {
+		unlock()
+		return nil, err
 	}
+	requiredStreamVersion := p.topology.Streams[req.StreamUri].GetVersion()
 	unlock()
 
 	if requiredStreamVersion > 0 {
@@ -123,12 +82,23 @@ func (m *Manager) updateServerIds(
 		}
 		if wStatus.StreamVersion != requiredStreamVersion {
 			return nil, status.Errorf(codes.Unavailable,
-				"servers for %s don't have up to date stream version yet: %d < %d",
+				"servers for %s don't have up-to-date stream version: %d < %d",
 				req.StreamUri, wStatus.StreamVersion, requiredStreamVersion)
 		}
 	}
 
-	p, unlock, err = m.perTopoMX(req.TopologyUri)
+	updateErr, err := m.updateServerIds(ctx, req, requiredStreamVersion)
+	if err := resolveUpdateErr(ctx, updateErr, err); err != nil {
+		return nil, err
+	}
+	return &empty.Empty{}, nil
+}
+
+func (m *Manager) updateServerIds(
+	ctx context.Context,
+	req *topomgr.UpdateServerIdsRequest,
+	requiredStreamVersion int64) (<-chan error, error) {
+	p, unlock, err := m.perTopoMX(req.TopologyUri)
 	if err != nil {
 		return nil, err
 	}

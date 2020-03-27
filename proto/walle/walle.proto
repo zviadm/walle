@@ -35,6 +35,7 @@ message WriterInfoResponse {
 	string writer_addr = 2;
 	int64 lease_ms = 3;
 	int64 remaining_lease_ms = 4;
+	int64 stream_version = 5;
 }
 
 message PutEntryInternalRequest {

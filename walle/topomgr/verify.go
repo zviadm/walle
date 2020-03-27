@@ -6,23 +6,30 @@ import (
 )
 
 func verifyServerIds(servers map[string]*walleapi.ServerInfo, serverIds []string) error {
-	for _, serverId := range serverIds {
-		if _, ok := servers[serverId]; !ok {
-			return errors.Errorf("invalid serverId: %s", serverId)
-		}
-	}
 	return nil
 }
 
-func verifyMembershipChange(currentServerIds []string, newServerIds []string) (string, error) {
-	var serverIdsDiff map[string]struct{}
-	for _, serverId := range newServerIds {
+func verifyAndDiffMembershipChange(
+	t *walleapi.Topology, streamURI string, serverIds []string) (bool, error) {
+	for _, serverId := range serverIds {
+		if _, ok := t.Servers[serverId]; !ok {
+			return false, errors.Errorf("invalid serverId: %s", serverId)
+		}
+	}
+
+	serverIdsDiff := make(map[string]struct{}, len(serverIds)+1)
+	for _, serverId := range serverIds {
 		serverIdsDiff[serverId] = struct{}{}
 	}
-	if len(serverIdsDiff) != len(newServerIds) {
-		return "", errors.Errorf("serverIds must be unique: %s", newServerIds)
+	if len(serverIdsDiff) != len(serverIds) {
+		return false, errors.Errorf("serverIds must be unique: %s", serverIds)
 	}
-	for _, serverId := range currentServerIds {
+
+	streamT, ok := t.Streams[streamURI]
+	if !ok {
+		return len(serverIds) != 0, nil
+	}
+	for _, serverId := range streamT.ServerIds {
 		if _, ok := serverIdsDiff[serverId]; ok {
 			delete(serverIdsDiff, serverId)
 		} else {
@@ -30,12 +37,9 @@ func verifyMembershipChange(currentServerIds []string, newServerIds []string) (s
 		}
 	}
 	if len(serverIdsDiff) > 1 {
-		return "", errors.Errorf(
+		return false, errors.Errorf(
 			"too many changes in serverIds: %s -> %s (diff: %s)",
-			currentServerIds, newServerIds, serverIdsDiff)
+			streamT.ServerIds, serverIds, serverIdsDiff)
 	}
-	for serverId := range serverIdsDiff {
-		return serverId, nil
-	}
-	return "", nil
+	return len(serverIdsDiff) > 0, nil
 }

@@ -23,7 +23,7 @@ func KeepTryingWithBackoff(
 		if retryN > 3 {
 			stackTrace := errors.Wrap(err, "").(stackTracer).StackTrace()
 			stackFrame := stackTrace[1]
-			zlog.Warningf("%n (%s:%d) retry #%d, err: %s...",
+			zlog.Warningf("%n (%s:%d) retry #%d: %s...",
 				stackFrame, stackFrame, stackFrame, retryN, err)
 		}
 		if backoffTime > maxBackoff {

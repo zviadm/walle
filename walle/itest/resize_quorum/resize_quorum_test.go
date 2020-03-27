@@ -57,13 +57,12 @@ func expandTopology(
 
 	topology, err = topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
 	require.NoError(t, err)
-	topology.Version += 1
 	serverId := serverIdsDiff(t, topology.Servers, topology.Streams[rootURI].ServerIds)
-	topology.Streams[rootURI].Version = topology.Version
-	topology.Streams[rootURI].ServerIds = append(topology.Streams[rootURI].ServerIds, serverId)
-	_, err = topoMgr.UpdateTopology(ctx, &topomgr_pb.UpdateTopologyRequest{
+	serverIds := append([]string{serverId}, topology.Streams[rootURI].ServerIds...)
+	_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
 		TopologyUri: rootURI,
-		Topology:    topology,
+		StreamUri:   rootURI,
+		ServerIds:   serverIds,
 	})
 	require.NoError(t, err)
 	return s
@@ -93,12 +92,10 @@ func shrinkTopology(
 	rootURI string) {
 	topology, err := topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
 	require.NoError(t, err)
-	topology.Version += 1
-	topology.Streams[rootURI].Version = topology.Version
-	topology.Streams[rootURI].ServerIds = topology.Streams[rootURI].ServerIds[1:]
-	_, err = topoMgr.UpdateTopology(ctx, &topomgr_pb.UpdateTopologyRequest{
+	_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
 		TopologyUri: rootURI,
-		Topology:    topology,
+		StreamUri:   rootURI,
+		ServerIds:   topology.Streams[rootURI].ServerIds[1:],
 	})
 	require.NoError(t, err)
 	s.Stop(t)

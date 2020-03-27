@@ -6,8 +6,6 @@ import "walleapi/walleapi.proto";
 
 service TopoManager {
 	rpc FetchTopology(FetchTopologyRequest) returns (Topology) {}
-	// TODO(zviad): This method may not be needed.
-	rpc UpdateTopology(UpdateTopologyRequest) returns (google.protobuf.Empty) {}
 
 	rpc UpdateServerInfo(UpdateServerInfoRequest) returns (google.protobuf.Empty) {}
 	rpc UpdateServerIds(UpdateServerIdsRequest) returns (google.protobuf.Empty) {}
@@ -15,10 +13,6 @@ service TopoManager {
 
 message FetchTopologyRequest {
 	string topology_uri = 1;
-}
-message UpdateTopologyRequest {
-	string topology_uri = 1;
-	Topology topology = 2;
 }
 
 message UpdateServerInfoRequest {

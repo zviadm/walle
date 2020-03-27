@@ -205,6 +205,7 @@ func (s *Server) WriterStatus(
 		WriterAddr:       writerInfo.WriterAddr,
 		LeaseMs:          writerInfo.LeaseMs,
 		RemainingLeaseMs: writerInfo.RemainingLeaseMs,
+		StreamVersion:    writerInfo.StreamVersion,
 	}, nil
 }
 
@@ -213,7 +214,8 @@ func (s *Server) broadcastWriterInfo(
 	ssTopology := ss.Topology()
 	respMx := sync.Mutex{}
 	var respMax *walle_pb.WriterInfoResponse
-	var remainingMs []int
+	var remainingMs []int64
+	var streamVersions []int64
 	_, err := s.broadcastRequest(ctx, ssTopology.ServerIds,
 		func(c walle_pb.WalleClient, serverId string) error {
 			resp, err := c.WriterInfo(ctx, &walle_pb.WriterInfoRequest{
@@ -226,7 +228,8 @@ func (s *Server) broadcastWriterInfo(
 			if resp.GetWriterId() > respMax.GetWriterId() {
 				respMax = resp
 			}
-			remainingMs = append(remainingMs, int(resp.GetRemainingLeaseMs()))
+			remainingMs = append(remainingMs, resp.GetRemainingLeaseMs())
+			streamVersions = append(streamVersions, resp.GetStreamVersion())
 			return err
 		})
 	if err != nil {
@@ -234,8 +237,10 @@ func (s *Server) broadcastWriterInfo(
 	}
 	// Sort responses by (writerId, remainingLeaseMs) and choose one that majority is
 	// greather than or equal to.
-	sort.Ints(remainingMs)
-	respMax.RemainingLeaseMs = int64(remainingMs[len(ssTopology.ServerIds)/2])
+	sort.Slice(remainingMs, func(i, j int) bool { return remainingMs[i] < remainingMs[j] })
+	sort.Slice(streamVersions, func(i, j int) bool { return streamVersions[i] < streamVersions[j] })
+	respMax.RemainingLeaseMs = remainingMs[len(ssTopology.ServerIds)/2]
+	respMax.StreamVersion = streamVersions[len(ssTopology.ServerIds)/2]
 	return respMax, nil
 }
 

@@ -68,8 +68,16 @@ func (m *Manager) Manage(topologyURI string) {
 			topology, err := wallelib.TopologyFromEntry(e)
 			if err != nil || topology.Version != e.EntryId {
 				// This must never happen!
-				zlog.Errorf("[tm] unrecoverable err %s:%d - %s - %s", topologyURI, e.EntryId, topology, err)
-				topology = &walleapi.Topology{Version: e.EntryId} // TODO(zviad): Decide on best path forward here.
+				// TODO(zviad): Decide on best path forward here. We don't have to crash,
+				// theoretically it can be recovered if topology is still valid.
+				zlog.Fatalf("[tm] unrecoverable err %s:%d - %s - %s", topologyURI, e.EntryId, topology, err)
+			}
+			// initialize GoLang structs/maps to avoid `nil` pointer errors.
+			if topology.Streams == nil {
+				topology.Streams = make(map[string]*walleapi.StreamTopology)
+			}
+			if topology.Servers == nil {
+				topology.Servers = make(map[string]*walleapi.ServerInfo)
 			}
 			zlog.Infof("[tm] claimed writer: %s, version: %d", topologyURI, topology.Version)
 			m.mx.Lock()
