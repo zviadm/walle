@@ -72,10 +72,13 @@ func (m *Manager) UpdateServerIds(
 	changed, err := verifyAndDiffMembershipChange(p.topology, req.StreamUri, req.ServerIds)
 	if err != nil || (!changed && prevEquals) {
 		defer unlock()
+		if err != nil {
+			return nil, status.Error(codes.FailedPrecondition, err.Error())
+		}
 		return &topomgr.UpdateServerIdsResponse{
 			TopologyVersion: p.topology.Version,
 			StreamVersion:   requiredStreamVersion,
-		}, err
+		}, nil
 	}
 	unlock()
 

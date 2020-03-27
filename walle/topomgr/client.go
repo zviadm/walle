@@ -10,6 +10,8 @@ import (
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/wallelib"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type client struct {
@@ -60,23 +62,25 @@ func (t *client) connectAndDo(
 			if err != nil {
 				return false, err
 			}
-			status, err := cli.WriterStatus(
+			wStatus, err := cli.WriterStatus(
 				ctx, &walleapi.WriterStatusRequest{StreamUri: topologyURI})
 			if err != nil {
 				return false, err
 			}
-			if status.RemainingLeaseMs <= 0 {
+			if wStatus.RemainingLeaseMs <= 0 {
 				return false, errors.Errorf("no active manager for: %s", topologyURI)
 			}
 			ctx, cancel := context.WithTimeout(ctx, time.Second)
 			defer cancel()
-			conn, err := grpc.DialContext(ctx, status.WriterAddr, grpc.WithInsecure(), grpc.WithBlock())
+			conn, err := grpc.DialContext(ctx, wStatus.WriterAddr, grpc.WithInsecure(), grpc.WithBlock())
 			if err != nil {
 				return false, err
 			}
 			defer conn.Close()
 			err = f(topomgr.NewTopoManagerClient(conn))
-			return err == nil, err
+			errStatus, _ := status.FromError(err)
+			errFinal := errStatus.Code() == codes.OK || errStatus.Code() == codes.FailedPrecondition
+			return errFinal, err
 		})
 }
 
