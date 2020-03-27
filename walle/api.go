@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -193,7 +194,7 @@ func (s *Server) commitMaxEntry(
 func (s *Server) WriterStatus(
 	ctx context.Context,
 	req *walleapi.WriterStatusRequest) (*walleapi.WriterStatusResponse, error) {
-	ss, ok := s.s.Stream(req.GetStreamUri(), true)
+	ss, ok := s.s.Stream(req.GetStreamUri(), false)
 	if !ok {
 		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found locally", req.GetStreamUri())
 	}
@@ -286,11 +287,15 @@ func (s *Server) StreamEntries(
 		if entryId <= committedId {
 			break
 		}
+		_, writerAddr, _, remainingLease := ss.WriterInfo()
+		if remainingLease < 0 && !strings.HasPrefix(writerAddr, writerInternalAddrPrefix) {
+			return status.Errorf(codes.Unavailable,
+				"writer: %s lease expired for streamURI: %s", writerAddr, req.StreamUri)
+		}
 		select {
 		case <-s.rootCtx.Done():
 			return nil
 		case <-stream.Context().Done():
-			// TODO(zviad): return nil, only if writer heartbeat is alive.
 			return nil
 		case <-notify:
 		}

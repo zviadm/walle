@@ -17,7 +17,7 @@ import (
 	"github.com/zviadm/zlog"
 )
 
-func TestResuizeQuorum(t *testing.T) {
+func TestResizeQuorum(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	rootURI := "/topology/itest"
@@ -32,13 +32,14 @@ func TestResuizeQuorum(t *testing.T) {
 	cli := wallelib.NewClient(ctx, rootD)
 	topoMgr := topomgr.NewClient(cli)
 	services := []*servicelib.Service{s}
-	for idx := 1; idx < 5; idx++ {
+	nTotal := 5
+	for idx := 1; idx < nTotal; idx++ {
 		s := expandTopology(t, ctx, topoMgr, rootURI, itest.WalleDefaultPort+idx)
 		defer s.Stop(t)
 		services = append(services, s)
 	}
-	for _, s := range services {
-		shrinkTopology(t, ctx, s, topoMgr, rootURI)
+	for _, s := range services[:nTotal-1] {
+		shrinkTopology(t, ctx, s, topoMgr, cli, rootURI)
 	}
 }
 
@@ -88,18 +89,36 @@ func shrinkTopology(
 	ctx context.Context,
 	s *servicelib.Service,
 	topoMgr topomgr_pb.TopoManagerClient,
+	cli wallelib.BasicClient,
 	rootURI string) {
 	topology, err := topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
 	require.NoError(t, err)
 
 	serverIds := topology.Streams[rootURI].ServerIds[1:]
 	zlog.Info("--- shrinking to: ", serverAddrs(topology.Servers, serverIds))
-	_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
+	resp, err := topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
 		TopologyUri: rootURI,
 		StreamUri:   rootURI,
 		ServerIds:   serverIds,
 	})
 	require.NoError(t, err)
+
+	if len(serverIds) == 1 {
+		// When shrinking from 2->1 node, we need to make sure topology updates are propagated
+		// before shutting down the removed node. Otherwise quorum will be lost and state won't
+		// converge.
+		streamC, err := cli.ForStream(rootURI)
+		require.NoError(t, err)
+		for {
+			wStatus, err := streamC.WriterStatus(ctx, &walleapi.WriterStatusRequest{StreamUri: rootURI})
+			require.NoError(t, err)
+			if wStatus.StreamVersion >= resp.StreamVersion {
+				break
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+
 	s.Stop(t)
 }
 

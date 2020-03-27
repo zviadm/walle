@@ -99,7 +99,7 @@ func (t *client) UpdateServerInfo(
 	return r, err
 }
 func (t *client) UpdateServerIds(
-	ctx context.Context, in *topomgr.UpdateServerIdsRequest, opts ...grpc.CallOption) (r *empty.Empty, err error) {
+	ctx context.Context, in *topomgr.UpdateServerIdsRequest, opts ...grpc.CallOption) (r *topomgr.UpdateServerIdsResponse, err error) {
 	err = t.connectAndDo(ctx, in.TopologyUri,
 		func(c topomgr.TopoManagerClient) error {
 			r, err = c.UpdateServerIds(ctx, in, opts...)

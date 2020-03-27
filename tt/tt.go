@@ -71,7 +71,7 @@ func main() {
 		"-w", "/root/src",
 		"walle:latest", // TODO(zviad): control with a cfg/flag
 		"/root/go1.14/bin/go",
-		"test",
+		"test", "-p", "1",
 	}
 	if *vFlag {
 		args = append(args, "-v")

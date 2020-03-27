@@ -57,7 +57,7 @@ func (m *Manager) FetchTopology(
 
 func (m *Manager) UpdateServerIds(
 	ctx context.Context,
-	req *topomgr.UpdateServerIdsRequest) (*empty.Empty, error) {
+	req *topomgr.UpdateServerIdsRequest) (*topomgr.UpdateServerIdsResponse, error) {
 
 	p, unlock, err := m.perTopoMX(req.TopologyUri)
 	if err != nil {
@@ -87,24 +87,24 @@ func (m *Manager) UpdateServerIds(
 		}
 	}
 
-	updateErr, err := m.updateServerIds(ctx, req, requiredStreamVersion)
+	resp, updateErr, err := m.updateServerIds(ctx, req, requiredStreamVersion)
 	if err := resolveUpdateErr(ctx, updateErr, err); err != nil {
 		return nil, err
 	}
-	return &empty.Empty{}, nil
+	return resp, nil
 }
 
 func (m *Manager) updateServerIds(
 	ctx context.Context,
 	req *topomgr.UpdateServerIdsRequest,
-	requiredStreamVersion int64) (<-chan error, error) {
+	requiredStreamVersion int64) (*topomgr.UpdateServerIdsResponse, <-chan error, error) {
 	p, unlock, err := m.perTopoMX(req.TopologyUri)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer unlock()
 	if requiredStreamVersion > 0 && p.topology.Streams[req.StreamUri].Version != requiredStreamVersion {
-		return nil, status.Errorf(codes.Unavailable, "conflict with concurrent topology update for: %s", req.StreamUri)
+		return nil, nil, status.Errorf(codes.Unavailable, "conflict with concurrent topology update for: %s", req.StreamUri)
 	}
 	p.topology.Version += 1
 	if requiredStreamVersion == 0 {
@@ -112,7 +112,12 @@ func (m *Manager) updateServerIds(
 	}
 	p.topology.Streams[req.StreamUri].Version += 1
 	p.topology.Streams[req.StreamUri].ServerIds = req.ServerIds
-	return p.commitTopology(), nil
+	r := &topomgr.UpdateServerIdsResponse{
+		TopologyVersion: p.topology.Version,
+		StreamVersion:   p.topology.Streams[req.StreamUri].Version,
+	}
+	updateErr := p.commitTopology()
+	return r, updateErr, nil
 }
 
 func (m *Manager) perTopoMX(topologyURI string) (p *perTopoData, unlock func(), err error) {

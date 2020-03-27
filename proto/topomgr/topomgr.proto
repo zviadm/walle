@@ -8,7 +8,7 @@ service TopoManager {
 	rpc FetchTopology(FetchTopologyRequest) returns (Topology) {}
 
 	rpc UpdateServerInfo(UpdateServerInfoRequest) returns (google.protobuf.Empty) {}
-	rpc UpdateServerIds(UpdateServerIdsRequest) returns (google.protobuf.Empty) {}
+	rpc UpdateServerIds(UpdateServerIdsRequest) returns (UpdateServerIdsResponse) {}
 }
 
 message FetchTopologyRequest {
@@ -24,4 +24,8 @@ message UpdateServerIdsRequest {
 	string topology_uri = 1;
 	string stream_uri = 2;
 	repeated string server_ids = 3;
+}
+message UpdateServerIdsResponse {
+	int64 topology_version = 1;
+	int64 stream_version = 2;
 }

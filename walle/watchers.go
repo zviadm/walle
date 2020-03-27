@@ -13,7 +13,8 @@ import (
 )
 
 const (
-	writerTimeoutToResolve = time.Second // TODO(zviad): should this be a flag?
+	writerTimeoutToResolve   = time.Second // TODO(zviad): should this be a flag?
+	writerInternalAddrPrefix = "_internal:"
 )
 
 func (s *Server) watchTopology(ctx context.Context, d wallelib.Discovery, topoMgr *topomgr.Manager) {
@@ -86,7 +87,7 @@ func (s *Server) writerInfoWatcher(ctx context.Context) {
 			if time.Duration(wInfo.RemainingLeaseMs)*time.Millisecond >= -writerTimeoutToResolve {
 				continue
 			}
-			writerAddr := "_internal:" + hex.EncodeToString([]byte(s.s.ServerId())) // TODO(zviad): better string
+			writerAddr := writerInternalAddrPrefix + hex.EncodeToString([]byte(s.s.ServerId()))
 			resp, err := s.ClaimWriter(ctx,
 				&walleapi.ClaimWriterRequest{StreamUri: streamURI, WriterAddr: writerAddr})
 			if err != nil {
