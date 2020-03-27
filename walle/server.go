@@ -8,7 +8,7 @@ import (
 	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/walle/topomgr"
-	"github.com/zviadm/walle/walle/wallelib"
+	"github.com/zviadm/walle/wallelib"
 	"github.com/zviadm/zlog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

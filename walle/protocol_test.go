@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/zviadm/walle/proto/walleapi"
-	"github.com/zviadm/walle/walle/wallelib"
+	"github.com/zviadm/walle/wallelib"
 	"github.com/zviadm/zlog"
 )
 

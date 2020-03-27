@@ -7,7 +7,7 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/zviadm/walle/proto/topomgr"
 	"github.com/zviadm/walle/proto/walleapi"
-	"github.com/zviadm/walle/walle/wallelib"
+	"github.com/zviadm/walle/wallelib"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

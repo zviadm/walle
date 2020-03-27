@@ -10,7 +10,7 @@ import (
 	"github.com/zviadm/walle/walle"
 	"github.com/zviadm/walle/walle/itest"
 	"github.com/zviadm/walle/walle/topomgr"
-	"github.com/zviadm/walle/walle/wallelib"
+	"github.com/zviadm/walle/wallelib"
 	"github.com/zviadm/zlog"
 )
 

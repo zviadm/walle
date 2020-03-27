@@ -3,7 +3,7 @@ package walle
 import (
 	"github.com/pkg/errors"
 	"github.com/zviadm/walle/proto/walleapi"
-	"github.com/zviadm/walle/walle/wallelib"
+	"github.com/zviadm/walle/wallelib"
 )
 
 func BootstrapRoot(s Storage, rootURI string, rootFile string, rootInfo *walleapi.ServerInfo) error {
