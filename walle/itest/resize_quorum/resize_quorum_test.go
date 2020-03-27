@@ -20,7 +20,7 @@ import (
 func TestResuizeQuorum(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	rootURI := "/topology/resize_quorum"
+	rootURI := "/topology/itest"
 	wDir := walle.TestTmpDir()
 
 	rootTopology := itest.BootstrapDeployment(t, ctx, rootURI, wDir, itest.WalleDefaultPort)
@@ -56,8 +56,8 @@ func expandTopology(
 	topology, err = topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
 	require.NoError(t, err)
 	serverId := serverIdsDiff(t, topology.Servers, topology.Streams[rootURI].ServerIds)
-	serverIds := append([]string{serverId}, topology.Streams[rootURI].ServerIds...)
-	zlog.Info("--- expanding to: ", len(serverIds), serverIds)
+	serverIds := append(topology.Streams[rootURI].ServerIds, serverId)
+	zlog.Info("--- expanding to: ", serverAddrs(topology.Servers, serverIds))
 	_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
 		TopologyUri: rootURI,
 		StreamUri:   rootURI,
@@ -93,7 +93,7 @@ func shrinkTopology(
 	require.NoError(t, err)
 
 	serverIds := topology.Streams[rootURI].ServerIds[1:]
-	zlog.Info("--- shrinking to: ", len(serverIds), serverIds)
+	zlog.Info("--- shrinking to: ", serverAddrs(topology.Servers, serverIds))
 	_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
 		TopologyUri: rootURI,
 		StreamUri:   rootURI,
@@ -101,4 +101,12 @@ func shrinkTopology(
 	})
 	require.NoError(t, err)
 	s.Stop(t)
+}
+
+func serverAddrs(servers map[string]*walleapi.ServerInfo, serverIds []string) []string {
+	r := make([]string, len(serverIds))
+	for idx, serverId := range serverIds {
+		r[idx] = servers[serverId].Address
+	}
+	return r
 }
