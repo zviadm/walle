@@ -33,13 +33,11 @@ func TestResuizeQuorum(t *testing.T) {
 	topoMgr := topomgr.NewClient(cli)
 	services := []*servicelib.Service{s}
 	for idx := 1; idx < 5; idx++ {
-		zlog.Info("--- expanding: ", idx)
 		s := expandTopology(t, ctx, topoMgr, rootURI, itest.WalleDefaultPort+idx)
 		defer s.Stop(t)
 		services = append(services, s)
 	}
-	for idx, s := range services {
-		zlog.Info("--- shrinking: ", idx)
+	for _, s := range services {
 		shrinkTopology(t, ctx, s, topoMgr, rootURI)
 	}
 }
@@ -59,6 +57,7 @@ func expandTopology(
 	require.NoError(t, err)
 	serverId := serverIdsDiff(t, topology.Servers, topology.Streams[rootURI].ServerIds)
 	serverIds := append([]string{serverId}, topology.Streams[rootURI].ServerIds...)
+	zlog.Info("--- expanding to: ", len(serverIds), serverIds)
 	_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
 		TopologyUri: rootURI,
 		StreamUri:   rootURI,
@@ -92,10 +91,13 @@ func shrinkTopology(
 	rootURI string) {
 	topology, err := topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
 	require.NoError(t, err)
+
+	serverIds := topology.Streams[rootURI].ServerIds[1:]
+	zlog.Info("--- shrinking to: ", len(serverIds), serverIds)
 	_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
 		TopologyUri: rootURI,
 		StreamUri:   rootURI,
-		ServerIds:   topology.Streams[rootURI].ServerIds[1:],
+		ServerIds:   serverIds,
 	})
 	require.NoError(t, err)
 	s.Stop(t)
