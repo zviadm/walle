@@ -8,12 +8,14 @@ import (
 	"os"
 	"path"
 	"sync"
+	"time"
 
 	"google.golang.org/grpc"
 
 	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/walle/wallelib"
 )
 
 type mockSystem struct {
@@ -48,6 +50,9 @@ func newMockSystem(
 	}
 	go func() {
 		<-ctx.Done()
+		// Need to sleep before cleaning up storage, since not everything exits immediatelly
+		// and can cause a crash.
+		time.Sleep(wallelib.LeaseMinimum)
 		mSystem.cleanup()
 	}()
 	return mSystem, mApiClient
