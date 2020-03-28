@@ -64,6 +64,9 @@ func RunWalle(
 			"-walle.topology_uri", topologyURI,
 			"-walle.storage_dir", storageDir,
 			"-walle.port", strconv.Itoa(port),
+			// use higher lease in integration testing since bunch of servers run
+			// in a single docker container.
+			"-walle.topomgr_lease", "1s",
 		},
 		strconv.Itoa(port))
 	require.NoError(t, err)

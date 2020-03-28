@@ -75,8 +75,8 @@ func (s *Server) writerInfoWatcher(ctx context.Context) {
 			if !ok {
 				continue
 			}
-			_, _, _, remainingLease := ss.WriterInfo()
-			if remainingLease >= -writerTimeoutToResolve {
+			_, writerAddr, _, remainingLease := ss.WriterInfo()
+			if writerAddr == "" || remainingLease >= -writerTimeoutToResolve {
 				continue // Quick shortcut, requiring no i/o for most common case.
 			}
 			wInfo, err := s.broadcastWriterInfo(ctx, ss)
@@ -87,7 +87,7 @@ func (s *Server) writerInfoWatcher(ctx context.Context) {
 			if time.Duration(wInfo.RemainingLeaseMs)*time.Millisecond >= -writerTimeoutToResolve {
 				continue
 			}
-			writerAddr := writerInternalAddrPrefix + hex.EncodeToString([]byte(s.s.ServerId()))
+			writerAddr = writerInternalAddrPrefix + hex.EncodeToString([]byte(s.s.ServerId()))
 			resp, err := s.ClaimWriter(ctx,
 				&walleapi.ClaimWriterRequest{StreamUri: streamURI, WriterAddr: writerAddr})
 			if err != nil {

@@ -27,6 +27,9 @@ func (s *Server) ClaimWriter(
 	if req.LeaseMs != 0 && req.LeaseMs < wallelib.LeaseMinimum.Nanoseconds()/time.Millisecond.Nanoseconds() {
 		return nil, status.Errorf(codes.InvalidArgument, "lease_ms: %d must be >%s", req.LeaseMs, wallelib.LeaseMinimum)
 	}
+	if req.WriterAddr == "" {
+		return nil, status.Error(codes.InvalidArgument, "writer_addr must be set")
+	}
 	writerId := makeWriterId()
 	ssTopology := ss.Topology()
 	serverIds, err := s.broadcastRequest(ctx, ssTopology.ServerIds,
