@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	storageFlushQ   = 1 << 13
-	streamPipelineQ = 1 << 8
+	storageFlushQ   = 8192
+	streamPipelineQ = 256
 )
 
 // storagePipeline provides queue like abstraction to stream line

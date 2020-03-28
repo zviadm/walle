@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	shortBeat           = time.Millisecond
-	LeaseMinimum        = 100 * shortBeat
-	putEntryMaxInFlight = 1 << 8
+	shortBeat       = time.Millisecond
+	LeaseMinimum    = 100 * shortBeat
+	maxInFlightPuts = 128
 )
 
 type WriterState string
@@ -36,17 +36,24 @@ type Writer struct {
 	writerId    string
 	longBeat    time.Duration
 
-	lastEntry *walleapi.Entry
+	lastEntry    *walleapi.Entry
+	reqQ         chan *writerReq
+	inFlightQ    chan struct{}
+	heartbeaterQ chan struct{}
 
 	committedEntryMx  sync.Mutex
 	committedEntryId  int64
 	committedEntryMd5 []byte
 	toCommit          *walleapi.Entry
-	toCommitNotify    chan struct{}
 	commitTime        time.Time
 
 	rootCtx    context.Context
 	rootCancel context.CancelFunc
+}
+
+type writerReq struct {
+	ErrC  chan error
+	Entry *walleapi.Entry
 }
 
 func newWriter(
@@ -66,17 +73,23 @@ func newWriter(
 		writerId:    writerId,
 		longBeat:    writerLease / 10,
 
-		lastEntry:         lastEntry,
+		lastEntry: lastEntry,
+		// Use very large buffer for reqQ to never block. If user fills this queue up,
+		// PutEntry calls will start blocking.
+		reqQ:         make(chan *writerReq, 16384),
+		inFlightQ:    make(chan struct{}, maxInFlightPuts),
+		heartbeaterQ: make(chan struct{}, 1),
+
 		committedEntryId:  lastEntry.EntryId,
 		committedEntryMd5: lastEntry.ChecksumMd5,
 		toCommit:          lastEntry,
-		toCommitNotify:    make(chan struct{}),
 		commitTime:        commitTime,
 
 		rootCtx:    ctx,
 		rootCancel: cancel,
 	}
-	go w.heartbeat()
+	go w.processor(ctx)
+	go w.heartbeater(ctx)
 	return w
 }
 
@@ -87,7 +100,7 @@ func (w *Writer) Close(tryFlush bool) {
 	if !tryFlush {
 		return
 	}
-	_, committedEntryId, _, toCommit, _ := w.safeCommittedEntryId()
+	_, committedEntryId, _, toCommit := w.safeCommittedEntryId()
 	if toCommit.EntryId <= committedEntryId {
 		return
 	}
@@ -124,31 +137,55 @@ func (w *Writer) Committed() *walleapi.Entry {
 	return w.toCommit
 }
 
-// Heartbeat makes background requests to the server if there are no active
-// PutEntry calls happening. This makes sure that entries will be marked as committed fast,
-// even if there are no PutEntry calls, and also makes sure that servers are aware that
-// writer is still alive.
-func (w *Writer) heartbeat() {
+func (w *Writer) processor(ctx context.Context) {
+ProcessLoop:
+	for {
+		var req *writerReq
+		select {
+		case <-ctx.Done():
+			return
+		case req = <-w.reqQ:
+			select {
+			case <-ctx.Done():
+				return
+			case w.inFlightQ <- struct{}{}:
+			}
+			go w.process(ctx, req)
+		case <-time.After(shortBeat):
+			now := time.Now()
+			ts, committedEntryId, _, toCommit := w.safeCommittedEntryId()
+			if ts.Add(shortBeat).After(now) ||
+				(committedEntryId == toCommit.EntryId && ts.Add(w.longBeat).After(now)) {
+				continue ProcessLoop
+			}
+			select {
+			case w.heartbeaterQ <- struct{}{}:
+			default:
+			}
+		}
+	}
+}
+
+// Heartbeater makes requests to the server if there are no active PutEntry calls happening.
+// This makes sure that entries will be marked as committed fast, even if there are no PutEntry calls,
+// and also makes sure that servers are aware that writer is still alive.
+func (w *Writer) heartbeater(ctx context.Context) {
 	for {
 		select {
-		case <-w.rootCtx.Done():
+		case <-ctx.Done():
 			return
-		case <-time.After(shortBeat):
+		case <-w.heartbeaterQ:
 		}
 		now := time.Now()
-		ts, committedEntryId, _, toCommit, _ := w.safeCommittedEntryId()
-		if ts.Add(shortBeat).After(now) ||
-			(committedEntryId == toCommit.EntryId && ts.Add(w.longBeat).After(now)) {
-			continue
-		}
+		_, _, _, toCommit := w.safeCommittedEntryId()
 		err := KeepTryingWithBackoff(
-			w.rootCtx, w.longBeat, w.writerLease,
+			ctx, 10*time.Millisecond, w.writerLease,
 			func(retryN uint) (bool, error) {
 				cli, err := w.c.ForStream(w.streamURI)
 				if err != nil {
 					return false, err
 				}
-				_, err = cli.PutEntry(w.rootCtx, &walleapi.PutEntryRequest{
+				_, err = cli.PutEntry(ctx, &walleapi.PutEntryRequest{
 					StreamUri:         w.streamURI,
 					Entry:             &walleapi.Entry{WriterId: w.writerId},
 					CommittedEntryId:  toCommit.EntryId,
@@ -159,17 +196,61 @@ func (w *Writer) heartbeat() {
 					if err == context.Canceled ||
 						errStatus.Code() == codes.Canceled ||
 						errStatus.Code() == codes.FailedPrecondition {
-						w.rootCancel() // If there is an urecoverable error, close the writer.
 						return true, err
 					}
+					return false, err
 				}
-				return err == nil, err
+				w.updateCommittedEntryId(now, toCommit.EntryId, toCommit.ChecksumMd5, toCommit)
+				return true, nil
 			})
 		if err != nil {
+			w.rootCancel() // handle unrecoverable error
 			return
 		}
-		w.updateCommittedEntryId(now, toCommit.EntryId, toCommit.ChecksumMd5, toCommit)
 	}
+}
+
+func (w *Writer) process(ctx context.Context, req *writerReq) {
+	defer func() { <-w.inFlightQ }()
+	err := KeepTryingWithBackoff(
+		ctx, 10*time.Millisecond, w.writerLease,
+		func(retryN uint) (bool, error) {
+			_, _, _, toCommit := w.safeCommittedEntryId()
+			toCommitEntryId := toCommit.EntryId
+			toCommitChecksumMd5 := toCommit.ChecksumMd5
+			if toCommitEntryId > req.Entry.EntryId {
+				toCommitEntryId = req.Entry.EntryId
+				toCommitChecksumMd5 = req.Entry.ChecksumMd5
+			}
+			cli, err := w.c.ForStream(w.streamURI)
+			if err != nil {
+				return false, err
+			}
+			now := time.Now()
+			_, err = cli.PutEntry(ctx, &walleapi.PutEntryRequest{
+				StreamUri:         w.streamURI,
+				Entry:             req.Entry,
+				CommittedEntryId:  toCommitEntryId,
+				CommittedEntryMd5: toCommitChecksumMd5,
+			})
+			if err == nil {
+				w.updateCommittedEntryId(
+					now, toCommitEntryId, toCommitChecksumMd5, req.Entry)
+				return true, nil
+			}
+
+			errStatus, _ := status.FromError(err)
+			if err == context.Canceled ||
+				errStatus.Code() == codes.Canceled ||
+				errStatus.Code() == codes.FailedPrecondition {
+				return true, err
+			}
+			return false, err
+		})
+	if err != nil {
+		w.rootCancel() // handle unrecoverable error
+	}
+	req.ErrC <- err
 }
 
 func (w *Writer) PutEntry(data []byte) (*walleapi.Entry, <-chan error) {
@@ -181,64 +262,14 @@ func (w *Writer) PutEntry(data []byte) (*walleapi.Entry, <-chan error) {
 	}
 	entry.ChecksumMd5 = CalculateChecksumMd5(w.lastEntry.ChecksumMd5, data)
 	w.lastEntry = entry
-	go func() {
-		err := KeepTryingWithBackoff(
-			w.rootCtx, 10*time.Millisecond, w.writerLease,
-			func(retryN uint) (bool, error) {
-				var toCommit *walleapi.Entry
-				var notify <-chan struct{}
-				for {
-					_, _, _, toCommit, notify = w.safeCommittedEntryId()
-					if entry.EntryId <= toCommit.EntryId+putEntryMaxInFlight {
-						break
-					}
-					select {
-					case <-w.rootCtx.Done():
-						return true, w.rootCtx.Err()
-					case <-notify:
-					}
-				}
-				toCommitEntryId := toCommit.EntryId
-				toCommitChecksumMd5 := toCommit.ChecksumMd5
-				if toCommitEntryId > entry.EntryId {
-					toCommitEntryId = entry.EntryId
-					toCommitChecksumMd5 = entry.ChecksumMd5
-				}
-				cli, err := w.c.ForStream(w.streamURI)
-				if err != nil {
-					return false, err
-				}
-				now := time.Now()
-				_, err = cli.PutEntry(w.rootCtx, &walleapi.PutEntryRequest{
-					StreamUri:         w.streamURI,
-					Entry:             entry,
-					CommittedEntryId:  toCommitEntryId,
-					CommittedEntryMd5: toCommitChecksumMd5,
-				})
-				if err == nil {
-					w.updateCommittedEntryId(
-						now, toCommitEntryId, toCommitChecksumMd5, entry)
-					return true, nil
-				}
-
-				errStatus, _ := status.FromError(err)
-				if err == context.Canceled ||
-					errStatus.Code() == codes.Canceled ||
-					errStatus.Code() == codes.FailedPrecondition {
-					w.rootCancel() // If there is an unrecoverable error, close the writer.
-					return true, err
-				}
-				return false, err
-			})
-		r <- err
-	}()
+	w.reqQ <- &writerReq{ErrC: r, Entry: entry}
 	return entry, r
 }
 
-func (w *Writer) safeCommittedEntryId() (time.Time, int64, []byte, *walleapi.Entry, <-chan struct{}) {
+func (w *Writer) safeCommittedEntryId() (time.Time, int64, []byte, *walleapi.Entry) {
 	w.committedEntryMx.Lock()
 	defer w.committedEntryMx.Unlock()
-	return w.commitTime, w.committedEntryId, w.committedEntryMd5, w.toCommit, w.toCommitNotify
+	return w.commitTime, w.committedEntryId, w.committedEntryMd5, w.toCommit
 }
 
 func (w *Writer) updateCommittedEntryId(
@@ -254,8 +285,6 @@ func (w *Writer) updateCommittedEntryId(
 	}
 	if toCommit.EntryId > w.toCommit.EntryId {
 		w.toCommit = toCommit
-		close(w.toCommitNotify)
-		w.toCommitNotify = make(chan struct{})
 	}
 }
 
