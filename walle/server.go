@@ -126,6 +126,8 @@ func (s *Server) PutEntryInternal(
 				return nil, status.Errorf(codes.OutOfRange, "commit entryId: %d - %s", req.CommittedEntryId, err)
 			}
 			zlog.Infof("[%s] commit caught up to: %d (might have created a gap)", ss.StreamURI(), req.CommittedEntryId)
+			// It is important to still wait for <-okC, which will guarantee that storage is FlushSync-ed with
+			// CommittedEntryId marked as committed.
 			select {
 			case <-ctx.Done():
 				return nil, ctx.Err()
