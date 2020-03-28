@@ -3,48 +3,74 @@ package walle
 import (
 	"context"
 	"testing"
-	"time"
 
-	"github.com/stretchr/testify/require"
+	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/wallelib"
-	"github.com/zviadm/zlog"
 )
 
-func TestPutEntryPipelining(t *testing.T) {
+var topo1Node = &walleapi.Topology{
+	Streams: map[string]*walleapi.StreamTopology{
+		"/mock/1": &walleapi.StreamTopology{
+			Version:   3,
+			ServerIds: []string{"\x00\x01"},
+		},
+	},
+	Servers: map[string]*walleapi.ServerInfo{
+		"\x00\x01": &walleapi.ServerInfo{Address: "localhost1:1001"},
+	},
+}
+
+func BenchmarkPutEntrySerial(b *testing.B) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	_, c := newMockSystem(ctx, topoSimple, TestTmpDir())
+	_, c := newMockSystem(ctx, topo1Node, TestTmpDir())
 
 	w, _, err := wallelib.WaitAndClaim(ctx, c, "/mock/1", "testhost:1001", wallelib.LeaseMinimum)
-	require.NoError(t, err)
+	if err != nil {
+		b.Fatal(err)
+	}
 	defer w.Close(false)
 
-	nBatch := 50
-	t0 := time.Now()
-	for i := 0; i < nBatch; i++ {
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
 		_, errC := w.PutEntry([]byte("testingoooo"))
-		select {
-		case err := <-errC:
-			require.NoError(t, err)
-		case <-time.After(500 * time.Millisecond):
-			require.FailNow(t, "putEntry timedout, exiting!")
+		err := <-errC
+		if err != nil {
+			b.Fatal(err)
 		}
 	}
-	zlog.Infof("putting entries: %d, delta: %s", nBatch, time.Now().Sub(t0))
+}
 
-	t0 = time.Now()
-	var errCs []<-chan error
-	for i := 0; i < nBatch; i++ {
+func BenchmarkPutEntryPipeline(b *testing.B) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	_, c := newMockSystem(ctx, topo1Node, TestTmpDir())
+
+	w, _, err := wallelib.WaitAndClaim(ctx, c, "/mock/1", "testhost:1001", wallelib.LeaseMinimum)
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer w.Close(false)
+
+	b.ResetTimer()
+	errCs := make([]<-chan error, streamPipelineQ/2)
+	for i := 0; i < b.N; i++ {
 		_, errC := w.PutEntry([]byte("testingoooo"))
-		errCs = append(errCs, errC)
+		if i >= len(errCs) {
+			err := <-errCs[i%len(errCs)]
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+		errCs[i%len(errCs)] = errC
 	}
 	for _, errC := range errCs {
-		select {
-		case err := <-errC:
-			require.NoError(t, err)
-		case <-time.After(500 * time.Millisecond):
-			require.FailNow(t, "putEntry timedout, exiting!")
+		if errC == nil {
+			continue
+		}
+		err := <-errC
+		if err != nil {
+			b.Fatal(err)
 		}
 	}
-	zlog.Infof("putting entries: %d, delta: %s", nBatch, time.Now().Sub(t0))
 }

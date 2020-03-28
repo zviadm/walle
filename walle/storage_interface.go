@@ -17,16 +17,27 @@ type Storage interface {
 	NewStream(streamURI string, topology *walleapi.StreamTopology) StreamStorage
 	//RemoveStream(streamURI string)
 
+	// Forces Flushes
+	FlushSync()
+
 	Close()
 }
 
 // StreamStorage is expected to be thread-safe.
+// Note that StreamMetadata calls are all synced automatically in the transaction log,
+// however StreamStorage calls aren't and require explicit call to FlushSync method to
+// guarantee durability.
 type StreamStorage interface {
 	StreamMetadata
+
+	CommittedEntryIds() (noGapCommittedId int64, committedId int64, notify <-chan struct{})
+	TailEntryId() (entryId int64, notify <-chan struct{})
 	// Returns last committed entry and all the following not-yet committed entries.
 	LastEntries() []*walleapi.Entry
 	// Returns cursor to read committed entries starting at entryId.
 	ReadFrom(entryId int64) StreamCursor
+
+	UpdateNoGapCommittedId(entryId int64)
 	CommitEntry(entryId int64, entryMd5 []byte) (success bool)
 	PutEntry(entry *walleapi.Entry, isCommitted bool) (success bool)
 }
@@ -44,9 +55,6 @@ type StreamMetadata interface {
 	// Update call is expected to have an internal check to make sure toplogy version never decreases.
 	UpdateTopology(topology *walleapi.StreamTopology)
 	IsLocal() bool
-
-	CommittedEntryIds() (noGapCommittedId int64, committedId int64, notify <-chan struct{})
-	UpdateNoGapCommittedId(entryId int64)
 }
 
 // StreamCursor can be used to read entries from StreamStorage. It is safe to call Close() on

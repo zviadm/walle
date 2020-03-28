@@ -30,6 +30,7 @@ func rootDirForPkg(pkg string) (string, string, error) {
 
 func main() {
 	runFlag := flag.String("run", "", "regexp")
+	benchFlag := flag.String("bench", "", "regexp")
 	countFlag := flag.String("count", "", "number of times to run tests")
 	vFlag := flag.Bool("v", false, "verbose output")
 	flag.Parse()
@@ -81,6 +82,9 @@ func main() {
 	}
 	if *runFlag != "" {
 		args = append(args, "-run", *runFlag)
+	}
+	if *benchFlag != "" {
+		args = append(args, "-bench", *benchFlag)
 	}
 	if *countFlag != "" {
 		args = append(args, "-count", *countFlag)

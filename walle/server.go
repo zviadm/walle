@@ -19,7 +19,8 @@ type Server struct {
 	s       Storage
 	c       Client
 
-	topoMgr *topomgr.Manager
+	pipeline *storagePipeline
+	topoMgr  *topomgr.Manager
 }
 
 type Client interface {
@@ -34,9 +35,10 @@ func NewServer(
 	d wallelib.Discovery,
 	topoMgr *topomgr.Manager) *Server {
 	r := &Server{
-		rootCtx: ctx,
-		s:       s,
-		c:       c,
+		rootCtx:  ctx,
+		s:        s,
+		c:        c,
+		pipeline: newStoragePipeline(ctx, s.FlushSync),
 	}
 
 	r.watchTopology(ctx, d, topoMgr)
@@ -102,28 +104,51 @@ func (s *Server) PutEntryInternal(
 	if err := s.checkAndUpdateWriterId(ctx, ss, WriterId(req.Entry.WriterId)); err != nil {
 		return nil, err
 	}
+
+	p := s.pipeline.ForStream(ss)
 	if req.Entry.EntryId == 0 || req.Entry.EntryId > req.CommittedEntryId {
 		// Perform commit first. If commit can't happen, there is no point in trying to perform the put.
-		ok := ss.CommitEntry(req.CommittedEntryId, req.CommittedEntryMd5)
-		if !ok {
+		okC := p.Queue(&walle_pb.PutEntryInternalRequest{
+			CommittedEntryId:  req.CommittedEntryId,
+			CommittedEntryMd5: req.CommittedEntryMd5,
+		})
+		var ok bool
+		select {
+		case ok = <-okC:
+			if !ok {
+				return nil, status.Errorf(codes.OutOfRange, "commit entryId: %d", req.CommittedEntryId)
+			}
+		case <-time.After(100 * time.Millisecond):
 			// Try to fetch the committed entry from other servers and create a GAP locally to continue with
 			// the put.
-			// TODO(zviad): Should we first wait/retry CommitEntry? Maybe PutEntry calls are on the way already.
 			err := s.fetchAndStoreEntries(ctx, ss, req.CommittedEntryId, req.CommittedEntryId+1, nil)
 			if err != nil {
 				return nil, status.Errorf(codes.OutOfRange, "commit entryId: %d - %s", req.CommittedEntryId, err)
 			}
 			zlog.Infof("[%s] commit caught up to: %d (might have created a gap)", ss.StreamURI(), req.CommittedEntryId)
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case ok = <-okC:
+				if !ok {
+					// This must never happen, since all entries were already fetched.
+					return nil, status.Errorf(codes.Internal, "pipeline bug? commit entryId: %d", req.CommittedEntryId)
+				}
+			}
 		}
 	}
 	if req.Entry.EntryId == 0 {
 		return &walle_pb.PutEntryInternalResponse{}, nil
 	}
-	isCommitted := req.CommittedEntryId >= req.Entry.EntryId
-	ok := ss.PutEntry(req.Entry, isCommitted)
-	// TODO(zviad): Should we wait a bit before letting client retry?
-	if !ok {
-		return nil, status.Errorf(codes.OutOfRange, "put entryId: %d, commitId: %d", req.Entry.EntryId, req.CommittedEntryId)
+
+	okC := p.Queue(req)
+	select {
+	case ok := <-okC:
+		if !ok {
+			return nil, status.Errorf(codes.OutOfRange, "put entryId: %d, commitId: %d", req.Entry.EntryId, req.CommittedEntryId)
+		}
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	}
 	return &walle_pb.PutEntryInternalResponse{}, nil
 }

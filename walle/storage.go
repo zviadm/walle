@@ -16,6 +16,7 @@ import (
 type storage struct {
 	serverId string
 	c        *wt.Connection
+	flushS   *wt.Session
 
 	mx      sync.Mutex
 	streams map[string]StreamStorage
@@ -34,9 +35,9 @@ func storageInitWithServerId(dbPath string, createIfNotExists bool, serverId str
 		}
 	}
 	cfg := &wt.ConnectionConfig{
-		Create:          wt.Bool(createIfNotExists),
-		Log:             "enabled,compressor=snappy",
-		TransactionSync: "enabled",
+		Create: wt.Bool(createIfNotExists),
+		Log:    "enabled,compressor=snappy",
+		//TransactionSync: "enabled",
 	}
 	c, err := wt.Open(dbPath, cfg)
 	if err != nil {
@@ -73,9 +74,12 @@ func storageInitWithServerId(dbPath string, createIfNotExists bool, serverId str
 		panicOnErr(
 			metaW.Insert([]byte(glbServerId), serverIdB))
 	}
+	flushS, err := c.OpenSession(nil)
+	panicOnErr(err)
 	r := &storage{
 		serverId: string(serverIdB),
 		c:        c,
+		flushS:   flushS,
 		streams:  make(map[string]StreamStorage),
 	}
 	if serverId != "" && serverId != r.serverId {
@@ -117,6 +121,12 @@ func (m *storage) Close() {
 
 func (m *storage) ServerId() string {
 	return m.serverId
+}
+
+func (m *storage) FlushSync() {
+	m.mx.Lock()
+	defer m.mx.Unlock()
+	panicOnErr(m.flushS.LogFlush(wt.SyncOn))
 }
 
 func (m *storage) Streams(localOnly bool) []string {
