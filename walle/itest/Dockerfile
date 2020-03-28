@@ -30,6 +30,7 @@ RUN cd wiredtiger \
 
 # Extra tools.
 RUN apt-get update && apt-get install -y --no-install-recommends \
+	iptables \
 	less \
 	silversearcher-ag
 

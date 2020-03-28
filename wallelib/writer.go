@@ -141,7 +141,7 @@ func (w *Writer) heartbeat() {
 			continue
 		}
 		err := KeepTryingWithBackoff(
-			w.rootCtx, w.longBeat, w.writerLease/2,
+			w.rootCtx, w.longBeat, w.writerLease,
 			func(retryN uint) (bool, error) {
 				cli, err := w.c.ForStream(w.streamURI)
 				if err != nil {
@@ -184,7 +184,7 @@ func (w *Writer) PutEntry(data []byte) (*walleapi.Entry, <-chan error) {
 		// ctx, cancel := context.WithCancel(w.rootCtx)
 		// defer cancel()
 		err := KeepTryingWithBackoff(
-			w.rootCtx, shortBeat, w.writerLease/2,
+			w.rootCtx, shortBeat, w.writerLease,
 			func(retryN uint) (bool, error) {
 				_, _, _, toCommit := w.safeCommittedEntryId()
 				toCommitEntryId := toCommit.EntryId

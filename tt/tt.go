@@ -71,6 +71,7 @@ func main() {
 		"-w", "/root/src",
 		"--memory", "1gb",
 		"--memory-swap", "1gb",
+		"--cap-add", "NET_ADMIN",
 		"walle:latest", // TODO(zviad): control with a cfg/flag
 		"/root/go1.14/bin/go",
 		"test", "-p", "1", "-failfast",
