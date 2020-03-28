@@ -22,37 +22,10 @@ func NewClient(c wallelib.BasicClient) topomgr.TopoManagerClient {
 	return &client{c}
 }
 
-func (t *client) connect(
-	ctx context.Context,
-	topologyURI string) (*grpc.ClientConn, error) {
-	var conn *grpc.ClientConn
-	err := wallelib.KeepTryingWithBackoff(
-		ctx, wallelib.LeaseMinimum, time.Second,
-		func(retryN uint) (bool, error) {
-			cli, err := t.c.ForStream(topologyURI)
-			if err != nil {
-				return false, err
-			}
-			status, err := cli.WriterStatus(
-				ctx, &walleapi.WriterStatusRequest{StreamUri: topologyURI})
-			if err != nil {
-				return false, err
-			}
-			if status.RemainingLeaseMs <= 0 {
-				return false, errors.Errorf("no active manager for: %s", topologyURI)
-			}
-			ctx, cancel := context.WithTimeout(ctx, time.Second)
-			defer cancel()
-			conn, err = grpc.DialContext(ctx, status.WriterAddr, grpc.WithInsecure(), grpc.WithBlock())
-			return err == nil, err
-		})
-	return conn, err
-}
-
 func (t *client) connectAndDo(
 	ctx context.Context,
 	topologyURI string,
-	f func(c topomgr.TopoManagerClient) error) (err error) {
+	f func(ctx context.Context, c topomgr.TopoManagerClient) error) (err error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	return wallelib.KeepTryingWithBackoff(
@@ -70,14 +43,14 @@ func (t *client) connectAndDo(
 			if wStatus.RemainingLeaseMs <= 0 {
 				return false, errors.Errorf("no active manager for: %s", topologyURI)
 			}
-			ctx, cancel := context.WithTimeout(ctx, time.Second)
+			ctxConn, cancel := context.WithTimeout(ctx, time.Second)
 			defer cancel()
-			conn, err := grpc.DialContext(ctx, wStatus.WriterAddr, grpc.WithInsecure(), grpc.WithBlock())
+			conn, err := grpc.DialContext(ctxConn, wStatus.WriterAddr, grpc.WithInsecure(), grpc.WithBlock())
 			if err != nil {
 				return false, err
 			}
 			defer conn.Close()
-			err = f(topomgr.NewTopoManagerClient(conn))
+			err = f(ctx, topomgr.NewTopoManagerClient(conn))
 			errStatus, _ := status.FromError(err)
 			errFinal := errStatus.Code() == codes.OK || errStatus.Code() == codes.FailedPrecondition
 			return errFinal, err
@@ -87,7 +60,7 @@ func (t *client) connectAndDo(
 func (t *client) FetchTopology(
 	ctx context.Context, in *topomgr.FetchTopologyRequest, opts ...grpc.CallOption) (r *walleapi.Topology, err error) {
 	err = t.connectAndDo(ctx, in.TopologyUri,
-		func(c topomgr.TopoManagerClient) error {
+		func(ctx context.Context, c topomgr.TopoManagerClient) error {
 			r, err = c.FetchTopology(ctx, in, opts...)
 			return err
 		})
@@ -96,7 +69,7 @@ func (t *client) FetchTopology(
 func (t *client) UpdateServerInfo(
 	ctx context.Context, in *topomgr.UpdateServerInfoRequest, opts ...grpc.CallOption) (r *empty.Empty, err error) {
 	err = t.connectAndDo(ctx, in.TopologyUri,
-		func(c topomgr.TopoManagerClient) error {
+		func(ctx context.Context, c topomgr.TopoManagerClient) error {
 			r, err = c.UpdateServerInfo(ctx, in, opts...)
 			return err
 		})
@@ -105,7 +78,7 @@ func (t *client) UpdateServerInfo(
 func (t *client) UpdateServerIds(
 	ctx context.Context, in *topomgr.UpdateServerIdsRequest, opts ...grpc.CallOption) (r *topomgr.UpdateServerIdsResponse, err error) {
 	err = t.connectAndDo(ctx, in.TopologyUri,
-		func(c topomgr.TopoManagerClient) error {
+		func(ctx context.Context, c topomgr.TopoManagerClient) error {
 			r, err = c.UpdateServerIds(ctx, in, opts...)
 			return err
 		})

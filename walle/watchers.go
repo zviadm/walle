@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	writerTimeoutToResolve   = time.Second // TODO(zviad): should this be a flag?
+	writerTimeoutToResolve   = wallelib.LeaseMinimum // TODO(zviad): should this be a flag?
 	writerInternalAddrPrefix = "_internal:"
 )
 
@@ -94,7 +94,9 @@ func (s *Server) writerInfoWatcher(ctx context.Context) {
 				zlog.Warningf("[ww] err resolving %s: %s", streamURI, err)
 				continue
 			}
-			zlog.Infof("[ww] resolved stream %s @entry: %d", streamURI, resp.LastEntry.EntryId)
+			zlog.Infof(
+				"[ww] resolved stream %s @entry: %d, (prev: %s, %dms) ",
+				streamURI, resp.LastEntry.EntryId, wInfo.WriterAddr, wInfo.RemainingLeaseMs)
 		}
 	}
 }

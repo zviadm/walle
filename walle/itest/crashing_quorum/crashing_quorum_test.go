@@ -67,8 +67,10 @@ func TestCrashingQuorum(t *testing.T) {
 	defer cancel()
 	w, e, err := wallelib.WaitAndClaim(claimCtx, cli, "/t1/blast", "", wallelib.LeaseMinimum)
 	require.NoError(t, err)
-	defer w.Close(true)
+	defer w.Close()
 	require.EqualValues(t, 0, e.EntryId)
+
+	servicelib.IptablesBlockPort(t, itest.WalleDefaultPort)
 
 	nBatch := 50
 	t0 := time.Now()
@@ -77,23 +79,7 @@ func TestCrashingQuorum(t *testing.T) {
 		select {
 		case err := <-errC:
 			require.NoError(t, err)
-		case <-time.After(500 * time.Millisecond):
-			require.FailNow(t, "putEntry timedout, exiting!")
-		}
-	}
-	zlog.Infof("putting entries: %d, delta: %s", nBatch, time.Now().Sub(t0))
-
-	t0 = time.Now()
-	var errCs []<-chan error
-	for i := 0; i < nBatch; i++ {
-		_, errC := w.PutEntry([]byte("testingoooo"))
-		errCs = append(errCs, errC)
-	}
-	for _, errC := range errCs {
-		select {
-		case err := <-errC:
-			require.NoError(t, err)
-		case <-time.After(500 * time.Millisecond):
+		case <-time.After(30 * time.Second):
 			require.FailNow(t, "putEntry timedout, exiting!")
 		}
 	}

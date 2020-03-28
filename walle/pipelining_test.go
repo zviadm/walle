@@ -29,7 +29,7 @@ func BenchmarkPutEntrySerial(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer w.Close(false)
+	defer w.Close()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -50,7 +50,7 @@ func BenchmarkPutEntryPipeline(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer w.Close(false)
+	defer w.Close()
 
 	b.ResetTimer()
 	errCs := make([]<-chan error, b.N)

@@ -3,10 +3,12 @@ package wallelib
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/keepalive"
 
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
@@ -130,7 +132,13 @@ func (c *client) unsafeServerConn(serverId string) (*grpc.ClientConn, error) {
 		return nil, errors.Errorf("serverId: %s, not found in topology", serverId)
 	}
 	// TODO(zviad): Decide what to do about security...
-	conn, err := grpc.Dial(serverInfo.Address, grpc.WithInsecure()) // Non-Blocking Dial.
+	conn, err := grpc.Dial(
+		serverInfo.Address,
+		grpc.WithInsecure(),
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:    10 * time.Second,
+			Timeout: 10 * time.Second,
+		}))
 	if err != nil {
 		return nil, err
 	}

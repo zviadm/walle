@@ -35,7 +35,7 @@ func TestProtocolClaimWriter(t *testing.T) {
 
 	w, _, err := wallelib.WaitAndClaim(ctx, c, "/mock/1", "testhost:1001", wallelib.LeaseMinimum)
 	require.NoError(t, err)
-	defer w.Close(false)
+	defer w.Close()
 
 	writerStatus, err := c.WriterStatus(ctx, &walleapi.WriterStatusRequest{StreamUri: "/mock/1"})
 	require.NoError(t, err)
@@ -69,16 +69,16 @@ func TestProtocolClaimWriter(t *testing.T) {
 	require.Equal(t, wallelib.Exclusive, state)
 
 	// Make sure clean writer transition works.
-	w2, _, err := wallelib.ClaimWriter(ctx, c, "/mock/1", "testhost:1001", wallelib.LeaseMinimum)
+	w2, _, err := wallelib.ClaimWriter(ctx, c, "/mock/1", "testhost:1002", wallelib.LeaseMinimum)
 	require.NoError(t, err)
-	defer w2.Close(false)
+	defer w2.Close()
 	state, _ = w.WriterState()
 	require.NotEqual(t, wallelib.Exclusive, state)
 	state2, _ := w2.WriterState()
 	require.Equal(t, wallelib.Exclusive, state2)
 
-	w2.Close(false)
-	time.Sleep(2 * writerTimeoutToResolve)
+	w2.Close()
+	time.Sleep(wallelib.LeaseMinimum*2 + writerTimeoutToResolve)
 	writerStatus, err = c.WriterStatus(ctx, &walleapi.WriterStatusRequest{StreamUri: "/mock/1"})
 	require.NoError(t, err)
 	require.True(t, strings.HasPrefix(writerStatus.WriterAddr, "_internal:"), "writerStatus: %s", writerStatus)
@@ -88,7 +88,7 @@ func TestProtocolClaimWriter(t *testing.T) {
 }
 
 func TestProtocolClaimBarrage(t *testing.T) {
-	nClaims := 10
+	nClaims := 30
 	lease := wallelib.LeaseMinimum
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(nClaims)*2*time.Second)
@@ -106,13 +106,13 @@ func TestProtocolClaimBarrage(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				defer w.Close(true)
-				_, errC := w.PutEntry([]byte(strconv.Itoa(idx)))
+				defer w.Close()
+				putEntry, errC := w.PutEntry([]byte(strconv.Itoa(idx)))
 				err = <-errC
 				if err != nil {
 					continue // This can happen if WaitAndClaim races.
 				}
-				zlog.Info("successful claim ", addr, " ", entry.EntryId)
+				zlog.Info("successful claim ", addr, " read: ", entry.EntryId, " put: ", putEntry.EntryId)
 				entries <- entry
 				return nil
 			}
@@ -135,7 +135,7 @@ func TestProtocolGapRecovery(t *testing.T) {
 
 	w, _, err := wallelib.WaitAndClaim(ctx, c, "/mock/1", "testhost:1001", wallelib.LeaseMinimum)
 	require.NoError(t, err)
-	defer w.Close(false)
+	defer w.Close()
 
 	ee, errC := w.PutEntry([]byte("d1"))
 	require.EqualValues(t, ee.EntryId, 1, "ee: %s", ee)

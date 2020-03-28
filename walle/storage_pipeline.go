@@ -4,13 +4,13 @@ import (
 	"container/heap"
 	"context"
 	"sync"
+	"time"
 
 	walle_pb "github.com/zviadm/walle/proto/walle"
 )
 
 const (
-	storageFlushQ   = 8192
-	streamPipelineQ = 256
+	storageFlushQ = 8192
 )
 
 // storagePipeline provides queue like abstraction to stream line
@@ -45,6 +45,12 @@ func (s *storagePipeline) ForStream(ss StreamStorage) *streamPipeline {
 		s.p[ss.StreamURI()] = p
 	}
 	return p
+}
+
+func (s *storagePipeline) FlushSync() {
+	c := make(chan bool, 1)
+	s.flushQ <- c
+	<-c
 }
 
 func (s *storagePipeline) flusher(ctx context.Context) {
@@ -126,10 +132,9 @@ func newStreamPipeline(
 func (p *streamPipeline) Process(ctx context.Context) {
 	var maxId int64
 	for {
-		var head *walle_pb.PutEntryInternalRequest
-		var queueNotify <-chan struct{}
+	WaitLoop:
 		for {
-			head, queueNotify = p.peek()
+			head, queueNotify := p.peek()
 			if head == nil {
 				select {
 				case <-ctx.Done():
@@ -153,6 +158,8 @@ func (p *streamPipeline) Process(ctx context.Context) {
 				return
 			case <-tailNotify:
 			case <-queueNotify:
+			case <-time.After(10 * time.Millisecond): // TODO(zviad): timeout constant
+				break WaitLoop
 			}
 		}
 		req := p.pop()
@@ -185,12 +192,6 @@ func (p *streamPipeline) Queue(r *walle_pb.PutEntryInternalRequest) <-chan bool 
 	if p.q.Peek() == req {
 		close(p.qNotify)
 		p.qNotify = make(chan struct{})
-	}
-	for p.q.Len() >= streamPipelineQ {
-		// If there are too many entries in the queue, start rejecting older ones. Since
-		// this is most likely due to misbehaving client, no effort is put to reject actual
-		// oldest one, just rejecting old enough entries.
-		p.q.Pop().(*pipelineReq).okC <- false
 	}
 	return req.okC
 }

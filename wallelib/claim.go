@@ -22,6 +22,9 @@ func ClaimWriter(
 	if err != nil {
 		return nil, nil, err
 	}
+	// TODO(zviad): if previous writer has much larger lease, this will timeout.
+	ctx, cancel := context.WithTimeout(ctx, writerLease*3)
+	defer cancel()
 	resp, err := cli.ClaimWriter(
 		ctx, &walleapi.ClaimWriterRequest{
 			StreamUri:  streamURI,
@@ -56,11 +59,7 @@ func WaitAndClaim(
 	streamURI string,
 	writerAddr string,
 	writerLease time.Duration) (w *Writer, e *walleapi.Entry, err error) {
-	retryDelay := writerLease / 10
-	if time.Second > retryDelay {
-		retryDelay = time.Second
-	}
-	err = KeepTryingWithBackoff(ctx, retryDelay, retryDelay,
+	err = KeepTryingWithBackoff(ctx, writerLease/2, writerLease/2,
 		func(retryN uint) (bool, error) {
 			s, err := c.ForStream(streamURI)
 			if err != nil {
@@ -68,7 +67,10 @@ func WaitAndClaim(
 			}
 			var status *walleapi.WriterStatusResponse
 			for {
-				status, err = s.WriterStatus(ctx, &walleapi.WriterStatusRequest{StreamUri: streamURI})
+				statusCtx, cancel := context.WithTimeout(ctx, writerLease)
+				status, err = s.WriterStatus(
+					statusCtx, &walleapi.WriterStatusRequest{StreamUri: streamURI})
+				cancel()
 				if err != nil {
 					return false, err
 				}
@@ -76,7 +78,7 @@ func WaitAndClaim(
 					break
 				}
 				sleepTime := time.Duration(status.RemainingLeaseMs)*time.Millisecond +
-					time.Duration(rand.Int63n(int64(retryDelay/100)))
+					time.Duration(rand.Int63n(int64(writerLease/4)))
 				select {
 				case <-ctx.Done():
 					return true, ctx.Err()

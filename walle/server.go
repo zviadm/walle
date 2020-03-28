@@ -101,9 +101,12 @@ func (s *Server) PutEntryInternal(
 	if err != nil {
 		return nil, err
 	}
-	if err := s.checkAndUpdateWriterId(ctx, ss, WriterId(req.Entry.WriterId)); err != nil {
+	writerId := WriterId(req.Entry.WriterId)
+	if err := s.checkAndUpdateWriterId(ctx, ss, writerId); err != nil {
 		return nil, err
 	}
+	ss.RenewLease(writerId)
+	// defer ss.RenewLease(writerId)
 
 	p := s.pipeline.ForStream(ss)
 	if req.Entry.EntryId == 0 || req.Entry.EntryId > req.CommittedEntryId {
@@ -112,29 +115,23 @@ func (s *Server) PutEntryInternal(
 			CommittedEntryId:  req.CommittedEntryId,
 			CommittedEntryMd5: req.CommittedEntryMd5,
 		})
-		var ok bool
 		select {
-		case ok = <-okC:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case ok := <-okC:
 			if !ok {
-				return nil, status.Errorf(codes.OutOfRange, "commit entryId: %d", req.CommittedEntryId)
-			}
-		case <-time.After(100 * time.Millisecond):
-			// Try to fetch the committed entry from other servers and create a GAP locally to continue with
-			// the put.
-			err := s.fetchAndStoreEntries(ctx, ss, req.CommittedEntryId, req.CommittedEntryId+1, nil)
-			if err != nil {
-				return nil, status.Errorf(codes.OutOfRange, "commit entryId: %d - %s", req.CommittedEntryId, err)
-			}
-			zlog.Infof("[%s] commit caught up to: %d (might have created a gap)", ss.StreamURI(), req.CommittedEntryId)
-			// It is important to still wait for <-okC, which will guarantee that storage is FlushSync-ed with
-			// CommittedEntryId marked as committed.
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case ok = <-okC:
-				if !ok {
-					// This must never happen, since all entries were already fetched.
-					return nil, status.Errorf(codes.Internal, "pipeline bug? commit entryId: %d", req.CommittedEntryId)
+				// Try to fetch the committed entry from other servers and create a GAP locally to continue with
+				// the put.
+				err := s.fetchAndStoreEntries(ctx, ss, req.CommittedEntryId, req.CommittedEntryId+1, nil)
+				if err != nil {
+					return nil, status.Errorf(codes.OutOfRange, "commit entryId: %d - %s", req.CommittedEntryId, err)
+				}
+				zlog.Infof("[%s] commit caught up to: %d (might have created a gap)", ss.StreamURI(), req.CommittedEntryId)
+
+				if req.Entry.EntryId == 0 {
+					// Manually call flush, if there won't be any PutEntry calls that would have
+					// done the flushing.
+					s.pipeline.FlushSync()
 				}
 			}
 		}
@@ -145,14 +142,14 @@ func (s *Server) PutEntryInternal(
 
 	okC := p.Queue(req)
 	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	case ok := <-okC:
 		if !ok {
 			return nil, status.Errorf(codes.OutOfRange, "put entryId: %d, commitId: %d", req.Entry.EntryId, req.CommittedEntryId)
 		}
-	case <-ctx.Done():
-		return nil, ctx.Err()
+		return &walle_pb.PutEntryInternalResponse{}, nil
 	}
-	return &walle_pb.PutEntryInternalResponse{}, nil
 }
 
 func (s *Server) LastEntries(
@@ -228,13 +225,13 @@ func (s *Server) checkStreamVersion(ss StreamMetadata, reqStreamVersion int64) e
 // to get updated information from other servers because this server must have missed the NewWriter call.
 func (s *Server) checkAndUpdateWriterId(ctx context.Context, ss StreamMetadata, writerId WriterId) error {
 	for {
-		ssWriterId, _, _, _ := ss.WriterInfo()
+		ssWriterId, writerAddr, _, _ := ss.WriterInfo()
 		if writerId == ssWriterId {
-			ss.RenewLease(writerId)
 			return nil
 		}
 		if writerId < ssWriterId {
-			return status.Errorf(codes.FailedPrecondition, "writer no longer active: %s < %s", writerId, ssWriterId)
+			return status.Errorf(
+				codes.FailedPrecondition, "writer no longer active: %s - %s < %s", writerAddr, writerId, ssWriterId)
 		}
 		resp, err := s.broadcastWriterInfo(ctx, ss)
 		if err != nil {

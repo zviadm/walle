@@ -113,7 +113,7 @@ func (m *Manager) StopManaging(topologyURI string) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	if w := m.perTopo[topologyURI].writer; w != nil {
-		w.Close(true)
+		w.Close()
 	}
 	delete(m.perTopo, topologyURI)
 }

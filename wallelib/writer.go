@@ -7,13 +7,14 @@ import (
 	"time"
 
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/zlog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 const (
 	shortBeat       = time.Millisecond
-	LeaseMinimum    = 100 * shortBeat
+	LeaseMinimum    = 100 * time.Millisecond
 	maxInFlightPuts = 128
 )
 
@@ -95,25 +96,16 @@ func newWriter(
 
 // Permanently closes writer and all outstanding PutEntry calls with it.
 // This call is thread safe and can be called at any time.
-func (w *Writer) Close(tryFlush bool) {
-	defer w.rootCancel()
-	if !tryFlush {
+func (w *Writer) Close() {
+	w.rootCancel()
+}
+
+func (w *Writer) cancelWithErr(err error) {
+	if w.rootCtx.Err() != nil {
 		return
 	}
-	_, committedEntryId, _, toCommit := w.safeCommittedEntryId()
-	if toCommit.EntryId <= committedEntryId {
-		return
-	}
-	cli, err := w.c.ForStream(w.streamURI)
-	if err != nil {
-		return
-	}
-	_, _ = cli.PutEntry(w.rootCtx, &walleapi.PutEntryRequest{
-		StreamUri:         w.streamURI,
-		Entry:             &walleapi.Entry{WriterId: w.writerId},
-		CommittedEntryId:  toCommit.EntryId,
-		CommittedEntryMd5: toCommit.ChecksumMd5,
-	})
+	w.Close()
+	zlog.Warningf("writer:%s closed due to unrecoverable err: %s", w.writerAddr, err)
 }
 
 // Returns True, if at the time of the IsWriter call, this writer is still guaranteed
@@ -179,13 +171,15 @@ func (w *Writer) heartbeater(ctx context.Context) {
 		now := time.Now()
 		_, _, _, toCommit := w.safeCommittedEntryId()
 		err := KeepTryingWithBackoff(
-			ctx, 10*time.Millisecond, w.writerLease,
+			ctx, w.longBeat, w.writerLease,
 			func(retryN uint) (bool, error) {
 				cli, err := w.c.ForStream(w.streamURI)
 				if err != nil {
 					return false, err
 				}
-				_, err = cli.PutEntry(ctx, &walleapi.PutEntryRequest{
+				putCtx, cancel := context.WithTimeout(ctx, w.longBeat)
+				defer cancel()
+				_, err = cli.PutEntry(putCtx, &walleapi.PutEntryRequest{
 					StreamUri:         w.streamURI,
 					Entry:             &walleapi.Entry{WriterId: w.writerId},
 					CommittedEntryId:  toCommit.EntryId,
@@ -193,18 +187,13 @@ func (w *Writer) heartbeater(ctx context.Context) {
 				})
 				if err != nil {
 					errStatus, _ := status.FromError(err)
-					if err == context.Canceled ||
-						errStatus.Code() == codes.Canceled ||
-						errStatus.Code() == codes.FailedPrecondition {
-						return true, err
-					}
-					return false, err
+					return errStatus.Code() == codes.FailedPrecondition, err
 				}
 				w.updateCommittedEntryId(now, toCommit.EntryId, toCommit.ChecksumMd5, toCommit)
 				return true, nil
 			})
 		if err != nil {
-			w.rootCancel() // handle unrecoverable error
+			w.cancelWithErr(err)
 			return
 		}
 	}
@@ -227,28 +216,24 @@ func (w *Writer) process(ctx context.Context, req *writerReq) {
 				return false, err
 			}
 			now := time.Now()
-			_, err = cli.PutEntry(ctx, &walleapi.PutEntryRequest{
+			putCtx, cancel := context.WithTimeout(ctx, w.writerLease)
+			defer cancel()
+			_, err = cli.PutEntry(putCtx, &walleapi.PutEntryRequest{
 				StreamUri:         w.streamURI,
 				Entry:             req.Entry,
 				CommittedEntryId:  toCommitEntryId,
 				CommittedEntryMd5: toCommitChecksumMd5,
 			})
-			if err == nil {
-				w.updateCommittedEntryId(
-					now, toCommitEntryId, toCommitChecksumMd5, req.Entry)
-				return true, nil
+			if err != nil {
+				errStatus, _ := status.FromError(err)
+				return errStatus.Code() == codes.FailedPrecondition, err
 			}
-
-			errStatus, _ := status.FromError(err)
-			if err == context.Canceled ||
-				errStatus.Code() == codes.Canceled ||
-				errStatus.Code() == codes.FailedPrecondition {
-				return true, err
-			}
-			return false, err
+			w.updateCommittedEntryId(
+				now, toCommitEntryId, toCommitChecksumMd5, req.Entry)
+			return true, nil
 		})
 	if err != nil {
-		w.rootCancel() // handle unrecoverable error
+		w.cancelWithErr(err)
 	}
 	req.ErrC <- err
 }

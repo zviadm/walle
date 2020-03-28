@@ -76,6 +76,9 @@ func (s *Server) ClaimWriter(
 	var maxWriterServerId string
 	var maxEntry *walleapi.Entry
 	for serverId, es := range entries {
+		if len(es) <= 1 {
+			continue
+		}
 		e := es[len(es)-1]
 		if maxEntry == nil || e.WriterId > maxEntry.WriterId ||
 			(e.WriterId == maxEntry.WriterId && e.EntryId > maxEntry.EntryId) {
@@ -83,10 +86,15 @@ func (s *Server) ClaimWriter(
 			maxEntry = e
 		}
 	}
-	if maxEntry == entries[maxWriterServerId][0] {
+	if maxEntry == nil {
 		// Entries are all fully committed. There is no need to reconcile anything,
 		// claiming writer can just succeed.
-		return &walleapi.ClaimWriterResponse{WriterId: writerId.Encode(), LastEntry: maxEntry}, nil
+		for _, es := range entries {
+			return &walleapi.ClaimWriterResponse{
+				WriterId:  writerId.Encode(),
+				LastEntry: es[0],
+			}, nil
+		}
 	}
 
 	maxEntry.WriterId = writerId.Encode()

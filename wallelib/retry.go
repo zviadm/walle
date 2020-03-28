@@ -16,6 +16,7 @@ func KeepTryingWithBackoff(
 	f func(retryN uint) (final bool, err error)) error {
 	backoffTime := minBackoff
 	for retryN := uint(0); ; retryN++ {
+		callTs := time.Now()
 		final, err := f(retryN)
 		if final || err == nil {
 			return err
@@ -34,7 +35,7 @@ func KeepTryingWithBackoff(
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(jitteredBackoffTime):
+		case <-time.After(callTs.Add(jitteredBackoffTime).Sub(time.Now())):
 		}
 	}
 }
