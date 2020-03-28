@@ -181,10 +181,8 @@ func (w *Writer) PutEntry(data []byte) (*walleapi.Entry, <-chan error) {
 	entry.ChecksumMd5 = CalculateChecksumMd5(w.lastEntry.ChecksumMd5, data)
 	w.lastEntry = entry
 	go func() {
-		// ctx, cancel := context.WithCancel(w.rootCtx)
-		// defer cancel()
 		err := KeepTryingWithBackoff(
-			w.rootCtx, shortBeat, w.writerLease,
+			w.rootCtx, 10*time.Millisecond, w.writerLease,
 			func(retryN uint) (bool, error) {
 				_, _, _, toCommit := w.safeCommittedEntryId()
 				toCommitEntryId := toCommit.EntryId
