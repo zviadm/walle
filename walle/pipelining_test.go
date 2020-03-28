@@ -53,21 +53,12 @@ func BenchmarkPutEntryPipeline(b *testing.B) {
 	defer w.Close(false)
 
 	b.ResetTimer()
-	errCs := make([]<-chan error, streamPipelineQ/2)
+	errCs := make([]<-chan error, b.N)
 	for i := 0; i < b.N; i++ {
 		_, errC := w.PutEntry([]byte("testingoooo"))
-		if i >= len(errCs) {
-			err := <-errCs[i%len(errCs)]
-			if err != nil {
-				b.Fatal(err)
-			}
-		}
-		errCs[i%len(errCs)] = errC
+		errCs[i] = errC
 	}
 	for _, errC := range errCs {
-		if errC == nil {
-			continue
-		}
 		err := <-errC
 		if err != nil {
 			b.Fatal(err)

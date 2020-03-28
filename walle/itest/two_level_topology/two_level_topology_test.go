@@ -47,7 +47,7 @@ func TestTwoLevelTopology(t *testing.T) {
 	for i := 0; i < nT1; i++ {
 		sT1 := itest.RunWalle(
 			t, ctx, rootURI, topologyT1URI, rootTopology, walle.TestTmpDir(), itest.WalleDefaultPort+i+1)
-		defer sT1.Stop(t)
+		defer sT1.Kill(t)
 	}
 
 	topology, err = topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: topologyT1URI})
@@ -65,5 +65,4 @@ func TestTwoLevelTopology(t *testing.T) {
 		})
 		require.NoError(t, err)
 	}
-
 }

@@ -111,13 +111,17 @@ func (s *Service) IsDone() *os.ProcessState {
 	defer s.cv.L.Unlock()
 	return s.processState
 }
-func (s *Service) Wait(t *testing.T) {
+func (s *Service) wait() int {
 	s.cv.L.Lock()
 	defer s.cv.L.Unlock()
 	for s.processState == nil {
 		s.cv.Wait()
 	}
-	require.EqualValues(t, 0, s.processState.ExitCode())
+	return s.processState.ExitCode()
+}
+func (s *Service) Wait(t *testing.T) {
+	eCode := s.wait()
+	require.EqualValues(t, 0, eCode)
 }
 func (s *Service) Stop(t *testing.T) {
 	if s.IsDone() == nil {
@@ -125,6 +129,14 @@ func (s *Service) Stop(t *testing.T) {
 		require.NoError(t, err)
 	}
 	s.Wait(t)
+}
+func (s *Service) Kill(t *testing.T) {
+	if s.IsDone() != nil {
+		return
+	}
+	err := s.cmd.Process.Kill()
+	require.NoError(t, err)
+	_ = s.wait()
 }
 
 func (s *Service) waitForPort(ctx context.Context, port string) error {

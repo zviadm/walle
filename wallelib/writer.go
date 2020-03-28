@@ -12,8 +12,9 @@ import (
 )
 
 const (
-	shortBeat    = time.Millisecond
-	LeaseMinimum = 100 * shortBeat
+	shortBeat           = time.Millisecond
+	LeaseMinimum        = 100 * shortBeat
+	putEntryMaxInFlight = 1 << 8
 )
 
 type WriterState string
@@ -41,8 +42,7 @@ type Writer struct {
 	committedEntryId  int64
 	committedEntryMd5 []byte
 	toCommit          *walleapi.Entry
-	toCommitEntryId   int64
-	toCommitEntryMd5  []byte
+	toCommitNotify    chan struct{}
 	commitTime        time.Time
 
 	rootCtx    context.Context
@@ -70,6 +70,7 @@ func newWriter(
 		committedEntryId:  lastEntry.EntryId,
 		committedEntryMd5: lastEntry.ChecksumMd5,
 		toCommit:          lastEntry,
+		toCommitNotify:    make(chan struct{}),
 		commitTime:        commitTime,
 
 		rootCtx:    ctx,
@@ -86,7 +87,7 @@ func (w *Writer) Close(tryFlush bool) {
 	if !tryFlush {
 		return
 	}
-	_, committedEntryId, _, toCommit := w.safeCommittedEntryId()
+	_, committedEntryId, _, toCommit, _ := w.safeCommittedEntryId()
 	if toCommit.EntryId <= committedEntryId {
 		return
 	}
@@ -135,7 +136,7 @@ func (w *Writer) heartbeat() {
 		case <-time.After(shortBeat):
 		}
 		now := time.Now()
-		ts, committedEntryId, _, toCommit := w.safeCommittedEntryId()
+		ts, committedEntryId, _, toCommit, _ := w.safeCommittedEntryId()
 		if ts.Add(shortBeat).After(now) ||
 			(committedEntryId == toCommit.EntryId && ts.Add(w.longBeat).After(now)) {
 			continue
@@ -184,7 +185,19 @@ func (w *Writer) PutEntry(data []byte) (*walleapi.Entry, <-chan error) {
 		err := KeepTryingWithBackoff(
 			w.rootCtx, 10*time.Millisecond, w.writerLease,
 			func(retryN uint) (bool, error) {
-				_, _, _, toCommit := w.safeCommittedEntryId()
+				var toCommit *walleapi.Entry
+				var notify <-chan struct{}
+				for {
+					_, _, _, toCommit, notify = w.safeCommittedEntryId()
+					if entry.EntryId <= toCommit.EntryId+putEntryMaxInFlight {
+						break
+					}
+					select {
+					case <-w.rootCtx.Done():
+						return true, w.rootCtx.Err()
+					case <-notify:
+					}
+				}
 				toCommitEntryId := toCommit.EntryId
 				toCommitChecksumMd5 := toCommit.ChecksumMd5
 				if toCommitEntryId > entry.EntryId {
@@ -222,10 +235,10 @@ func (w *Writer) PutEntry(data []byte) (*walleapi.Entry, <-chan error) {
 	return entry, r
 }
 
-func (w *Writer) safeCommittedEntryId() (time.Time, int64, []byte, *walleapi.Entry) {
+func (w *Writer) safeCommittedEntryId() (time.Time, int64, []byte, *walleapi.Entry, <-chan struct{}) {
 	w.committedEntryMx.Lock()
 	defer w.committedEntryMx.Unlock()
-	return w.commitTime, w.committedEntryId, w.committedEntryMd5, w.toCommit
+	return w.commitTime, w.committedEntryId, w.committedEntryMd5, w.toCommit, w.toCommitNotify
 }
 
 func (w *Writer) updateCommittedEntryId(
@@ -241,6 +254,8 @@ func (w *Writer) updateCommittedEntryId(
 	}
 	if toCommit.EntryId > w.toCommit.EntryId {
 		w.toCommit = toCommit
+		close(w.toCommitNotify)
+		w.toCommitNotify = make(chan struct{})
 	}
 }
 
