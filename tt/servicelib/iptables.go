@@ -15,16 +15,22 @@ import (
 
 func IptablesBlockPort(t *testing.T, port int) {
 	zlog.Info("iptables: blocking port ", port)
-	err := exec.Command(
+	out, err := exec.Command(
 		"iptables", "-I", "INPUT",
 		"-p", "tcp", "--dport", strconv.Itoa(port),
-		"-i", "lo", "-j", "DROP").Run()
-	require.NoError(t, err)
+		"-i", "lo", "-j", "DROP").CombinedOutput()
+	require.NoError(t, err, string(out))
+	out, err = exec.Command(
+		"iptables", "-I", "OUTPUT",
+		"-p", "tcp", "--dport", strconv.Itoa(port),
+		"-j", "DROP").CombinedOutput()
+	require.NoError(t, err, string(out))
 }
 
 func IptablesUnblockPort(t *testing.T, port int) {
 	zlog.Info("iptables: unblocking port ", port)
-	err := exec.Command(
-		"iptables", "-D", "INPUT", "1").Run()
-	require.NoError(t, err)
+	out, err := exec.Command("iptables", "-D", "INPUT", "1").CombinedOutput()
+	require.NoError(t, err, string(out))
+	out, err = exec.Command("iptables", "-D", "OUTPUT", "1").CombinedOutput()
+	require.NoError(t, err, string(out))
 }

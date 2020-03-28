@@ -33,7 +33,7 @@ func (s *Server) ClaimWriter(
 	writerId := makeWriterId()
 	ssTopology := ss.Topology()
 	serverIds, err := s.broadcastRequest(ctx, ssTopology.ServerIds,
-		func(c walle_pb.WalleClient, serverId string) error {
+		func(c walle_pb.WalleClient, ctx context.Context, serverId string) error {
 			_, err := c.NewWriter(ctx, &walle_pb.NewWriterRequest{
 				ServerId:      serverId,
 				StreamUri:     req.StreamUri,
@@ -229,7 +229,7 @@ func (s *Server) broadcastWriterInfo(
 	var remainingMs []int64
 	var streamVersions []int64
 	_, err := s.broadcastRequest(ctx, ssTopology.ServerIds,
-		func(c walle_pb.WalleClient, serverId string) error {
+		func(c walle_pb.WalleClient, ctx context.Context, serverId string) error {
 			resp, err := c.WriterInfo(ctx, &walle_pb.WriterInfoRequest{
 				ServerId:      serverId,
 				StreamUri:     ss.StreamURI(),
@@ -247,6 +247,8 @@ func (s *Server) broadcastWriterInfo(
 	if err != nil {
 		return nil, err
 	}
+	respMx.Lock()
+	defer respMx.Unlock()
 	// Sort responses by (writerId, remainingLeaseMs) and choose one that majority is
 	// greather than or equal to.
 	sort.Slice(remainingMs, func(i, j int) bool { return remainingMs[i] < remainingMs[j] })
@@ -265,7 +267,7 @@ func (s *Server) PutEntry(
 	}
 	ssTopology := ss.Topology()
 	_, err := s.broadcastRequest(ctx, ssTopology.ServerIds,
-		func(c walle_pb.WalleClient, serverId string) error {
+		func(c walle_pb.WalleClient, ctx context.Context, serverId string) error {
 			_, err := c.PutEntryInternal(ctx, &walle_pb.PutEntryInternalRequest{
 				ServerId:          serverId,
 				StreamUri:         req.StreamUri,
@@ -350,37 +352,62 @@ func makeWriterId() WriterId {
 func (s *Server) broadcastRequest(
 	ctx context.Context,
 	serverIds []string,
-	call func(c walle_pb.WalleClient, serverId string) error) ([]string, error) {
-	var successIds []string
-	var errs []error
-	// TODO(zviad): needs to be done in parallel.
+	call func(
+		c walle_pb.WalleClient,
+		ctx context.Context,
+		serverId string) error) (successIds []string, err error) {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		deadline = time.Now().Add(time.Second) // what kind of timeout to use?
+	}
+	callCtx, cancel := context.WithDeadline(context.Background(), deadline)
+	defer func() {
+		if err != nil {
+			cancel()
+		}
+	}()
+	type callErr struct {
+		ServerId string
+		Err      error
+	}
+	errsC := make(chan *callErr, len(serverIds))
 	for _, serverId := range serverIds {
-		var c walle_pb.WalleClient
-		var err error
 		// TODO(zviad): if serverId == s.serverId ==> c should be self wrapped server.
-		c, err = s.c.ForServer(serverId)
+		c, err := s.c.ForServer(serverId)
 		if err != nil {
-			errs = append(errs, err)
+			errsC <- &callErr{ServerId: serverId, Err: err}
 			continue
 		}
-		err = call(c, serverId)
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-		successIds = append(successIds, serverId)
+		go func(c walle_pb.WalleClient, serverId string) {
+			err := call(c, callCtx, serverId)
+			errsC <- &callErr{ServerId: serverId, Err: err}
+		}(c, serverId)
 	}
-	if len(successIds) <= len(errs) {
-		var errCode codes.Code
-		for _, err := range errs {
-			errStatus, _ := status.FromError(err)
-			if errStatus.Code() == codes.FailedPrecondition {
-				errCode = codes.FailedPrecondition
-				break
+	var errCode codes.Code
+	var errs []error
+	for i := 0; i < len(serverIds); i++ {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case err := <-errsC:
+			if err.Err != nil {
+				errs = append(errs, err.Err)
+				errStatus, _ := status.FromError(err.Err)
+				if errStatus.Code() == codes.FailedPrecondition {
+					errCode = codes.FailedPrecondition
+				} else if errCode != codes.FailedPrecondition {
+					errCode = errStatus.Code()
+				}
+			} else {
+				successIds = append(successIds, err.ServerId)
 			}
-			errCode = errStatus.Code()
 		}
-		return nil, status.Errorf(errCode, "not enough success: %d <= %d, errs: %s", len(successIds), len(errs), errs)
+		if len(successIds) >= len(serverIds)/2+1 {
+			return successIds, nil
+		}
+		if len(errs) >= (len(serverIds)+1)/2 {
+			return nil, status.Errorf(errCode, "errs: %d / %d - %s", len(errs), len(serverIds), errs)
+		}
 	}
-	return successIds, nil
+	panic("unreachable code")
 }

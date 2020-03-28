@@ -12,6 +12,7 @@ import (
 	"github.com/zviadm/walle/walle/itest"
 	"github.com/zviadm/walle/walle/topomgr"
 	"github.com/zviadm/walle/wallelib"
+	"github.com/zviadm/zlog"
 )
 
 func TestCrashingQuorum(t *testing.T) {
@@ -62,28 +63,28 @@ func TestCrashingQuorum(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	servicelib.IptablesBlockPort(t, itest.WalleDefaultPort)
-	time.Sleep(30 * time.Second)
+	// servicelib.IptablesBlockPort(t, itest.WalleDefaultPort)
+	// time.Sleep(30 * time.Second)
 
-	// claimCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	// defer cancel()
-	// w, e, err := wallelib.WaitAndClaim(claimCtx, cli, "/t1/blast", "blastwriter:1001", time.Second)
-	// require.NoError(t, err)
-	// defer w.Close()
-	// require.EqualValues(t, 0, e.EntryId)
+	claimCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	w, e, err := wallelib.WaitAndClaim(claimCtx, cli, "/t1/blast", "blastwriter:1001", time.Second)
+	require.NoError(t, err)
+	defer w.Close()
+	require.EqualValues(t, 0, e.EntryId)
 
-	// nBatch := 50
-	// t0 := time.Now()
-	// for i := 0; i < nBatch; i++ {
-	// 	_, errC := w.PutEntry([]byte("testingoooo"))
-	// 	select {
-	// 	case err := <-errC:
-	// 		require.NoError(t, err)
-	// 	case <-time.After(30 * time.Second):
-	// 		require.FailNow(t, "putEntry timedout, exiting!")
-	// 	}
-	// }
-	// zlog.Infof("putting entries: %d, delta: %s", nBatch, time.Now().Sub(t0))
+	nBatch := 50
+	t0 := time.Now()
+	for i := 0; i < nBatch; i++ {
+		_, errC := w.PutEntry([]byte("testingoooo"))
+		select {
+		case err := <-errC:
+			require.NoError(t, err)
+		case <-time.After(time.Second):
+			require.FailNow(t, "putEntry timedout, exiting!")
+		}
+	}
+	zlog.Infof("putting entries: %d, delta: %s", nBatch, time.Now().Sub(t0))
 
 	// blastCtx, blastCancel := context.WithCancel(ctx)
 	// blastDone := make(chan struct{})
