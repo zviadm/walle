@@ -58,7 +58,7 @@ func expandTopology(
 	require.NoError(t, err)
 	serverId := serverIdsDiff(t, topology.Servers, topology.Streams[rootURI].ServerIds)
 	serverIds := append(topology.Streams[rootURI].ServerIds, serverId)
-	zlog.Info("--- expanding to: ", serverAddrs(topology.Servers, serverIds))
+	zlog.Info("TEST: --- expanding to: ", serverAddrs(topology.Servers, serverIds))
 	_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
 		TopologyUri: rootURI,
 		StreamUri:   rootURI,
@@ -95,7 +95,7 @@ func shrinkTopology(
 	require.NoError(t, err)
 
 	serverIds := topology.Streams[rootURI].ServerIds[1:]
-	zlog.Info("--- shrinking to: ", serverAddrs(topology.Servers, serverIds))
+	zlog.Info("TEST: --- shrinking to: ", serverAddrs(topology.Servers, serverIds))
 	_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
 		TopologyUri: rootURI,
 		StreamUri:   rootURI,

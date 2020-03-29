@@ -14,6 +14,7 @@ import (
 
 const (
 	writerTimeoutToResolve   = wallelib.LeaseMinimum // TODO(zviad): should this be a flag?
+	writerTimeoutToReResolve = 10 * writerTimeoutToResolve
 	writerInternalAddrPrefix = "_internal:"
 )
 
@@ -76,7 +77,11 @@ func (s *Server) writerInfoWatcher(ctx context.Context) {
 				continue
 			}
 			_, writerAddr, _, remainingLease := ss.WriterInfo()
-			if writerAddr == "" || remainingLease >= -writerTimeoutToResolve {
+			timeoutToResolve := writerTimeoutToResolve
+			if strings.HasPrefix(writerAddr, writerInternalAddrPrefix) {
+				timeoutToResolve = writerTimeoutToReResolve
+			}
+			if writerAddr == "" || remainingLease >= -timeoutToResolve {
 				continue // Quick shortcut, requiring no i/o for most common case.
 			}
 			wInfo, err := s.broadcastWriterInfo(ctx, ss)
@@ -84,7 +89,7 @@ func (s *Server) writerInfoWatcher(ctx context.Context) {
 				zlog.Warningf("[ww] err fetching writerInfo %s: %s", streamURI, err)
 				continue
 			}
-			if time.Duration(wInfo.RemainingLeaseMs)*time.Millisecond >= -writerTimeoutToResolve {
+			if time.Duration(wInfo.RemainingLeaseMs)*time.Millisecond >= -timeoutToResolve {
 				continue
 			}
 			writerAddr = writerInternalAddrPrefix + hex.EncodeToString([]byte(s.s.ServerId()))

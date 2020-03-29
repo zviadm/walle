@@ -7,8 +7,8 @@ import (
 
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/connectivity"
-	"google.golang.org/grpc/keepalive"
 
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
@@ -76,6 +76,12 @@ func (c *client) update(topology *walleapi.Topology) {
 	}
 }
 
+// TODO(zviad): This is just for debugging only.
+type wApiClient struct {
+	walleapi.WalleApiClient
+	Conn *grpc.ClientConn
+}
+
 func (c *client) ForStream(streamURI string) (walleapi.WalleApiClient, error) {
 	c.mx.Lock()
 	defer c.mx.Unlock()
@@ -83,14 +89,14 @@ func (c *client) ForStream(streamURI string) (walleapi.WalleApiClient, error) {
 	if !ok {
 		return nil, errors.Errorf("streamURI: %s, not found in topology", streamURI)
 	}
-	preferredMajority := (len(preferredIds) + 1) / 2
+	preferredMajority := len(preferredIds)/2 + 1
 	var oneErr error = ErrConnUnavailable
 	for idx := 0; idx < len(preferredIds); idx++ {
 		var serverId string
 		if idx < preferredMajority {
 			serverId = preferredIds[0]
-			copy(preferredIds, preferredIds[1:])
-			preferredIds[len(preferredIds)-1] = serverId
+			copy(preferredIds, preferredIds[1:preferredMajority])
+			preferredIds[preferredMajority-1] = serverId
 		} else {
 			serverId = preferredIds[idx]
 		}
@@ -103,7 +109,7 @@ func (c *client) ForStream(streamURI string) (walleapi.WalleApiClient, error) {
 		if conn.GetState() == connectivity.TransientFailure {
 			continue
 		}
-		return walleapi.NewWalleApiClient(conn), nil
+		return &wApiClient{walleapi.NewWalleApiClient(conn), conn}, nil
 	}
 	return nil, errors.Wrapf(
 		oneErr, "no server available for: %s", streamURI)
@@ -135,9 +141,15 @@ func (c *client) unsafeServerConn(serverId string) (*grpc.ClientConn, error) {
 	conn, err := grpc.Dial(
 		serverInfo.Address,
 		grpc.WithInsecure(),
-		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:    10 * time.Second,
-			Timeout: 10 * time.Second,
+		grpc.WithConnectParams(grpc.ConnectParams{
+			Backoff: backoff.Config{
+				// TODO(zviad): Make this configurable, for clients that might have
+				// very large lease minimums.
+				BaseDelay:  LeaseMinimum,
+				MaxDelay:   120 * time.Second,
+				Multiplier: 2,
+				Jitter:     0.2,
+			},
 		}))
 	if err != nil {
 		return nil, err

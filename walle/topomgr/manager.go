@@ -60,7 +60,6 @@ func (m *Manager) Manage(topologyURI string) {
 	}
 	go func() {
 		defer close(notifyDone)
-		defer zlog.Infof("[tm] stopping management: %s", topologyURI)
 		for {
 			w, e, err := wallelib.WaitAndClaim(ctx, m.c, topologyURI, m.addr, *flagManagerLease)
 			if err != nil {

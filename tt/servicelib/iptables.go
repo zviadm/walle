@@ -14,23 +14,16 @@ import (
 // Del rule: iptables -D INPUT 1
 
 func IptablesBlockPort(t *testing.T, port int) {
-	zlog.Info("iptables: blocking port ", port)
+	zlog.Info("TEST: iptables: blocking port ", port)
 	out, err := exec.Command(
 		"iptables", "-I", "INPUT",
 		"-p", "tcp", "--dport", strconv.Itoa(port),
 		"-i", "lo", "-j", "DROP").CombinedOutput()
 	require.NoError(t, err, string(out))
-	out, err = exec.Command(
-		"iptables", "-I", "OUTPUT",
-		"-p", "tcp", "--dport", strconv.Itoa(port),
-		"-j", "DROP").CombinedOutput()
-	require.NoError(t, err, string(out))
 }
 
 func IptablesUnblockPort(t *testing.T, port int) {
-	zlog.Info("iptables: unblocking port ", port)
+	zlog.Info("TEST: iptables: unblocking port ", port)
 	out, err := exec.Command("iptables", "-D", "INPUT", "1").CombinedOutput()
-	require.NoError(t, err, string(out))
-	out, err = exec.Command("iptables", "-D", "OUTPUT", "1").CombinedOutput()
 	require.NoError(t, err, string(out))
 }

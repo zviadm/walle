@@ -47,7 +47,7 @@ func (s *storagePipeline) ForStream(ss StreamStorage) *streamPipeline {
 	return p
 }
 
-func (s *storagePipeline) FlushSync() {
+func (s *storagePipeline) WaitForFlush() {
 	c := make(chan bool, 1)
 	s.flushQ <- c
 	<-c

@@ -63,28 +63,32 @@ func TestCrashingQuorum(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// servicelib.IptablesBlockPort(t, itest.WalleDefaultPort)
-	// time.Sleep(30 * time.Second)
+	servicelib.IptablesBlockPort(t, itest.WalleDefaultPort+1)
+	s[1].Kill(t)
+	zlog.Info("TEST: killed s[1] process")
 
-	claimCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	claimCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	w, e, err := wallelib.WaitAndClaim(claimCtx, cli, "/t1/blast", "blastwriter:1001", time.Second)
 	require.NoError(t, err)
 	defer w.Close()
 	require.EqualValues(t, 0, e.EntryId)
+	zlog.Info("TEST: writer claimed for /t1/blast")
+	//time.Sleep(30 * time.Second)
 
 	nBatch := 50
 	t0 := time.Now()
 	for i := 0; i < nBatch; i++ {
-		_, errC := w.PutEntry([]byte("testingoooo"))
+		e, errC := w.PutEntry([]byte("testingoooo"))
 		select {
 		case err := <-errC:
 			require.NoError(t, err)
-		case <-time.After(time.Second):
+		case <-time.After(3 * time.Second):
 			require.FailNow(t, "putEntry timedout, exiting!")
 		}
+		zlog.Info("TEST: putEntry ", e.EntryId)
 	}
-	zlog.Infof("putting entries: %d, delta: %s", nBatch, time.Now().Sub(t0))
+	zlog.Infof("TEST: putting entries: %d, delta: %s", nBatch, time.Now().Sub(t0))
 
 	// blastCtx, blastCancel := context.WithCancel(ctx)
 	// blastDone := make(chan struct{})

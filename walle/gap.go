@@ -28,6 +28,7 @@ func (s *Server) gapHandler(ctx context.Context) {
 			err := s.gapHandlerForStream(ctx, ss, noGapCommittedId, committedId)
 			if err != nil {
 				zlog.Warningf("[gh] err filling gap: %s %d -> %d, %s", ss.StreamURI(), noGapCommittedId, committedId, err)
+				continue
 			}
 			zlog.Infof("[gh] filled: %s %d -> %d", ss.StreamURI(), noGapCommittedId, committedId)
 		}
