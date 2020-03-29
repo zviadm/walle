@@ -76,7 +76,7 @@ func TestCrashingQuorum(t *testing.T) {
 	require.EqualValues(t, 0, e.EntryId)
 	zlog.Info("TEST: writer claimed for /t1/blast")
 
-	nBatch := 50
+	nBatch := 200
 	errCs := make([]<-chan error, nBatch)
 	for i := 0; i < nBatch; i++ {
 		_, errC := w.PutEntry([]byte("testingoooo"))

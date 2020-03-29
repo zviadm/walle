@@ -1,7 +1,7 @@
 package walle
 
 import (
-	"container/heap"
+	"bytes"
 	"context"
 	"sync"
 	"time"
@@ -10,7 +10,8 @@ import (
 )
 
 const (
-	storageFlushQ = 8192
+	storageFlushQ   = 8192
+	streamPipelineQ = 256
 )
 
 // storagePipeline provides queue like abstraction to stream line
@@ -97,22 +98,39 @@ type pipelineQueue struct {
 	v []*pipelineReq
 }
 
-func (q *pipelineQueue) Less(i, j int) bool {
-	return waitIdForRequest(q.v[i].R) < waitIdForRequest(q.v[j].R)
-}
-func (q *pipelineQueue) Len() int      { return len(q.v) }
-func (q *pipelineQueue) Swap(i, j int) { (q.v)[i], (q.v)[j] = (q.v)[j], (q.v)[i] }
-func (q *pipelineQueue) Push(x interface{}) {
-	q.v = append(q.v, x.(*pipelineReq))
-}
-func (q *pipelineQueue) Pop() interface{} {
-	r := q.v[q.Len()-1]
-	q.v[q.Len()-1] = nil
-	q.v = q.v[:q.Len()-1]
+func (q *pipelineQueue) Len() int { return len(q.v) }
+func (q *pipelineQueue) Pop() *pipelineReq {
+	r := q.v[0]
+	copy(q.v, q.v[1:])
+	q.v = q.v[:len(q.v)-1]
 	return r
 }
 func (q *pipelineQueue) Peek() *pipelineReq {
 	return q.v[0]
+}
+func (q *pipelineQueue) Push(req *pipelineReq) bool {
+	q.v = append(q.v, req)
+	waitId := waitIdForRequest(req.R)
+	for idx := len(q.v) - 2; idx >= 0; idx-- {
+		r := q.v[idx]
+		if r.R.CommittedEntryId == req.R.CommittedEntryId &&
+			r.R.GetEntry().GetEntryId() == req.R.GetEntry().GetEntryId() &&
+			bytes.Compare(r.R.GetEntry().GetChecksumMd5(), req.R.GetEntry().GetChecksumMd5()) == 0 {
+			r.okC <- false
+			q.v[idx] = req
+			return (idx == 0)
+		}
+		if waitIdForRequest(r.R) >= waitId {
+			q.v[idx+1], q.v[idx] = q.v[idx], q.v[idx+1]
+			continue
+		}
+		break
+	}
+	if len(q.v) > streamPipelineQ {
+		q.v[len(q.v)-1].okC <- false
+		q.v = q.v[:len(q.v)-1]
+	}
+	return q.v[0] == req
 }
 
 func newStreamPipeline(
@@ -188,8 +206,7 @@ func (p *streamPipeline) Queue(r *walle_pb.PutEntryInternalRequest) <-chan bool 
 	req := &pipelineReq{R: r, okC: make(chan bool, 1)}
 	p.mx.Lock()
 	defer p.mx.Unlock()
-	heap.Push(p.q, req)
-	if p.q.Peek() == req {
+	if p.q.Push(req) {
 		close(p.qNotify)
 		p.qNotify = make(chan struct{})
 	}
@@ -208,7 +225,7 @@ func (p *streamPipeline) peek() (*walle_pb.PutEntryInternalRequest, <-chan struc
 func (p *streamPipeline) pop() *pipelineReq {
 	p.mx.Lock()
 	defer p.mx.Unlock()
-	return heap.Pop(p.q).(*pipelineReq)
+	return p.q.Pop()
 }
 
 func waitIdForRequest(r *walle_pb.PutEntryInternalRequest) int64 {

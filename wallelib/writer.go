@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	shortBeat       = time.Millisecond
+	shortBeat       = 5 * time.Millisecond
 	LeaseMinimum    = 100 * time.Millisecond
 	maxInFlightPuts = 128
 )
@@ -130,29 +130,16 @@ func (w *Writer) Committed() *walleapi.Entry {
 }
 
 func (w *Writer) processor(ctx context.Context) {
-ProcessLoop:
 	for {
-		var req *writerReq
 		select {
 		case <-ctx.Done():
 			return
-		case req = <-w.reqQ:
+		case req := <-w.reqQ:
 			select {
 			case <-ctx.Done():
 				return
 			case w.inFlightQ <- struct{}{}:
-			}
-			go w.process(ctx, req)
-		case <-time.After(shortBeat):
-			now := time.Now()
-			ts, committedEntryId, _, toCommit := w.safeCommittedEntryId()
-			if ts.Add(shortBeat).After(now) ||
-				(committedEntryId == toCommit.EntryId && ts.Add(w.longBeat).After(now)) {
-				continue ProcessLoop
-			}
-			select {
-			case w.heartbeaterQ <- struct{}{}:
-			default:
+				go w.process(ctx, req)
 			}
 		}
 	}
@@ -166,18 +153,22 @@ func (w *Writer) heartbeater(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-w.heartbeaterQ:
+		case <-time.After(shortBeat):
 		}
 		now := time.Now()
-		_, _, _, toCommit := w.safeCommittedEntryId()
+		ts, committedEntryId, _, toCommit := w.safeCommittedEntryId()
+		if ts.Add(shortBeat).After(now) ||
+			(committedEntryId == toCommit.EntryId && ts.Add(w.longBeat).After(now)) {
+			continue
+		}
 		err := KeepTryingWithBackoff(
-			ctx, w.longBeat, w.writerLease,
+			ctx, w.longBeat, w.writerLease/4,
 			func(retryN uint) (bool, bool, error) {
 				cli, err := w.c.ForStream(w.streamURI)
 				if err != nil {
 					return false, false, err
 				}
-				putCtx, cancel := context.WithTimeout(ctx, w.longBeat)
+				putCtx, cancel := context.WithTimeout(ctx, w.writerLease/4)
 				defer cancel()
 				_, err = cli.PutEntry(putCtx, &walleapi.PutEntryRequest{
 					StreamUri:         w.streamURI,
