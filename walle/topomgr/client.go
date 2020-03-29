@@ -30,30 +30,30 @@ func (t *client) connectAndDo(
 	defer cancel()
 	return wallelib.KeepTryingWithBackoff(
 		ctx, wallelib.LeaseMinimum, time.Second,
-		func(retryN uint) (bool, error) {
+		func(retryN uint) (bool, bool, error) {
 			cli, err := t.c.ForStream(topologyURI)
 			if err != nil {
-				return false, err
+				return false, false, err
 			}
 			wStatus, err := cli.WriterStatus(
 				ctx, &walleapi.WriterStatusRequest{StreamUri: topologyURI})
 			if err != nil {
-				return false, err
+				return false, false, err
 			}
 			if wStatus.RemainingLeaseMs <= 0 {
-				return false, errors.Errorf("no active manager for: %s", topologyURI)
+				return false, false, errors.Errorf("no active manager for: %s", topologyURI)
 			}
 			ctxConn, cancel := context.WithTimeout(ctx, time.Second)
 			defer cancel()
 			conn, err := grpc.DialContext(ctxConn, wStatus.WriterAddr, grpc.WithInsecure(), grpc.WithBlock())
 			if err != nil {
-				return false, err
+				return false, false, err
 			}
 			defer conn.Close()
 			err = f(ctx, topomgr.NewTopoManagerClient(conn))
 			errStatus, _ := status.FromError(err)
 			errFinal := errStatus.Code() == codes.OK || errStatus.Code() == codes.FailedPrecondition
-			return errFinal, err
+			return errFinal, false, err
 		})
 }
 

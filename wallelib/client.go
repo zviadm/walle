@@ -14,7 +14,6 @@ import (
 
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
-	"github.com/zviadm/zlog"
 )
 
 type BasicClient interface {
@@ -118,9 +117,9 @@ func (c *client) ForStream(streamURI string) (walleapi.WalleApiClient, error) {
 		}
 		downNano := atomic.LoadInt64(&health.DownNano)
 		if downNano > time.Now().UnixNano() {
-			zlog.Info(
-				"DEBUG: client skipping ", conn.Target(),
-				" till ", time.Unix(0, downNano))
+			// zlog.Info(
+			// 	"DEBUG: client skipping ", conn.Target(),
+			// 	" till ", time.Unix(0, downNano))
 			continue
 		}
 		if idx < preferredMajority {

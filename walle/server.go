@@ -159,12 +159,52 @@ func (s *Server) commitEntry(
 		}
 		// Try to fetch the committed entry from other servers and create a GAP locally to continue with
 		// the put.
-		err := s.fetchAndStoreEntries(ctx, ss, committedEntryId, committedEntryId+1, nil)
-		if err != nil {
-			return false, status.Errorf(codes.OutOfRange, "commit entryId: %d - %s", committedEntryId, err)
+		ssTopology := ss.Topology()
+		fetchCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		var errs []error
+		errsN := 0
+		errsC := make(chan error, len(ssTopology.ServerIds))
+		for _, serverId := range ssTopology.ServerIds {
+			if serverId == s.s.ServerId() {
+				continue
+			}
+			c, err := s.c.ForServer(serverId)
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+			errsN += 1
+			go func(c walle_pb.WalleClient, serverId string) (err error) {
+				defer func() { errsC <- err }()
+				r, err := c.ReadEntries(fetchCtx, &walle_pb.ReadEntriesRequest{
+					ServerId:      serverId,
+					StreamUri:     ss.StreamURI(),
+					StreamVersion: ssTopology.Version,
+					StartEntryId:  committedEntryId,
+					EndEntryId:    committedEntryId + 1,
+				})
+				if err != nil {
+					return err
+				}
+				entry, err := r.Recv()
+				if err != nil {
+					return err
+				}
+				ok := ss.PutEntry(entry, true)
+				panicOnNotOk(ok, "putting committed entry must always succeed!")
+				return nil
+			}(c, serverId)
 		}
-		zlog.Infof("[%s] commit caught up to: %d (might have created a gap)", ss.StreamURI(), committedEntryId)
-		return true, nil
+		for i := 0; i < errsN; i++ {
+			err := <-errsC
+			if err == nil {
+				zlog.Infof("[%s] commit caught up to: %d (might have created a gap)", ss.StreamURI(), committedEntryId)
+				return true, nil
+			}
+			errs = append(errs, err)
+		}
+		return false, status.Errorf(codes.OutOfRange, "commit entryId: %d - %s", committedEntryId, errs)
 	}
 }
 

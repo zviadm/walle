@@ -13,9 +13,11 @@ import (
 )
 
 var (
-	errMinBackoffNs = LeaseMinimum.Nanoseconds()
-	errMaxBackoffNs = 10 * time.Second.Nanoseconds()
-	maxErrN         = int64(math.Log2(float64(errMaxBackoffNs/errMinBackoffNs))) + 1
+	errMinBackoffNs      = LeaseMinimum.Nanoseconds()
+	errMaxBackoffNs      = time.Second.Nanoseconds()
+	errBackoffMultiplier = 1.6
+
+	maxErrN = math.Log(float64(errMaxBackoffNs/errMinBackoffNs)) / math.Log(errBackoffMultiplier)
 )
 
 // Wraps WalleApiClient to provide custom error handling for handling bad
@@ -35,11 +37,11 @@ func (c *wApiClient) handleCallErr(err error) {
 		atomic.StoreInt64(c.errN, 0)
 		return
 	}
-	errN := atomic.AddInt64(c.errN, 1)
+	errN := float64(atomic.AddInt64(c.errN, 1))
 	if errN > maxErrN {
 		errN = maxErrN
 	}
-	downNano := time.Now().UnixNano() + errMinBackoffNs*(1<<uint(errN))
+	downNano := time.Now().UnixNano() + errMinBackoffNs*int64(math.Pow(errBackoffMultiplier, errN))
 	atomic.StoreInt64(c.downNano, downNano)
 }
 

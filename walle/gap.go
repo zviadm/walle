@@ -49,9 +49,9 @@ func (s *Server) gapHandlerForStream(
 	defer cursor.Close()
 	for noGapCommittedId < committedId {
 		entry, ok := cursor.Next()
-		if !ok || entry.EntryId > committedId {
-			panic("DeveloperError; CommittedEntry wasn't found by cursor!")
-		}
+		panicOnNotOk(
+			ok && entry.EntryId <= committedId,
+			"committed entry wasn't found by cursor!")
 		if entry.EntryId > noGapCommittedId+1 {
 			err := s.fetchAndStoreEntries(ctx, ss, noGapCommittedId+1, entry.EntryId, nil)
 			if err != nil {
@@ -74,6 +74,7 @@ func (s *Server) fetchAndStoreEntries(
 	processEntry func(entry *walleapi.Entry) error) error {
 
 	ssTopology := ss.Topology()
+	var errs []error
 Main:
 	for _, serverId := range ssTopology.ServerIds {
 		if serverId == s.s.ServerId() {
@@ -84,9 +85,7 @@ Main:
 		c, err := s.c.ForServer(serverId)
 		if err != nil {
 			if err != wallelib.ErrConnUnavailable {
-				zlog.Warningf(
-					"[gh] err connecting for %s, to: %s - %s",
-					ss.StreamURI(), serverIdHex, err)
+				errs = append(errs, err)
 			}
 			continue
 		}
@@ -100,9 +99,7 @@ Main:
 			EndEntryId:    endId,
 		})
 		if err != nil {
-			zlog.Warningf(
-				"[gh] err establishing stream for %s, to: %s - %s",
-				ss.StreamURI(), serverIdHex, err)
+			errs = append(errs, err)
 			continue
 		}
 		for {
@@ -111,16 +108,19 @@ Main:
 				if err == io.EOF {
 					if startId != endId {
 						zlog.Errorf(
-							"[gh] DEVELOPER_ERROR; unreachable code. %s server: %s is buggy!", ss.StreamURI(), serverIdHex)
+							"DEVELOPER_ERROR; unreachable code. %s server: %s is buggy!",
+							ss.StreamURI(), serverIdHex)
 						continue Main
 					}
 					return nil
 				}
-				zlog.Warningf("[gh] err fetching entries for: %s from: %s - %s", ss.StreamURI(), serverIdHex, err)
+				errs = append(errs, err)
 				continue Main
 			}
 			if entry.EntryId != startId {
-				zlog.Errorf("[gh] DEVELOPER_ERROR; unreachable code. %s server: %s is buggy!", ss.StreamURI(), serverIdHex)
+				zlog.Errorf(
+					"DEVELOPER_ERROR; unreachable code. %s server: %s is buggy!",
+					ss.StreamURI(), serverIdHex)
 				continue Main
 			}
 			startId += 1
@@ -133,5 +133,5 @@ Main:
 			}
 		}
 	}
-	return errors.Errorf("couldn't fetch all entries, tried all servers for: %s", ss.StreamURI())
+	return errors.Errorf("err fetching: %s - %s", ss.StreamURI(), errs)
 }

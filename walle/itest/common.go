@@ -32,15 +32,14 @@ func BootstrapDeployment(
 	storageDir string,
 	port int) *walleapi.Topology {
 	// Bootstrap WALLE `itest` deployment.
-	sBootstrap, err := servicelib.RunGoService(
-		ctx, WallePkg, []string{
+	sBootstrap := servicelib.RunGoService(
+		t, ctx, WallePkg, []string{
 			"-walle.root_uri", rootURI,
 			"-walle.storage_dir", storageDir,
 			"-walle.port", strconv.Itoa(port),
 			"-walle.bootstrap_only",
 		},
 		"")
-	require.NoError(t, err)
 	sBootstrap.Wait(t)
 
 	rootTopology, err := wallelib.TopologyFromFile(path.Join(storageDir, "root.pb"))
@@ -58,8 +57,8 @@ func RunWalle(
 	port int) *servicelib.Service {
 	err := wallelib.TopologyToFile(rootTopology, path.Join(storageDir, "root.pb"))
 	require.NoError(t, err)
-	s, err := servicelib.RunGoService(
-		ctx, WallePkg, []string{
+	s := servicelib.RunGoService(
+		t, ctx, WallePkg, []string{
 			"-walle.root_uri", rootURI,
 			"-walle.topology_uri", topologyURI,
 			"-walle.storage_dir", storageDir,
@@ -69,6 +68,5 @@ func RunWalle(
 			"-walle.topomgr_lease", "1s",
 		},
 		strconv.Itoa(port))
-	require.NoError(t, err)
 	return s
 }

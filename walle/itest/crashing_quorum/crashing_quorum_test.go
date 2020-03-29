@@ -63,8 +63,8 @@ func TestCrashingQuorum(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	defer servicelib.IptablesClearAll(t)
 	servicelib.IptablesBlockPort(t, itest.WalleDefaultPort+1)
-	defer servicelib.IptablesUnblockPort(t, itest.WalleDefaultPort+1)
 	s[1].Kill(t)
 	zlog.Info("TEST: killed s[1] process")
 
@@ -77,17 +77,30 @@ func TestCrashingQuorum(t *testing.T) {
 	zlog.Info("TEST: writer claimed for /t1/blast")
 	//time.Sleep(30 * time.Second)
 
-	nBatch := 50
+	nBatch := 200
 	t0 := time.Now()
+	errCs := make([]<-chan error, nBatch)
 	for i := 0; i < nBatch; i++ {
-		e, errC := w.PutEntry([]byte("testingoooo"))
+		_, errC := w.PutEntry([]byte("testingoooo"))
+		errCs[i] = errC
+	}
+
+	servicelib.IptablesUnblockPort(t, itest.WalleDefaultPort+1)
+	s[1].Start(t, ctx)
+
+	time.Sleep(5 * time.Second)
+
+	servicelib.IptablesBlockPort(t, itest.WalleDefaultPort+2)
+	s[2].Kill(t)
+	zlog.Info("TEST: started s[1] and killed s[2] process")
+
+	for _, errC := range errCs {
 		select {
 		case err := <-errC:
 			require.NoError(t, err)
-		case <-time.After(3 * time.Second):
+		case <-time.After(30 * time.Second):
 			require.FailNow(t, "putEntry timedout, exiting!")
 		}
-		zlog.Info("TEST: putEntry ", e.EntryId)
 	}
 	zlog.Infof("TEST: putting entries: %d, delta: %s", nBatch, time.Now().Sub(t0))
 

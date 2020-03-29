@@ -260,13 +260,6 @@ func (s *Server) broadcastWriterInfo(
 
 func (s *Server) PutEntry(
 	ctx context.Context, req *walleapi.PutEntryRequest) (*walleapi.PutEntryResponse, error) {
-	// if req.Entry.EntryId > 0 {
-	// 	zlog.Info("DEBUG: PutEntry called ", req.StreamUri, " ", req.Entry.EntryId)
-	// 	defer func() {
-	// 		zlog.Info("DEBUG: PutEntry finished ", req.StreamUri, " ", req.Entry.EntryId)
-	// 	}()
-	// }
-
 	ss, ok := s.s.Stream(req.GetStreamUri(), true)
 	if !ok {
 		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found locally", req.GetStreamUri())

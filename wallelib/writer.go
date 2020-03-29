@@ -104,8 +104,8 @@ func (w *Writer) cancelWithErr(err error) {
 	if w.rootCtx.Err() != nil {
 		return
 	}
-	w.Close()
 	zlog.Warningf("writer:%s closed due to unrecoverable err: %s", w.writerAddr, err)
+	w.Close()
 }
 
 // Returns True, if at the time of the IsWriter call, this writer is still guaranteed
@@ -172,10 +172,10 @@ func (w *Writer) heartbeater(ctx context.Context) {
 		_, _, _, toCommit := w.safeCommittedEntryId()
 		err := KeepTryingWithBackoff(
 			ctx, w.longBeat, w.writerLease,
-			func(retryN uint) (bool, error) {
+			func(retryN uint) (bool, bool, error) {
 				cli, err := w.c.ForStream(w.streamURI)
 				if err != nil {
-					return false, err
+					return false, false, err
 				}
 				putCtx, cancel := context.WithTimeout(ctx, w.longBeat)
 				defer cancel()
@@ -187,10 +187,10 @@ func (w *Writer) heartbeater(ctx context.Context) {
 				})
 				if err != nil {
 					errStatus, _ := status.FromError(err)
-					return errStatus.Code() == codes.FailedPrecondition, err
+					return errStatus.Code() == codes.FailedPrecondition, false, err
 				}
 				w.updateCommittedEntryId(now, toCommit.EntryId, toCommit.ChecksumMd5, toCommit)
-				return true, nil
+				return true, false, nil
 			})
 		if err != nil {
 			w.cancelWithErr(err)
@@ -203,7 +203,7 @@ func (w *Writer) process(ctx context.Context, req *writerReq) {
 	defer func() { <-w.inFlightQ }()
 	err := KeepTryingWithBackoff(
 		ctx, 10*time.Millisecond, w.writerLease,
-		func(retryN uint) (bool, error) {
+		func(retryN uint) (bool, bool, error) {
 			_, _, _, toCommit := w.safeCommittedEntryId()
 			toCommitEntryId := toCommit.EntryId
 			toCommitChecksumMd5 := toCommit.ChecksumMd5
@@ -213,7 +213,7 @@ func (w *Writer) process(ctx context.Context, req *writerReq) {
 			}
 			cli, err := w.c.ForStream(w.streamURI)
 			if err != nil {
-				return false, err
+				return false, true, err
 			}
 			now := time.Now()
 			putCtx, cancel := context.WithTimeout(ctx, w.writerLease)
@@ -226,11 +226,11 @@ func (w *Writer) process(ctx context.Context, req *writerReq) {
 			})
 			if err != nil {
 				errStatus, _ := status.FromError(err)
-				return errStatus.Code() == codes.FailedPrecondition, err
+				return errStatus.Code() == codes.FailedPrecondition, true, err
 			}
 			w.updateCommittedEntryId(
 				now, toCommitEntryId, toCommitChecksumMd5, req.Entry)
-			return true, nil
+			return true, true, nil
 		})
 	if err != nil {
 		w.cancelWithErr(err)

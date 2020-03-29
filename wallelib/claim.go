@@ -71,10 +71,10 @@ func WaitAndClaim(
 	writerAddr string,
 	writerLease time.Duration) (w *Writer, e *walleapi.Entry, err error) {
 	err = KeepTryingWithBackoff(ctx, writerLease/2, writerLease/2,
-		func(retryN uint) (bool, error) {
+		func(retryN uint) (bool, bool, error) {
 			s, err := c.ForStream(streamURI)
 			if err != nil {
-				return false, err
+				return false, false, err
 			}
 			var status *walleapi.WriterStatusResponse
 			for {
@@ -83,7 +83,7 @@ func WaitAndClaim(
 					statusCtx, &walleapi.WriterStatusRequest{StreamUri: streamURI})
 				cancel()
 				if err != nil {
-					return false, err
+					return false, false, err
 				}
 				if status.RemainingLeaseMs <= 0 {
 					zlog.Info("DEBUG: expired lease ", writerAddr, " prev: ", status.WriterAddr, " ", status.RemainingLeaseMs)
@@ -93,14 +93,14 @@ func WaitAndClaim(
 					time.Duration(rand.Int63n(int64(writerLease/4)))
 				select {
 				case <-ctx.Done():
-					return true, ctx.Err()
+					return true, false, ctx.Err()
 				case <-time.After(sleepTime):
 				}
 			}
 			// Use same ForStream client that already returned successful result for `WriterStatus` call.
 			// This helps to avoid any unneccessary timeouts if some other node is in a questionable state.
 			w, e, err = claimWriter(ctx, c, s, streamURI, writerAddr, writerLease)
-			return err == nil, err
+			return err == nil, false, err
 		})
 	if err != nil {
 		return nil, nil, err

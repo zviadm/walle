@@ -50,13 +50,13 @@ func NewDiscovery(
 		defer cancel()
 		err := KeepTryingWithBackoff(
 			retryCtx, time.Second/10, time.Second,
-			func(retryN uint) (bool, error) {
+			func(retryN uint) (bool, bool, error) {
 				cli, err := root.ForStream(topologyURI)
 				if err != nil {
-					return false, err
+					return false, false, err
 				}
 				topology, err = streamUpdates(retryCtx, cli, topologyURI, -1)
-				return true, err
+				return true, false, err
 			})
 		if err != nil {
 			return nil, err

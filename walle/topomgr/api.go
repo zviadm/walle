@@ -107,21 +107,21 @@ func (m *Manager) UpdateServerIds(
 func (m *Manager) waitForStreamVersion(
 	ctx context.Context, streamURI string, streamVersion int64) error {
 	return wallelib.KeepTryingWithBackoff(ctx, wallelib.LeaseMinimum, time.Second,
-		func(retryN uint) (bool, error) {
+		func(retryN uint) (bool, bool, error) {
 			streamC, err := m.c.ForStream(streamURI)
 			if err != nil {
-				return true, err
+				return true, false, err
 			}
 			wStatus, err := streamC.WriterStatus(ctx, &walleapi.WriterStatusRequest{StreamUri: streamURI})
 			if err != nil {
-				return (retryN >= 2), err
+				return (retryN >= 2), false, err
 			}
 			if wStatus.StreamVersion != streamVersion {
-				return (retryN >= 2), status.Errorf(codes.Unavailable,
+				return (retryN >= 2), false, status.Errorf(codes.Unavailable,
 					"servers for %s don't have up-to-date stream version: %d < %d",
 					streamURI, wStatus.StreamVersion, streamVersion)
 			}
-			return true, nil
+			return true, false, nil
 		})
 }
 

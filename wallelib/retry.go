@@ -13,18 +13,18 @@ func KeepTryingWithBackoff(
 	ctx context.Context,
 	minBackoff time.Duration,
 	maxBackoff time.Duration,
-	f func(retryN uint) (final bool, err error)) error {
+	f func(retryN uint) (final bool, silent bool, err error)) error {
 	backoffTime := minBackoff
 	for retryN := uint(0); ; retryN++ {
 		callTs := time.Now()
-		final, err := f(retryN)
+		final, silent, err := f(retryN)
 		if final || err == nil {
 			return err
 		}
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if retryN > 3 {
+		if retryN > 3 && !silent {
 			stackTrace := errors.Wrap(err, "").(stackTracer).StackTrace()
 			stackFrame := stackTrace[1]
 			zlog.Warningf("%n (%s:%d) retry #%d: %s...",
