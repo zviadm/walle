@@ -86,7 +86,7 @@ func WaitAndClaim(
 					return false, false, err
 				}
 				if status.RemainingLeaseMs <= 0 {
-					zlog.Info("DEBUG: expired lease ", writerAddr, " prev: ", status.WriterAddr, " ", status.RemainingLeaseMs)
+					zlog.Info("DEBUG: expired lease ", streamURI, " ", writerAddr, " prev: ", status.WriterAddr, " ", status.RemainingLeaseMs)
 					break
 				}
 				sleepTime := time.Duration(status.RemainingLeaseMs)*time.Millisecond +

@@ -117,12 +117,9 @@ func (c *client) ForStream(streamURI string) (walleapi.WalleApiClient, error) {
 		}
 		downNano := atomic.LoadInt64(&health.DownNano)
 		if downNano > time.Now().UnixNano() {
-			// zlog.Info(
-			// 	"DEBUG: client skipping ", conn.Target(),
-			// 	" till ", time.Unix(0, downNano))
 			continue
 		}
-		if idx < preferredMajority {
+		if idx > 0 && idx < preferredMajority {
 			copy(preferredIds[1:idx+1], preferredIds[:idx])
 			preferredIds[0] = serverId
 		}

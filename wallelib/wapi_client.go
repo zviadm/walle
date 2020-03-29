@@ -57,7 +57,12 @@ func (c *wApiClient) WriterStatus(ctx context.Context, in *WriterStatusRequest, 
 }
 func (c *wApiClient) PutEntry(ctx context.Context, in *PutEntryRequest, opts ...grpc.CallOption) (*PutEntryResponse, error) {
 	r, err := c.cli.PutEntry(ctx, in, opts...)
-	c.handleCallErr(err)
+	// Slight HaX: only worry about errors from heartbeater calls. Regular PutEntry calls can timeout
+	// due to overload and other issues, and since there can be many PutEntry calls in-flight at the same time
+	// it can cause issues with marking nodes bad unnecessarily.
+	if in.GetEntry().GetEntryId() == 0 {
+		c.handleCallErr(err)
+	}
 	return r, err
 }
 func (c *wApiClient) StreamEntries(ctx context.Context, in *StreamEntriesRequest, opts ...grpc.CallOption) (WalleApi_StreamEntriesClient, error) {

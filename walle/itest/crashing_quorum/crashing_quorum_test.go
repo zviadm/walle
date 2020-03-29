@@ -75,58 +75,34 @@ func TestCrashingQuorum(t *testing.T) {
 	defer w.Close()
 	require.EqualValues(t, 0, e.EntryId)
 	zlog.Info("TEST: writer claimed for /t1/blast")
-	//time.Sleep(30 * time.Second)
 
-	nBatch := 200
-	t0 := time.Now()
+	nBatch := 50
 	errCs := make([]<-chan error, nBatch)
 	for i := 0; i < nBatch; i++ {
 		_, errC := w.PutEntry([]byte("testingoooo"))
 		errCs[i] = errC
 	}
 
+	time.Sleep(2 * time.Second)
 	servicelib.IptablesUnblockPort(t, itest.WalleDefaultPort+1)
 	s[1].Start(t, ctx)
+	zlog.Info("TEST: s[1] started")
 
 	time.Sleep(5 * time.Second)
+	wState, _ := w.WriterState()
+	require.Equal(t, wallelib.Exclusive, wState)
 
 	servicelib.IptablesBlockPort(t, itest.WalleDefaultPort+2)
 	s[2].Kill(t)
-	zlog.Info("TEST: started s[1] and killed s[2] process")
+	zlog.Info("TEST: killed s[2] process")
 
 	for _, errC := range errCs {
 		select {
 		case err := <-errC:
 			require.NoError(t, err)
-		case <-time.After(30 * time.Second):
+		case <-time.After(5 * time.Second):
 			require.FailNow(t, "putEntry timedout, exiting!")
 		}
 	}
-	zlog.Infof("TEST: putting entries: %d, delta: %s", nBatch, time.Now().Sub(t0))
-
-	// blastCtx, blastCancel := context.WithCancel(ctx)
-	// blastDone := make(chan struct{})
-	// go func() {
-	// 	defer close(blastDone)
-	// 	defer w.Close(true)
-	// 	for blastCtx.Err() == nil {
-	// 		e, errC := w.PutEntry([]byte("testingoooo"))
-	// 		zlog.Info("putting entry ", e.EntryId)
-	// 		select {
-	// 		case err := <-errC:
-	// 			require.NoError(t, err)
-	// 		case <-time.After(500 * time.Millisecond):
-	// 			require.FailNow(t, "putEntry timedout, exiting!")
-	// 		}
-	// 	}
-	// }()
-	// defer blastCancel()
-
-	// for i := 0; i < 5; i++ {
-	// 	// servicelib.IptablesBlockPort(t, itest.WalleDefaultPort+i%3)
-	// 	time.Sleep(2 * time.Second)
-	// 	// servicelib.IptablesUnblockPort(t, itest.WalleDefaultPort+i%3)
-	// }
-	// blastCancel()
-	// <-blastDone
+	zlog.Info("TEST: processed all entries: ", nBatch)
 }

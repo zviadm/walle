@@ -211,9 +211,10 @@ func (w *Writer) process(ctx context.Context, req *writerReq) {
 				toCommitEntryId = req.Entry.EntryId
 				toCommitChecksumMd5 = req.Entry.ChecksumMd5
 			}
+			silenceErr := (req.Entry.EntryId != toCommit.EntryId+1)
 			cli, err := w.c.ForStream(w.streamURI)
 			if err != nil {
-				return false, true, err
+				return false, silenceErr, err
 			}
 			now := time.Now()
 			putCtx, cancel := context.WithTimeout(ctx, w.writerLease)
@@ -226,11 +227,11 @@ func (w *Writer) process(ctx context.Context, req *writerReq) {
 			})
 			if err != nil {
 				errStatus, _ := status.FromError(err)
-				return errStatus.Code() == codes.FailedPrecondition, true, err
+				return errStatus.Code() == codes.FailedPrecondition, silenceErr, err
 			}
 			w.updateCommittedEntryId(
 				now, toCommitEntryId, toCommitChecksumMd5, req.Entry)
-			return true, true, nil
+			return true, false, nil
 		})
 	if err != nil {
 		w.cancelWithErr(err)

@@ -24,7 +24,7 @@ func KeepTryingWithBackoff(
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if retryN > 3 && !silent {
+		if retryN >= 2 && !silent {
 			stackTrace := errors.Wrap(err, "").(stackTracer).StackTrace()
 			stackFrame := stackTrace[1]
 			zlog.Warningf("%n (%s:%d) retry #%d: %s...",
