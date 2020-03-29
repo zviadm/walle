@@ -196,11 +196,8 @@ func (w *Writer) process(ctx context.Context, req *writerReq) {
 		ctx, 10*time.Millisecond, w.writerLease,
 		func(retryN uint) (bool, bool, error) {
 			_, _, _, toCommit := w.safeCommittedEntryId()
-			toCommitEntryId := toCommit.EntryId
-			toCommitChecksumMd5 := toCommit.ChecksumMd5
-			if toCommitEntryId > req.Entry.EntryId {
-				toCommitEntryId = req.Entry.EntryId
-				toCommitChecksumMd5 = req.Entry.ChecksumMd5
+			if toCommit.EntryId >= req.Entry.EntryId {
+				return true, false, nil
 			}
 			silenceErr := (req.Entry.EntryId != toCommit.EntryId+1)
 			cli, err := w.c.ForStream(w.streamURI)
@@ -213,15 +210,15 @@ func (w *Writer) process(ctx context.Context, req *writerReq) {
 			_, err = cli.PutEntry(putCtx, &walleapi.PutEntryRequest{
 				StreamUri:         w.streamURI,
 				Entry:             req.Entry,
-				CommittedEntryId:  toCommitEntryId,
-				CommittedEntryMd5: toCommitChecksumMd5,
+				CommittedEntryId:  toCommit.EntryId,
+				CommittedEntryMd5: toCommit.ChecksumMd5,
 			})
 			if err != nil {
 				errStatus, _ := status.FromError(err)
 				return errStatus.Code() == codes.FailedPrecondition, silenceErr, err
 			}
 			w.updateCommittedEntryId(
-				now, toCommitEntryId, toCommitChecksumMd5, req.Entry)
+				now, toCommit.EntryId, toCommit.ChecksumMd5, req.Entry)
 			return true, false, nil
 		})
 	if err != nil {

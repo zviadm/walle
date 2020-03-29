@@ -313,6 +313,9 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) bool {
 		if !isCommitted {
 			return false
 		}
+		if entry.EntryId <= m.noGapCommitted {
+			return true
+		}
 		e := m.unsafeReadEntry(entry.EntryId)
 		if e == nil {
 			m.unsafeInsertEntry(entry)

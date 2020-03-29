@@ -170,19 +170,23 @@ func (p *streamPipeline) Process(ctx context.Context) {
 			if waitId <= tailId {
 				break
 			}
+			var breakoutC <-chan time.Time
+			if head.CommittedEntryId >= head.GetEntry().GetEntryId() {
+				breakoutC = time.After(10 * time.Millisecond) // TODO(zviad): timeout constant
+			}
 
 			select {
 			case <-ctx.Done():
 				return
 			case <-tailNotify:
 			case <-queueNotify:
-			case <-time.After(10 * time.Millisecond): // TODO(zviad): timeout constant
+			case <-breakoutC:
 				break WaitLoop
 			}
 		}
 		req := p.pop()
 		var ok bool
-		if req.R.Entry == nil || req.R.Entry.EntryId == 0 {
+		if req.R.GetEntry().GetEntryId() == 0 {
 			ok = p.ss.CommitEntry(req.R.CommittedEntryId, req.R.CommittedEntryMd5)
 			if ok && req.R.CommittedEntryId > maxId {
 				maxId = req.R.CommittedEntryId
@@ -229,7 +233,7 @@ func (p *streamPipeline) pop() *pipelineReq {
 }
 
 func waitIdForRequest(r *walle_pb.PutEntryInternalRequest) int64 {
-	if r.Entry != nil && r.Entry.EntryId > 0 {
+	if r.GetEntry().GetEntryId() > 0 {
 		return r.Entry.EntryId - 1
 	}
 	return r.CommittedEntryId
