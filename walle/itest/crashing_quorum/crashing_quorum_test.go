@@ -92,9 +92,9 @@ func TestCrashingQuorum(t *testing.T) {
 	wState, _ := w.WriterState()
 	require.Equal(t, wallelib.Exclusive, wState)
 
-	//servicelib.IptablesBlockPort(t, itest.WalleDefaultPort+2)
-	//s[2].Kill(t)
-	//zlog.Info("TEST: killed s[2] process")
+	servicelib.IptablesBlockPort(t, itest.WalleDefaultPort+2)
+	s[2].Kill(t)
+	zlog.Info("TEST: killed s[2] process")
 
 	for idx, errC := range errCs {
 		select {
