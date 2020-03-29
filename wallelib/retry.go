@@ -21,6 +21,9 @@ func KeepTryingWithBackoff(
 		if final || err == nil {
 			return err
 		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if retryN > 3 {
 			stackTrace := errors.Wrap(err, "").(stackTracer).StackTrace()
 			stackFrame := stackTrace[1]

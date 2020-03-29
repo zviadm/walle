@@ -5,6 +5,12 @@ service WalleApi {
 	rpc ClaimWriter(ClaimWriterRequest) returns (ClaimWriterResponse) {}
 	rpc WriterStatus(WriterStatusRequest) returns (WriterStatusResponse) {}
 	rpc PutEntry(PutEntryRequest) returns (PutEntryResponse) {}
+
+	// StreamEntries streams committed entries from a given starting point. StreamEntries
+	// might exit early as long as it returns at least one successful entry. Note that
+	// StreamEntries call will block until deadline, if there are no new committed
+	// entries. Thus it can be used as a way to do long poll and stream latest entries from
+	// a stream.
 	rpc StreamEntries(StreamEntriesRequest) returns (stream Entry) {}
 }
 
@@ -49,7 +55,7 @@ message PutEntryResponse {
 
 message StreamEntriesRequest {
 	string stream_uri = 1;
-	int64 from_entry_id = 2;
+	int64 from_entry_id = 2; // can be `-1` to stream last committed entry.
 }
 
 message Topology {

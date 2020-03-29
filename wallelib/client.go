@@ -2,7 +2,9 @@ package wallelib
 
 import (
 	"context"
+	"math/rand"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
@@ -12,6 +14,7 @@ import (
 
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/zlog"
 )
 
 type BasicClient interface {
@@ -21,18 +24,25 @@ type BasicClient interface {
 type client struct {
 	d Discovery
 
-	mx        sync.Mutex
-	topology  *walleapi.Topology
-	conns     map[string]*grpc.ClientConn
-	preferred map[string][]string // streamURI -> []serverId
+	mx         sync.Mutex
+	topology   *walleapi.Topology
+	conns      map[string]*grpc.ClientConn // serverId -> conn
+	connHealth map[string]*connHealth      // serverId -> connHealth
+	preferred  map[string][]string         // streamURI -> []serverId
+}
+
+type connHealth struct {
+	ErrN     int64
+	DownNano int64
 }
 
 var ErrConnUnavailable = errors.New("connection in TransientFailure")
 
 func NewClient(ctx context.Context, d Discovery) *client {
 	c := &client{
-		d:     d,
-		conns: make(map[string]*grpc.ClientConn),
+		d:          d,
+		conns:      make(map[string]*grpc.ClientConn),
+		connHealth: make(map[string]*connHealth),
 	}
 	topology, notify := d.Topology()
 	c.update(topology)
@@ -58,7 +68,12 @@ func (c *client) update(topology *walleapi.Topology) {
 	for streamURI, streamT := range topology.Streams {
 		preferredIds := make([]string, len(streamT.ServerIds))
 		copy(preferredIds, streamT.ServerIds)
-		// TODO(zviad): actually sort by preference.
+
+		// TODO(zviad): actually sort by preference, instead of randomizing
+		// the order.
+		rand.Shuffle(len(preferredIds), func(i, j int) {
+			preferredIds[i], preferredIds[j] = preferredIds[j], preferredIds[i]
+		})
 		preferred[streamURI] = preferredIds
 	}
 
@@ -69,17 +84,13 @@ func (c *client) update(topology *walleapi.Topology) {
 	// Close and clear out all connections to serverIds that are no longer registered in topology.
 	for serverId, conn := range c.conns {
 		_, ok := topology.Servers[serverId]
+		// TODO(zviad): we should also close connections that now have incorrect targets, if
+		// server address has changed.
 		if !ok {
 			conn.Close()
 			delete(c.conns, serverId)
 		}
 	}
-}
-
-// TODO(zviad): This is just for debugging only.
-type wApiClient struct {
-	walleapi.WalleApiClient
-	Conn *grpc.ClientConn
 }
 
 func (c *client) ForStream(streamURI string) (walleapi.WalleApiClient, error) {
@@ -89,18 +100,9 @@ func (c *client) ForStream(streamURI string) (walleapi.WalleApiClient, error) {
 	if !ok {
 		return nil, errors.Errorf("streamURI: %s, not found in topology", streamURI)
 	}
-	preferredMajority := len(preferredIds)/2 + 1
 	var oneErr error = ErrConnUnavailable
-	for idx := 0; idx < len(preferredIds); idx++ {
-		var serverId string
-		if idx < preferredMajority {
-			serverId = preferredIds[0]
-			copy(preferredIds, preferredIds[1:preferredMajority])
-			preferredIds[preferredMajority-1] = serverId
-		} else {
-			serverId = preferredIds[idx]
-		}
-
+	preferredMajority := len(preferredIds)/2 + 1
+	for idx, serverId := range preferredIds {
 		conn, err := c.unsafeServerConn(serverId)
 		if err != nil {
 			oneErr = err
@@ -109,7 +111,27 @@ func (c *client) ForStream(streamURI string) (walleapi.WalleApiClient, error) {
 		if conn.GetState() == connectivity.TransientFailure {
 			continue
 		}
-		return &wApiClient{walleapi.NewWalleApiClient(conn), conn}, nil
+		health, ok := c.connHealth[serverId]
+		if !ok {
+			health = &connHealth{}
+			c.connHealth[serverId] = health
+		}
+		downNano := atomic.LoadInt64(&health.DownNano)
+		if downNano > time.Now().UnixNano() {
+			zlog.Info(
+				"DEBUG: client skipping ", conn.Target(),
+				" till ", time.Unix(0, downNano))
+			continue
+		}
+		if idx < preferredMajority {
+			copy(preferredIds[1:idx+1], preferredIds[:idx])
+			preferredIds[0] = serverId
+		}
+		return &wApiClient{
+			cli:      walleapi.NewWalleApiClient(conn),
+			errN:     &health.ErrN,
+			downNano: &health.DownNano,
+		}, nil
 	}
 	return nil, errors.Wrapf(
 		oneErr, "no server available for: %s", streamURI)
@@ -143,11 +165,11 @@ func (c *client) unsafeServerConn(serverId string) (*grpc.ClientConn, error) {
 		grpc.WithInsecure(),
 		grpc.WithConnectParams(grpc.ConnectParams{
 			Backoff: backoff.Config{
-				// TODO(zviad): Make this configurable, for clients that might have
+				// TODO(zviad): Make this configurable, for clients that might
 				// very large lease minimums.
 				BaseDelay:  LeaseMinimum,
 				MaxDelay:   120 * time.Second,
-				Multiplier: 2,
+				Multiplier: 1.6,
 				Jitter:     0.2,
 			},
 		}))

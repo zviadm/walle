@@ -298,6 +298,14 @@ func (s *Server) StreamEntries(
 		return status.Errorf(codes.NotFound, "streamURI: %s not found locally", req.GetStreamUri())
 	}
 	entryId := req.FromEntryId
+	internalCtx := stream.Context()
+	reqDeadline, ok := stream.Context().Deadline()
+	if ok {
+		var cancel context.CancelFunc
+		internalCtx, cancel = context.WithTimeout(
+			internalCtx, reqDeadline.Sub(time.Now())*4/5)
+		defer cancel()
+	}
 	for {
 		_, committedId, notify := ss.CommittedEntryIds()
 		if entryId < 0 {
@@ -314,16 +322,25 @@ func (s *Server) StreamEntries(
 		select {
 		case <-s.rootCtx.Done():
 			return nil
-		case <-stream.Context().Done():
+		case <-internalCtx.Done():
 			return nil
+		case <-stream.Context().Done():
+			return stream.Context().Err()
 		case <-notify:
 		}
 	}
 
+	oneOk := false
+	sendEntry := func(e *walleapi.Entry) error {
+		if err := stream.Send(e); err != nil {
+			return err
+		}
+		oneOk = true
+		return nil
+	}
 	cursor := ss.ReadFrom(entryId)
 	defer cursor.Close()
-	oneOk := false
-	for {
+	for internalCtx.Err() != context.DeadlineExceeded {
 		entry, ok := cursor.Next()
 		if !ok {
 			if !oneOk {
@@ -331,15 +348,17 @@ func (s *Server) StreamEntries(
 			}
 			break
 		}
-		oneOk = true
 		if entry.EntryId > entryId {
 			if err := s.fetchAndStoreEntries(
-				stream.Context(), ss, entryId, entry.EntryId, stream.Send); err != nil {
+				internalCtx, ss, entryId, entry.EntryId, sendEntry); err != nil {
+				if oneOk {
+					return nil
+				}
 				return err
 			}
 		}
 		entryId = entry.EntryId + 1
-		if err := stream.Send(entry); err != nil {
+		if err := sendEntry(entry); err != nil {
 			return err
 		}
 	}
@@ -389,7 +408,7 @@ func (s *Server) broadcastRequest(
 			errsC <- &callErr{ServerId: serverId, Err: err}
 		}(c, serverId)
 	}
-	var errCode codes.Code
+	var errCodeFinal codes.Code
 	var errs []error
 	for i := 0; i < len(serverIds); i++ {
 		select {
@@ -398,11 +417,9 @@ func (s *Server) broadcastRequest(
 		case err := <-errsC:
 			if err.Err != nil {
 				errs = append(errs, err.Err)
-				errStatus, _ := status.FromError(err.Err)
-				if errStatus.Code() == codes.FailedPrecondition {
-					errCode = codes.FailedPrecondition
-				} else if errCode != codes.FailedPrecondition {
-					errCode = errStatus.Code()
+				errCode := status.Convert(err.Err).Code()
+				if errCode == codes.FailedPrecondition || errCodeFinal != codes.FailedPrecondition {
+					errCodeFinal = errCode
 				}
 			} else {
 				successIds = append(successIds, err.ServerId)
@@ -412,7 +429,7 @@ func (s *Server) broadcastRequest(
 			return successIds, nil
 		}
 		if len(errs) >= (len(serverIds)+1)/2 {
-			return nil, status.Errorf(errCode, "errs: %d / %d - %s", len(errs), len(serverIds), errs)
+			return nil, status.Errorf(errCodeFinal, "errs: %d / %d - %s", len(errs), len(serverIds), errs)
 		}
 	}
 	panic("unreachable code")

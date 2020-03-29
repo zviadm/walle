@@ -762,6 +762,11 @@ type WalleApiClient interface {
 	ClaimWriter(ctx context.Context, in *ClaimWriterRequest, opts ...grpc.CallOption) (*ClaimWriterResponse, error)
 	WriterStatus(ctx context.Context, in *WriterStatusRequest, opts ...grpc.CallOption) (*WriterStatusResponse, error)
 	PutEntry(ctx context.Context, in *PutEntryRequest, opts ...grpc.CallOption) (*PutEntryResponse, error)
+	// StreamEntries streams committed entries from a given starting point. StreamEntries
+	// might exit early as long as it returns at least one successful entry. Note that
+	// StreamEntries call will block until deadline, if there are no new committed
+	// entries. Thus it can be used as a way to do long poll and stream latest entries from
+	// a stream.
 	StreamEntries(ctx context.Context, in *StreamEntriesRequest, opts ...grpc.CallOption) (WalleApi_StreamEntriesClient, error)
 }
 
@@ -837,6 +842,11 @@ type WalleApiServer interface {
 	ClaimWriter(context.Context, *ClaimWriterRequest) (*ClaimWriterResponse, error)
 	WriterStatus(context.Context, *WriterStatusRequest) (*WriterStatusResponse, error)
 	PutEntry(context.Context, *PutEntryRequest) (*PutEntryResponse, error)
+	// StreamEntries streams committed entries from a given starting point. StreamEntries
+	// might exit early as long as it returns at least one successful entry. Note that
+	// StreamEntries call will block until deadline, if there are no new committed
+	// entries. Thus it can be used as a way to do long poll and stream latest entries from
+	// a stream.
 	StreamEntries(*StreamEntriesRequest, WalleApi_StreamEntriesServer) error
 }
 

@@ -64,6 +64,7 @@ func TestCrashingQuorum(t *testing.T) {
 	require.NoError(t, err)
 
 	servicelib.IptablesBlockPort(t, itest.WalleDefaultPort+1)
+	defer servicelib.IptablesUnblockPort(t, itest.WalleDefaultPort+1)
 	s[1].Kill(t)
 	zlog.Info("TEST: killed s[1] process")
 

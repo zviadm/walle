@@ -216,10 +216,6 @@ func (w *Writer) process(ctx context.Context, req *writerReq) {
 				return false, err
 			}
 			now := time.Now()
-			zlog.Info(
-				"DEBUG: putEntry(BEFORE) ", req.Entry.EntryId,
-				" target ", cli.(*wApiClient).Conn.Target(),
-				" status ", cli.(*wApiClient).Conn.GetState())
 			putCtx, cancel := context.WithTimeout(ctx, w.writerLease)
 			defer cancel()
 			_, err = cli.PutEntry(putCtx, &walleapi.PutEntryRequest{
@@ -229,10 +225,6 @@ func (w *Writer) process(ctx context.Context, req *writerReq) {
 				CommittedEntryMd5: toCommitChecksumMd5,
 			})
 			if err != nil {
-				zlog.Info(
-					"DEBUG: putEntry ", req.Entry.EntryId,
-					" target ", cli.(*wApiClient).Conn.Target(),
-					" status ", cli.(*wApiClient).Conn.GetState(), " err ", err)
 				errStatus, _ := status.FromError(err)
 				return errStatus.Code() == codes.FailedPrecondition, err
 			}
