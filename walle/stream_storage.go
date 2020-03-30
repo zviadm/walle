@@ -3,6 +3,7 @@ package walle
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"sync"
 	"time"
@@ -270,7 +271,9 @@ func (m *streamStorage) unsafeCommitEntry(entryId int64, entryMd5 []byte, newGap
 	}
 	panicOnNotOk(
 		bytes.Compare(existingEntry.ChecksumMd5, entryMd5) == 0,
-		fmt.Sprintf("committed entry md5 mimstach at: %d, %s vs %s", entryId, entryMd5, existingEntry.ChecksumMd5))
+		fmt.Sprintf(
+			"committed entry md5 mimstach at: %d, %s vs %s",
+			entryId, hex.EncodeToString(entryMd5), hex.EncodeToString(existingEntry.ChecksumMd5)))
 	panicOnNotOk(useTx || m.sess.InTx(), "commit must happen inside a transaction")
 	if useTx {
 		panicOnErr(m.sess.TxBegin(nil))

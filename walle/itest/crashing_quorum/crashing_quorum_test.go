@@ -75,7 +75,7 @@ func TestCrashingQuorum(t *testing.T) {
 	require.EqualValues(t, 0, e.EntryId)
 	zlog.Info("TEST: writer claimed for /t1/blast")
 
-	nBatch := 2000
+	nBatch := 20000
 	errCs := make([]<-chan error, 0, nBatch)
 	for i := 0; i < nBatch/2; i++ {
 		_, errC := w.PutEntry([]byte("testingoooo"))
@@ -110,7 +110,7 @@ func TestCrashingQuorum(t *testing.T) {
 			wState, stateNotify = w.WriterState()
 			require.Equal(t, wallelib.Exclusive, wState)
 		}
-		if idx%100 == 0 {
+		if idx%1000 == 0 {
 			zlog.Info("TEST: putEntry success ", idx)
 		}
 	}

@@ -168,6 +168,7 @@ func (q *pipelineQueue) Push(r *walle_pb.PutEntryInternalRequest) <-chan bool {
 			bytes.Compare(req.R.GetEntry().GetChecksumMd5(), r.GetEntry().GetChecksumMd5()) == 0 {
 			if r.CommittedEntryId > req.R.CommittedEntryId {
 				req.R.CommittedEntryId = r.CommittedEntryId
+				req.R.CommittedEntryMd5 = r.CommittedEntryMd5
 			}
 			return req.okC
 		}
