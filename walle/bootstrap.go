@@ -21,11 +21,7 @@ func BootstrapRoot(s Storage, rootURI string, rootFile string, rootInfo *walleap
 	if err := wallelib.TopologyToFile(rootPb, rootFile); err != nil {
 		return err
 	}
-	s.NewStream(rootURI, rootPb.Streams[rootURI])
-	ss, ok := s.Stream(rootURI, true)
-	if !ok {
-		return errors.Errorf("stream was just created, must exist for: %s", rootURI)
-	}
+	ss := s.NewStream(rootURI, rootPb.Streams[rootURI])
 	entryData, err := rootPb.Marshal()
 	if err != nil {
 		return err

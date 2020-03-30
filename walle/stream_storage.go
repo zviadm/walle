@@ -16,10 +16,14 @@ import (
 type streamStorage struct {
 	serverId  string
 	streamURI string
-	sess      *wt.Session // can be nil for testing.
+	sess      *wt.Session
 	metaW     *wt.Mutator
 	streamR   *wt.Scanner
 	streamW   *wt.Mutator
+
+	// read-only session and separate mutex for ReadFrom calls.
+	mxRO   sync.Mutex
+	sessRO *wt.Session
 
 	mx       sync.Mutex
 	topology *walleapi.StreamTopology
@@ -42,7 +46,8 @@ func createStreamStorage(
 	serverId string,
 	streamURI string,
 	topology *walleapi.StreamTopology,
-	sess *wt.Session) StreamStorage {
+	sess *wt.Session,
+	sessRO *wt.Session) StreamStorage {
 	panicOnErr(isValidStreamURI(streamURI))
 	panicOnErr(sess.Create(streamDS(streamURI), &wt.DataSourceConfig{BlockCompressor: "snappy"}))
 
@@ -64,10 +69,14 @@ func createStreamStorage(
 	panicOnErr(sess.TxCommit())
 	panicOnErr(metaW.Close())
 	panicOnErr(streamW.Close())
-	return openStreamStorage(serverId, streamURI, sess)
+	return openStreamStorage(serverId, streamURI, sess, sessRO)
 }
 
-func openStreamStorage(serverId string, streamURI string, sess *wt.Session) StreamStorage {
+func openStreamStorage(
+	serverId string,
+	streamURI string,
+	sess *wt.Session,
+	sessRO *wt.Session) StreamStorage {
 	metaR, err := sess.Scan(metadataDS)
 	panicOnErr(err)
 	defer func() { panicOnErr(metaR.Close()) }()
@@ -89,6 +98,8 @@ func openStreamStorage(serverId string, streamURI string, sess *wt.Session) Stre
 		streamW:         streamW,
 		topology:        &walleapi.StreamTopology{},
 		committedNotify: make(chan struct{}),
+
+		sessRO: sessRO,
 
 		buf8:            make([]byte, 8),
 		tailEntry:       &walleapi.Entry{},
@@ -281,15 +292,13 @@ func (m *streamStorage) unsafeCommitEntry(entryId int64, entryMd5 []byte, newGap
 	if !newGap && m.noGapCommitted == m.committed {
 		m.noGapCommitted = entryId
 		binary.BigEndian.PutUint64(m.buf8, uint64(m.noGapCommitted))
-		panicOnErr(
-			m.metaW.Update([]byte(m.streamURI+sfxNoGapCommittedId), m.buf8))
+		panicOnErr(m.metaW.Update([]byte(m.streamURI+sfxNoGapCommittedId), m.buf8))
 	}
 	m.committed = entryId
 	close(m.committedNotify)
 	m.committedNotify = make(chan struct{})
 	binary.BigEndian.PutUint64(m.buf8, uint64(m.committed))
-	panicOnErr(
-		m.metaW.Update([]byte(m.streamURI+sfxCommittedId), m.buf8))
+	panicOnErr(m.metaW.Update([]byte(m.streamURI+sfxCommittedId), m.buf8))
 	if useTx {
 		panicOnErr(m.sess.TxCommit())
 	}
@@ -407,8 +416,7 @@ func (m *streamStorage) unsafeInsertEntry(entry *walleapi.Entry) {
 	binary.BigEndian.PutUint64(m.buf8, uint64(entry.EntryId))
 	entryB, err := entry.Marshal()
 	panicOnErr(err)
-	panicOnErr(
-		m.streamW.Insert(m.buf8, entryB))
+	panicOnErr(m.streamW.Insert(m.buf8, entryB))
 }
 
 // Deletes all entries [entryId...) from storage, and sets new tailEntry afterwards.
@@ -429,13 +437,13 @@ func (m *streamStorage) unsafeUpdateTailEntry(e *walleapi.Entry) {
 }
 
 func (m *streamStorage) ReadFrom(entryId int64) StreamCursor {
-	m.mx.Lock()
-	defer m.mx.Unlock()
-	cursor, err := m.sess.Scan(streamDS(m.streamURI))
+	m.mxRO.Lock()
+	defer m.mxRO.Unlock()
+	cursor, err := m.sessRO.Scan(streamDS(m.streamURI))
 	panicOnErr(err)
 
 	r := &streamCursor{
-		mx:      &m.mx,
+		mx:      &m.mxRO,
 		cursor:  cursor,
 		entryId: entryId,
 	}

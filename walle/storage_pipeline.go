@@ -135,8 +135,8 @@ func (q *pipelineQueue) Pop() *pipelineReq {
 func (q *pipelineQueue) CleanTillCommitted() bool {
 	q.mx.Lock()
 	defer q.mx.Unlock()
-	for idx := len(q.v) - 1; idx >= 0; idx-- {
-		if q.v[idx].R.GetEntry().GetEntryId() > q.v[idx].R.CommittedEntryId {
+	for idx, req := range q.v {
+		if req.R.GetEntry().GetEntryId() > req.R.CommittedEntryId {
 			continue
 		}
 		for k := 0; k < idx; k++ {
@@ -185,11 +185,11 @@ func (q *pipelineQueue) Push(r *walle_pb.PutEntryInternalRequest) <-chan bool {
 	copy(q.v[rIdx+1:], q.v[rIdx:])
 	q.v[rIdx] = req
 	if len(q.v) > streamPipelineQ {
-		zlog.Info(
-			"DEBUG: pipeline is overflowing ",
-			q.v[0].R.CommittedEntryId, " -- ", q.v[0].R.GetEntry().GetEntryId(), " -- ",
-			r.CommittedEntryId, " -- ", r.GetEntry().GetEntryId(), " -- ",
-			q.v[len(q.v)-1].R.CommittedEntryId, " -- ", q.v[len(q.v)-1].R.GetEntry().GetEntryId())
+		// zlog.Info(
+		// 	"DEBUG: pipeline is overflowing ",
+		// 	q.v[0].R.CommittedEntryId, " -- ", q.v[0].R.GetEntry().GetEntryId(), " -- ",
+		// 	r.CommittedEntryId, " -- ", r.GetEntry().GetEntryId(), " -- ",
+		// 	q.v[len(q.v)-1].R.CommittedEntryId, " -- ", q.v[len(q.v)-1].R.GetEntry().GetEntryId())
 		q.v[len(q.v)-1].okC <- false
 		q.v[len(q.v)-1] = nil
 		q.v = q.v[:len(q.v)-1]
@@ -243,13 +243,10 @@ func (p *streamPipeline) Process(ctx context.Context) {
 				return
 			case <-tailNotify:
 			case <-queueNotify:
-			case <-time.After(wallelib.LeaseMinimum / 8):
+			case <-time.After(wallelib.LeaseMinimum / 4):
 				if p.q.CleanTillCommitted() {
 					break WaitLoop
 				}
-				// zlog.Info(
-				// 	"DEBUG: pipeline is stuck? ",
-				// 	p.q.Len(), " -- ", head.CommittedEntryId, " -- ", head.GetEntry().GetEntryId(), " -- ", maxId)
 			}
 		}
 		req := p.q.Pop()

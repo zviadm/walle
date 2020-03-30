@@ -32,6 +32,7 @@ func main() {
 	runFlag := flag.String("run", "", "regexp")
 	benchFlag := flag.String("bench", "", "regexp")
 	countFlag := flag.String("count", "", "number of times to run tests")
+	raceFlag := flag.Bool("race", false, "enable race detector")
 	vFlag := flag.Bool("v", false, "verbose output")
 	flag.Parse()
 	packages := flag.Args()
@@ -79,6 +80,9 @@ func main() {
 	}
 	if *vFlag {
 		args = append(args, "-v")
+	}
+	if *raceFlag {
+		args = append(args, "-race")
 	}
 	if *runFlag != "" {
 		args = append(args, "-run", *runFlag)

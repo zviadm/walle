@@ -69,7 +69,7 @@ func TestCrashingQuorum(t *testing.T) {
 	zlog.Info("TEST: killed s[1] process")
 
 	w, e, err := wallelib.WaitAndClaim(
-		ctx, cli, "/t1/blast", "blastwriter:1001", 5*time.Second) // TODO(zviad): make this work with smaller lease
+		ctx, cli, "/t1/blast", "blastwriter:1001", time.Second)
 	require.NoError(t, err)
 	defer w.Close()
 	require.EqualValues(t, 0, e.EntryId)
@@ -77,7 +77,7 @@ func TestCrashingQuorum(t *testing.T) {
 
 	nBatch := 20000
 	errCs := make([]<-chan error, 0, nBatch)
-	for i := 0; i < nBatch/2; i++ {
+	for i := 0; i < nBatch/3; i++ {
 		_, errC := w.PutEntry([]byte("testingoooo"))
 		errCs = append(errCs, errC)
 	}
@@ -87,13 +87,14 @@ func TestCrashingQuorum(t *testing.T) {
 	s[1].Start(t, ctx)
 	zlog.Info("TEST: s[1] started")
 
-	for i := 0; i < nBatch/2; i++ {
+	batch2t0 := time.Now()
+	for i := 0; i < nBatch/3; i++ {
 		_, errC := w.PutEntry([]byte("testingoooo"))
 		errCs = append(errCs, errC)
 	}
 
 	time.Sleep(5 * time.Second)
-	wState, stateNotify := w.WriterState()
+	wState, _ := w.WriterState()
 	require.Equal(t, wallelib.Exclusive, wState)
 
 	servicelib.IptablesBlockPort(t, itest.WalleDefaultPort+2)
@@ -106,13 +107,32 @@ func TestCrashingQuorum(t *testing.T) {
 			require.FailNow(t, "putEntry timedout, exiting!")
 		case err := <-errC:
 			require.NoError(t, err)
-		case <-stateNotify:
-			wState, stateNotify = w.WriterState()
-			require.Equal(t, wallelib.Exclusive, wState)
 		}
 		if idx%1000 == 0 {
 			zlog.Info("TEST: putEntry success ", idx)
 		}
 	}
-	zlog.Info("TEST: processed all entries: ", len(errCs))
+	zlog.Info("TEST: processed all entries: ", len(errCs), " ", time.Now().Sub(batch2t0))
+
+	errCs = errCs[:0]
+	servicelib.IptablesUnblockPort(t, itest.WalleDefaultPort+2)
+	s[2].Start(t, ctx)
+	zlog.Info("TEST: s[2] started")
+	batch3t0 := time.Now()
+	for i := 0; i < nBatch/3; i++ {
+		_, errC := w.PutEntry([]byte("testingoooo"))
+		errCs = append(errCs, errC)
+	}
+	for idx, errC := range errCs {
+		select {
+		case <-ctx.Done():
+			require.FailNow(t, "putEntry timedout, exiting!")
+		case err := <-errC:
+			require.NoError(t, err)
+		}
+		if idx%1000 == 0 {
+			zlog.Info("TEST: putEntry success ", idx)
+		}
+	}
+	zlog.Info("TEST: processed all entries: ", len(errCs), " ", time.Now().Sub(batch3t0))
 }
