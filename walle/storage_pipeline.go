@@ -8,6 +8,7 @@ import (
 
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/walle/wallelib"
 	"github.com/zviadm/zlog"
 )
 
@@ -61,10 +62,10 @@ func (s *storagePipeline) ForStream(ss StreamStorage) *streamPipeline {
 	return p
 }
 
-func (s *storagePipeline) WaitForFlush() {
+func (s *storagePipeline) QueueFlush() <-chan bool {
 	c := make(chan bool, 1)
 	s.flushQ <- c
-	<-c
+	return c
 }
 
 func (s *storagePipeline) flusher(ctx context.Context) {
@@ -163,9 +164,11 @@ func (q *pipelineQueue) Push(r *walle_pb.PutEntryInternalRequest) <-chan bool {
 	rIdx := 0
 	for idx := len(q.v) - 1; idx >= 0; idx-- {
 		req := q.v[idx]
-		if req.R.CommittedEntryId == r.CommittedEntryId &&
-			req.R.GetEntry().GetEntryId() == r.GetEntry().GetEntryId() &&
+		if req.R.GetEntry().GetEntryId() == r.GetEntry().GetEntryId() &&
 			bytes.Compare(req.R.GetEntry().GetChecksumMd5(), r.GetEntry().GetChecksumMd5()) == 0 {
+			if r.CommittedEntryId > req.R.CommittedEntryId {
+				req.R.CommittedEntryId = r.CommittedEntryId
+			}
 			return req.okC
 		}
 		reqWaitId := waitIdForRequest(req.R)
@@ -239,7 +242,7 @@ func (p *streamPipeline) Process(ctx context.Context) {
 				return
 			case <-tailNotify:
 			case <-queueNotify:
-			case <-time.After(10 * time.Millisecond):
+			case <-time.After(wallelib.LeaseMinimum / 8):
 				if p.q.CleanTillCommitted() {
 					break WaitLoop
 				}

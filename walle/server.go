@@ -118,24 +118,21 @@ func (s *Server) PutEntryInternal(
 	}
 	ss.RenewLease(writerId)
 
-	if req.Entry.EntryId == 0 || req.Entry.EntryId > req.CommittedEntryId {
-		// Perform commit first. If commit can't happen, there is no point in trying to perform the put.
-		needsFlush, err := s.commitEntry(ctx, ss, req.CommittedEntryId, req.CommittedEntryMd5)
-		if err != nil {
-			return nil, err
-		}
-		if needsFlush && req.Entry.EntryId == 0 {
-			// Manually wait for flush, if there won't be any PutEntry calls that would do the
-			// flushing.
-			s.pipeline.WaitForFlush()
-		}
-	}
-	if req.Entry.EntryId == 0 {
-		return &walle_pb.PutEntryInternalResponse{}, nil
-	}
-
 	p := s.pipeline.ForStream(ss)
-	okC := p.Queue(req)
+	var okC <-chan bool
+	if req.Entry.EntryId == 0 || req.Entry.EntryId > req.CommittedEntryId {
+		if ss.CommitEntry(req.CommittedEntryId, req.CommittedEntryMd5) {
+			okC = s.pipeline.QueueFlush()
+		} else {
+			okC = p.Queue(&walle_pb.PutEntryInternalRequest{
+				CommittedEntryId:  req.CommittedEntryId,
+				CommittedEntryMd5: req.CommittedEntryMd5,
+			})
+		}
+	}
+	if req.Entry.EntryId > 0 {
+		okC = p.Queue(req)
+	}
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -144,31 +141,6 @@ func (s *Server) PutEntryInternal(
 			return nil, status.Errorf(codes.OutOfRange, "put entryId: %d, commitId: %d", req.Entry.EntryId, req.CommittedEntryId)
 		}
 		return &walle_pb.PutEntryInternalResponse{}, nil
-	}
-}
-
-func (s *Server) commitEntry(
-	ctx context.Context,
-	ss StreamStorage,
-	committedEntryId int64,
-	committedEntryMd5 []byte) (needsFlush bool, err error) {
-	ok := ss.CommitEntry(committedEntryId, committedEntryMd5)
-	if ok {
-		return true, nil
-	}
-	p := s.pipeline.ForStream(ss)
-	okC := p.Queue(&walle_pb.PutEntryInternalRequest{
-		CommittedEntryId:  committedEntryId,
-		CommittedEntryMd5: committedEntryMd5,
-	})
-	select {
-	case <-ctx.Done():
-		return false, ctx.Err()
-	case ok := <-okC:
-		if !ok {
-			return false, status.Errorf(codes.OutOfRange, "commitId: %d", committedEntryId)
-		}
-		return false, nil
 	}
 }
 

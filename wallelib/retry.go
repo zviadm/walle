@@ -7,6 +7,8 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/zviadm/zlog"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func KeepTryingWithBackoff(
@@ -24,7 +26,8 @@ func KeepTryingWithBackoff(
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if retryN >= 2 && !silent {
+		isDeadlineErr := (err == context.DeadlineExceeded || status.Convert(err).Code() == codes.DeadlineExceeded)
+		if (retryN >= 2 || isDeadlineErr) && !silent {
 			stackTrace := errors.Wrap(err, "").(stackTracer).StackTrace()
 			stackFrame := stackTrace[1]
 			zlog.Warningf("%n (%s:%d) retry #%d: %s...",

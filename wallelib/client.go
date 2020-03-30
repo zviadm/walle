@@ -4,7 +4,6 @@ import (
 	"context"
 	"math/rand"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
@@ -28,6 +27,8 @@ type client struct {
 	conns      map[string]*grpc.ClientConn // serverId -> conn
 	connHealth map[string]*connHealth      // serverId -> connHealth
 	preferred  map[string][]string         // streamURI -> []serverId
+	// Round-Robin index, if all connections are down, use a random one.
+	rrIdx int
 }
 
 type connHealth struct {
@@ -55,6 +56,7 @@ func (c *client) watcher(ctx context.Context, notify <-chan struct{}) {
 		select {
 		case <-notify:
 		case <-ctx.Done():
+			c.update(&walleapi.Topology{})
 			return
 		}
 		topology, notify = c.d.Topology()
@@ -110,24 +112,11 @@ func (c *client) ForStream(streamURI string) (walleapi.WalleApiClient, error) {
 		if conn.GetState() == connectivity.TransientFailure {
 			continue
 		}
-		health, ok := c.connHealth[serverId]
-		if !ok {
-			health = &connHealth{}
-			c.connHealth[serverId] = health
-		}
-		downNano := atomic.LoadInt64(&health.DownNano)
-		if downNano > time.Now().UnixNano() {
-			continue
-		}
 		if idx > 0 && idx < preferredMajority {
 			copy(preferredIds[1:idx+1], preferredIds[:idx])
 			preferredIds[0] = serverId
 		}
-		return &wApiClient{
-			cli:      walleapi.NewWalleApiClient(conn),
-			errN:     &health.ErrN,
-			downNano: &health.DownNano,
-		}, nil
+		return walleapi.NewWalleApiClient(conn), nil
 	}
 	return nil, errors.Wrapf(
 		oneErr, "no server available for: %s", streamURI)
@@ -148,29 +137,30 @@ func (c *client) ForServer(serverId string) (walle_pb.WalleClient, error) {
 
 func (c *client) unsafeServerConn(serverId string) (*grpc.ClientConn, error) {
 	conn, ok := c.conns[serverId]
-	if ok {
-		return conn, nil
-	}
-	serverInfo, ok := c.topology.Servers[serverId]
 	if !ok {
-		return nil, errors.Errorf("serverId: %s, not found in topology", serverId)
-	}
-	// TODO(zviad): Decide what to do about security...
-	conn, err := grpc.Dial(
-		serverInfo.Address,
-		grpc.WithInsecure(),
-		grpc.WithConnectParams(grpc.ConnectParams{
-			Backoff: backoff.Config{
-				// TODO(zviad): Make this configurable, for clients that might
-				// very large lease minimums.
-				BaseDelay:  LeaseMinimum,
-				MaxDelay:   120 * time.Second,
-				Multiplier: 1.6,
-				Jitter:     0.2,
-			},
-		}))
-	if err != nil {
-		return nil, err
+		serverInfo, ok := c.topology.Servers[serverId]
+		if !ok {
+			return nil, errors.Errorf("serverId: %s, not found in topology", serverId)
+		}
+		// TODO(zviad): Decide what to do about security...
+		var err error
+		conn, err = grpc.Dial(
+			serverInfo.Address,
+			grpc.WithInsecure(),
+			grpc.WithConnectParams(grpc.ConnectParams{
+				Backoff: backoff.Config{
+					// TODO(zviad): Make this configurable, for clients that might
+					// have very large lease minimums.
+					BaseDelay:  LeaseMinimum,
+					MaxDelay:   120 * time.Second,
+					Multiplier: 1.6,
+					Jitter:     0.2,
+				},
+			}))
+		if err != nil {
+			return nil, err
+		}
+		c.conns[serverId] = conn
 	}
 	return conn, nil
 }

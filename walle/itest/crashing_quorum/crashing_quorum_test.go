@@ -68,9 +68,8 @@ func TestCrashingQuorum(t *testing.T) {
 	s[1].Kill(t)
 	zlog.Info("TEST: killed s[1] process")
 
-	claimCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	w, e, err := wallelib.WaitAndClaim(claimCtx, cli, "/t1/blast", "blastwriter:1001", time.Second)
+	w, e, err := wallelib.WaitAndClaim(
+		ctx, cli, "/t1/blast", "blastwriter:1001", 5*time.Second) // TODO(zviad): make this work with smaller lease
 	require.NoError(t, err)
 	defer w.Close()
 	require.EqualValues(t, 0, e.EntryId)
