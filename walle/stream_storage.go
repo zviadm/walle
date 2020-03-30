@@ -437,15 +437,16 @@ func (m *streamStorage) unsafeUpdateTailEntry(e *walleapi.Entry) {
 }
 
 func (m *streamStorage) ReadFrom(entryId int64) StreamCursor {
+	_, committedId, _ := m.CommittedEntryIds()
 	m.mxRO.Lock()
 	defer m.mxRO.Unlock()
 	cursor, err := m.sessRO.Scan(streamDS(m.streamURI))
 	panicOnErr(err)
 
 	r := &streamCursor{
-		mx:      &m.mxRO,
-		cursor:  cursor,
-		entryId: entryId,
+		mx:          &m.mxRO,
+		cursor:      cursor,
+		committedId: committedId,
 	}
 	binary.BigEndian.PutUint64(m.buf8, uint64(entryId))
 	mType, err := cursor.SearchNear(m.buf8)
@@ -457,10 +458,10 @@ func (m *streamStorage) ReadFrom(entryId int64) StreamCursor {
 }
 
 type streamCursor struct {
-	mx       *sync.Mutex
-	finished bool
-	cursor   *wt.Scanner
-	entryId  int64
+	mx          *sync.Mutex
+	finished    bool
+	cursor      *wt.Scanner
+	committedId int64
 }
 
 func (m *streamCursor) Close() {
@@ -469,6 +470,7 @@ func (m *streamCursor) Close() {
 	if !m.finished {
 		panicOnErr(m.cursor.Close())
 	}
+	m.finished = true
 }
 func (m *streamCursor) Next() (*walleapi.Entry, bool) {
 	m.mx.Lock()
@@ -481,6 +483,11 @@ func (m *streamCursor) Next() (*walleapi.Entry, bool) {
 	panicOnErr(err)
 	entry := &walleapi.Entry{}
 	panicOnErr(entry.Unmarshal(v))
+	if entry.EntryId > m.committedId {
+		m.finished = true
+		panicOnErr(m.cursor.Close())
+		return nil, false
+	}
 	if err := m.cursor.Next(); err != nil {
 		if wt.ErrCode(err) != wt.ErrNotFound {
 			panicOnErr(err)

@@ -10,8 +10,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/zviadm/walle/proto/walleapi"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type discovery struct {
@@ -51,7 +49,7 @@ func NewDiscovery(
 		err := KeepTryingWithBackoff(
 			retryCtx, time.Second/10, time.Second,
 			func(retryN uint) (bool, bool, error) {
-				cli, err := root.ForStream(topologyURI)
+				cli, err := root.ForStream(topologyURI, -1)
 				if err != nil {
 					return false, false, err
 				}
@@ -83,39 +81,26 @@ func newDiscovery(
 func (d *discovery) watcher(ctx context.Context) {
 	topology := d.topology
 	for {
-		cli, err := d.root.ForStream(d.topologyURI)
+		err := KeepTryingWithBackoff(
+			ctx, LeaseMinimum, time.Second,
+			func(retryN uint) (bool, bool, error) {
+				cli, err := d.root.ForStream(d.topologyURI, -1)
+				if err != nil {
+					return false, false, err
+				}
+				topology, err = streamUpdates(ctx, cli, d.topologyURI, d.topology.Version+1)
+				if err != nil {
+					if err == io.EOF {
+						return true, false, nil
+					}
+					return false, false, err
+				}
+				d.updateTopology(topology)
+				return true, false, nil
+			})
 		if err != nil {
-			// zlog.Warningf("watcher can't connect: %s - %s...", d.topologyURI, err)
-			// TODO(zviad): exp backoff?
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(time.Second):
-			}
-			continue
+			return
 		}
-		topology, err = streamUpdates(ctx, cli, d.topologyURI, d.topology.Version+1)
-		if err != nil {
-			if ctx.Err() != nil {
-				return
-			}
-
-			errStatus, _ := status.FromError(err)
-			if err == io.EOF ||
-				err == context.DeadlineExceeded ||
-				errStatus.Code() == codes.DeadlineExceeded {
-				continue
-			}
-			// zlog.Warningf("[%s] watcher err: %s", d.topologyURI, err)
-			// TODO(zviad): exp backoff?
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(time.Second):
-			}
-			continue
-		}
-		d.updateTopology(topology)
 	}
 }
 
@@ -151,14 +136,13 @@ func streamUpdates(
 	var entry *walleapi.Entry
 	for {
 		entryNew, err := r.Recv()
-		if err == nil {
-			entry = entryNew
-			continue
+		if err != nil {
+			if entry == nil {
+				return nil, err
+			}
+			break
 		}
-		if entry == nil {
-			return nil, err
-		}
-		break
+		entry = entryNew
 	}
 	return TopologyFromEntry(entry)
 }

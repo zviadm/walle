@@ -37,6 +37,10 @@ type Writer struct {
 	writerId    string
 	longBeat    time.Duration
 
+	cliMX        sync.Mutex
+	cachedCli    walleapi.WalleApiClient
+	cachedCliIdx int
+
 	lastEntry    *walleapi.Entry
 	reqQ         chan *writerReq
 	inFlightQ    chan struct{}
@@ -145,6 +149,33 @@ func (w *Writer) processor(ctx context.Context) {
 	}
 }
 
+func (w *Writer) cli() (walleapi.WalleApiClient, error) {
+	w.cliMX.Lock()
+	defer w.cliMX.Unlock()
+	if w.cachedCli != nil {
+		return w.cachedCli, nil
+	}
+	nServers := 3 // TODO: get this from BaseClient somehow.
+	for i := 0; i < nServers; i++ {
+		w.cachedCliIdx += 1 % (nServers/2 + 1)
+		cli, err := w.c.ForStream(w.streamURI, w.cachedCliIdx)
+		if err != nil {
+			if err == ErrConnUnavailable {
+				continue
+			}
+			return nil, err
+		}
+		w.cachedCli = cli
+		return w.cachedCli, nil
+	}
+	return nil, ErrConnUnavailable
+}
+func (w *Writer) clearCli() {
+	w.cliMX.Lock()
+	defer w.cliMX.Unlock()
+	w.cachedCli = nil
+}
+
 // Heartbeater makes requests to the server if there are no active PutEntry calls happening.
 // This makes sure that entries will be marked as committed fast, even if there are no PutEntry calls,
 // and also makes sure that servers are aware that writer is still alive.
@@ -164,7 +195,10 @@ func (w *Writer) heartbeater(ctx context.Context) {
 		err := KeepTryingWithBackoff(
 			ctx, w.longBeat, w.writerLease/4,
 			func(retryN uint) (bool, bool, error) {
-				cli, err := w.c.ForStream(w.streamURI)
+				if retryN >= 1 {
+					w.clearCli()
+				}
+				cli, err := w.cli()
 				if err != nil {
 					return false, false, err
 				}
@@ -200,7 +234,7 @@ func (w *Writer) process(ctx context.Context, req *writerReq) {
 				return true, false, nil
 			}
 			silenceErr := (req.Entry.EntryId != toCommit.EntryId+1)
-			cli, err := w.c.ForStream(w.streamURI)
+			cli, err := w.cli()
 			if err != nil {
 				return false, silenceErr, err
 			}

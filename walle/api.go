@@ -299,8 +299,10 @@ func (s *Server) StreamEntries(
 			internalCtx, reqDeadline.Sub(time.Now())*4/5)
 		defer cancel()
 	}
+	var committedId int64
 	for {
-		_, committedId, notify := ss.CommittedEntryIds()
+		var notify <-chan struct{}
+		_, committedId, notify = ss.CommittedEntryIds()
 		if entryId < 0 {
 			entryId = committedId
 		}
@@ -331,29 +333,10 @@ func (s *Server) StreamEntries(
 		oneOk = true
 		return nil
 	}
-	cursor := ss.ReadFrom(entryId)
-	defer cursor.Close()
-	for internalCtx.Err() != context.DeadlineExceeded {
-		entry, ok := cursor.Next()
-		if !ok {
-			if !oneOk {
-				return status.Errorf(codes.Internal, "committed entry missing? %d", entryId)
-			}
-			break
-		}
-		if entry.EntryId > entryId {
-			if err := s.fetchAndStoreEntries(
-				internalCtx, ss, entryId, entry.EntryId, sendEntry); err != nil {
-				if oneOk {
-					return nil
-				}
-				return err
-			}
-		}
-		entryId = entry.EntryId + 1
-		if err := sendEntry(entry); err != nil {
-			return err
-		}
+	err := s.readAndProcessEntries(
+		internalCtx, ss, entryId, committedId+1, sendEntry)
+	if !oneOk && err != nil {
+		return err
 	}
 	return nil
 }

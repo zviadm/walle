@@ -3,7 +3,6 @@ package walle
 import (
 	"context"
 	"encoding/hex"
-	"fmt"
 	"io"
 	"time"
 
@@ -46,23 +45,52 @@ func (s *Server) gapHandlerForStream(
 	ss StreamStorage,
 	noGapCommittedId int64,
 	committedId int64) error {
-	cursor := ss.ReadFrom(noGapCommittedId + 1)
-	defer cursor.Close()
-	for noGapCommittedId < committedId {
+	newGapId := noGapCommittedId
+	processEntry := func(e *walleapi.Entry) error {
+		newGapId = e.EntryId
+		return nil
+	}
+	err := s.readAndProcessEntries(
+		ctx, ss, noGapCommittedId, committedId, processEntry)
+	if newGapId > noGapCommittedId {
+		ss.UpdateNoGapCommittedId(newGapId)
+	}
+	return err
+}
+
+// Reads and processes committed entries in range: [startId, endId). Will backfill any of the
+// missing entries. [startId, endId), must be a valid committed range.
+func (s *Server) readAndProcessEntries(
+	ctx context.Context,
+	ss StreamStorage,
+	startId int64,
+	endId int64,
+	processEntry func(entry *walleapi.Entry) error) error {
+	entryId := startId
+	cursor := ss.ReadFrom(entryId)
+	defer func() { cursor.Close() }() // cursor can change through out
+	for entryId < endId {
 		entry, ok := cursor.Next()
-		panicOnNotOk(
-			ok && entry.EntryId <= committedId,
-			fmt.Sprintf(
-				"committed entry wasn't found by cursor: %d > %d (gap: %d)!",
-				entry.GetEntryId(), committedId, noGapCommittedId))
-		if entry.EntryId > noGapCommittedId+1 {
-			err := s.fetchAndStoreEntries(ctx, ss, noGapCommittedId+1, entry.EntryId, nil)
+		if !ok || entry.GetEntryId() > endId {
+			return errors.Errorf(
+				"ERR_FATAL; committed entry wasn't found by cursor: %d > %d (from: %d)!",
+				entry.GetEntryId(), endId, entryId)
+		}
+		if entry.EntryId > entryId {
+			cursor.Close() // close cursor to avoid having it open while rpc is running.
+			err := s.fetchAndStoreEntries(
+				ctx, ss, entryId, entry.EntryId, processEntry)
 			if err != nil {
 				return err
 			}
+			cursor = ss.ReadFrom(entry.EntryId + 1)
 		}
-		ss.UpdateNoGapCommittedId(entry.EntryId)
-		noGapCommittedId, committedId, _ = ss.CommittedEntryIds()
+		if processEntry != nil {
+			if err := processEntry(entry); err != nil {
+				return err
+			}
+		}
+		entryId = entry.EntryId
 	}
 	return nil
 }
@@ -111,7 +139,7 @@ Main:
 				if err == io.EOF {
 					if startId != endId {
 						zlog.Errorf(
-							"DEVELOPER_ERROR; unreachable code. %s server: %s is buggy!",
+							"ERR_FATAL; unreachable code. %s server: %s is buggy!",
 							ss.StreamURI(), serverIdHex)
 						continue Main
 					}
@@ -122,7 +150,7 @@ Main:
 			}
 			if entry.EntryId != startId {
 				zlog.Errorf(
-					"DEVELOPER_ERROR; unreachable code. %s server: %s is buggy!",
+					"ERR_FATAL; unreachable code. %s server: %s is buggy!",
 					ss.StreamURI(), serverIdHex)
 				continue Main
 			}

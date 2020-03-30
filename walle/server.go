@@ -187,8 +187,6 @@ func (s *Server) fetchCommittedEntry(
 				errsC <- err
 				return
 			}
-			ok := ss.PutEntry(entry, true)
-			panicOnNotOk(ok, "putting committed entry must always succeed!")
 			entriesC <- entry
 			return
 		}(c, serverId)
@@ -233,6 +231,8 @@ func (s *Server) ReadEntries(
 			return status.Errorf(codes.NotFound, "entry: %d is missing", entryId)
 		}
 		entryId += 1
+		// TODO(zviad): Can `send` block? in that case we might have to treat cursor
+		// differently.
 		err := stream.Send(entry)
 		if err != nil {
 			return err

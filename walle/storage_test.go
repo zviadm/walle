@@ -47,6 +47,10 @@ func TestStreamStorage(t *testing.T) {
 	require.EqualValues(t, 0, noGap)
 	require.EqualValues(t, 0, committed)
 
+	entriesR := streamReadAll(t, ss, 0)
+	require.EqualValues(t, 1, len(entriesR)) // entry1 shouldn't be visible yet.
+	require.EqualValues(t, 0, entriesR[0].EntryId)
+
 	ok = ss.PutEntry(entries[3], false)
 	require.False(t, ok)
 
@@ -56,7 +60,7 @@ func TestStreamStorage(t *testing.T) {
 	require.EqualValues(t, 0, noGap)
 	require.EqualValues(t, 3, committed)
 
-	entriesR := streamReadAll(t, ss, 0)
+	entriesR = streamReadAll(t, ss, 0)
 	require.EqualValues(t, 2, len(entriesR)) // entry1 should have been removed because of Gap commit.
 	require.EqualValues(t, 0, entriesR[0].EntryId)
 	require.EqualValues(t, 3, entriesR[1].EntryId)
@@ -65,14 +69,25 @@ func TestStreamStorage(t *testing.T) {
 	require.EqualValues(t, 1, len(entriesR))
 	require.EqualValues(t, 3, entriesR[0].EntryId)
 
-	cursor := ss.ReadFrom(1)
-	defer cursor.Close()
+	c0 := ss.ReadFrom(1)
 	ok = ss.PutEntry(entries[5], true)
 	require.True(t, ok)
-	entry, ok := cursor.Next()
+	entry, ok := c0.Next()
 	require.True(t, ok)
 	require.EqualValues(t, 3, entry.EntryId)
-	cursor.Close()
+	c0.Close()
+
+	c0 = ss.ReadFrom(1)
+	c1 := ss.ReadFrom(5)
+	entry, ok = c1.Next()
+	require.True(t, ok)
+	require.EqualValues(t, 5, entry.EntryId)
+	entry, ok = c0.Next()
+	require.True(t, ok)
+	require.EqualValues(t, 3, entry.EntryId)
+	c0.Close()
+	c0.Close() // check to make sure it is safe to close closed cursor
+	c1.Close()
 }
 
 func streamReadAll(t *testing.T, ss StreamStorage, entryId int64) []*walleapi.Entry {

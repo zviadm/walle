@@ -135,7 +135,11 @@ func (q *pipelineQueue) Pop() *pipelineReq {
 func (q *pipelineQueue) CleanTillCommitted() bool {
 	q.mx.Lock()
 	defer q.mx.Unlock()
-	for idx, req := range q.v {
+	return q.cleanTillCommitted()
+}
+func (q *pipelineQueue) cleanTillCommitted() bool {
+	for idx := len(q.v) - 1; idx >= 0; idx-- {
+		req := q.v[idx]
 		if req.R.GetEntry().GetEntryId() > req.R.CommittedEntryId {
 			continue
 		}
@@ -185,14 +189,13 @@ func (q *pipelineQueue) Push(r *walle_pb.PutEntryInternalRequest) <-chan bool {
 	copy(q.v[rIdx+1:], q.v[rIdx:])
 	q.v[rIdx] = req
 	if len(q.v) > streamPipelineQ {
-		// zlog.Info(
-		// 	"DEBUG: pipeline is overflowing ",
-		// 	q.v[0].R.CommittedEntryId, " -- ", q.v[0].R.GetEntry().GetEntryId(), " -- ",
-		// 	r.CommittedEntryId, " -- ", r.GetEntry().GetEntryId(), " -- ",
-		// 	q.v[len(q.v)-1].R.CommittedEntryId, " -- ", q.v[len(q.v)-1].R.GetEntry().GetEntryId())
-		q.v[len(q.v)-1].okC <- false
-		q.v[len(q.v)-1] = nil
-		q.v = q.v[:len(q.v)-1]
+		zlog.Info(
+			"DEBUG: pipeline is overflowing ",
+			q.v[0].R.CommittedEntryId, " -- ", q.v[0].R.GetEntry().GetEntryId(), " -- ",
+			r.CommittedEntryId, " -- ", r.GetEntry().GetEntryId(), " -- ",
+			q.v[len(q.v)-1].R.CommittedEntryId, " -- ", q.v[len(q.v)-1].R.GetEntry().GetEntryId())
+		q.cleanTillCommitted()
+		q.notify()
 	}
 	if q.v[0] == req {
 		q.notify()
@@ -215,59 +218,70 @@ func newStreamPipeline(
 	return r
 }
 
+func (p *streamPipeline) waitForId(
+	ctx context.Context, maxId int64) int64 {
+	for {
+		head, queueNotify := p.q.Peek()
+		if head == nil {
+			select {
+			case <-ctx.Done():
+				return maxId
+			case <-queueNotify:
+			}
+			continue
+		}
+		waitId := waitIdForRequest(head)
+		if waitId <= maxId {
+			return maxId
+		}
+		tailId, tailNotify := p.ss.TailEntryId()
+		maxId = tailId
+		if waitId <= tailId {
+			return maxId
+		}
+		select {
+		case <-ctx.Done():
+			return maxId
+		case <-tailNotify:
+		case <-queueNotify:
+		case <-time.After(wallelib.LeaseMinimum / 4):
+			if p.q.CleanTillCommitted() {
+				return maxId
+			}
+		}
+	}
+}
+
+func (p *streamPipeline) backfillEntry(
+	ctx context.Context, entryId int64, entryMd5 []byte) bool {
+	_, _, writerLease, _ := p.ss.WriterInfo()
+	if writerLease < wallelib.LeaseMinimum {
+		writerLease = wallelib.LeaseMinimum
+	}
+	ctx, cancel := context.WithTimeout(ctx, writerLease/4)
+	defer cancel()
+	entry, err := p.fetchCommittedEntry(
+		ctx, p.ss.StreamURI(), entryId, entryMd5)
+	if err != nil {
+		zlog.Warningf("[sp] err fetching: %s:%d - %s", p.ss.StreamURI(), entryId, err)
+		return false
+	}
+	ok := p.ss.PutEntry(entry, true)
+	panicOnNotOk(ok, "committed putEntry must always succeed")
+	zlog.Infof("[sp] stream: %s caught up to: %d (might have created a gap)", p.ss.StreamURI(), entryId)
+	return true
+}
+
 func (p *streamPipeline) Process(ctx context.Context) {
 	var maxId int64
 	for {
-	WaitLoop:
-		for {
-			head, queueNotify := p.q.Peek()
-			if head == nil {
-				select {
-				case <-ctx.Done():
-					return
-				case <-queueNotify:
-				}
-				continue
-			}
-			waitId := waitIdForRequest(head)
-			if waitId <= maxId {
-				break
-			}
-			tailId, tailNotify := p.ss.TailEntryId()
-			maxId = tailId
-			if waitId <= tailId {
-				break
-			}
-			select {
-			case <-ctx.Done():
-				return
-			case <-tailNotify:
-			case <-queueNotify:
-			case <-time.After(wallelib.LeaseMinimum / 4):
-				if p.q.CleanTillCommitted() {
-					break WaitLoop
-				}
-			}
-		}
+		maxId = p.waitForId(ctx, maxId)
 		req := p.q.Pop()
 		var ok bool
 		if req.R.GetEntry().GetEntryId() == 0 {
 			ok = p.ss.CommitEntry(req.R.CommittedEntryId, req.R.CommittedEntryMd5)
 			if !ok {
-				// Try to fetch the committed entry from other servers and create a GAP locally to continue with
-				// the put.
-				ctx, cancel := context.WithTimeout(context.Background(), time.Second) // TODO(zviad): timeout constant?
-				defer cancel()
-				entry, err := p.fetchCommittedEntry(
-					ctx, p.ss.StreamURI(), req.R.CommittedEntryId, req.R.CommittedEntryMd5)
-				if err != nil {
-					zlog.Warningf("[sp] err fetching: %s:%d - %s", p.ss.StreamURI(), req.R.CommittedEntryId, err)
-				} else {
-					ok = p.ss.PutEntry(entry, true)
-					zlog.Infof(
-						"[sp] stream: %s caught up to: %d (might have created a gap)",
-						p.ss.StreamURI(), req.R.CommittedEntryId)
-				}
+				ok = p.backfillEntry(ctx, req.R.CommittedEntryId, req.R.CommittedEntryMd5)
 			}
 			if ok && req.R.CommittedEntryId > maxId {
 				maxId = req.R.CommittedEntryId

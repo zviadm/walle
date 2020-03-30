@@ -16,19 +16,17 @@ import (
 )
 
 type BasicClient interface {
-	ForStream(streamURI string) (walleapi.WalleApiClient, error)
+	ForStream(streamURI string, idx int) (walleapi.WalleApiClient, error)
 }
 
 type client struct {
 	d Discovery
 
-	mx         sync.Mutex
-	topology   *walleapi.Topology
-	conns      map[string]*grpc.ClientConn // serverId -> conn
-	connHealth map[string]*connHealth      // serverId -> connHealth
-	preferred  map[string][]string         // streamURI -> []serverId
-	// Round-Robin index, if all connections are down, use a random one.
-	rrIdx int
+	mx        sync.Mutex
+	topology  *walleapi.Topology
+	conns     map[string]*grpc.ClientConn // serverId -> conn
+	preferred map[string][]string         // streamURI -> []serverId
+	rrIdx     map[string]int              // streamURI -> round-robin index
 }
 
 type connHealth struct {
@@ -40,9 +38,9 @@ var ErrConnUnavailable = errors.New("connection in TransientFailure")
 
 func NewClient(ctx context.Context, d Discovery) *client {
 	c := &client{
-		d:          d,
-		conns:      make(map[string]*grpc.ClientConn),
-		connHealth: make(map[string]*connHealth),
+		d:     d,
+		conns: make(map[string]*grpc.ClientConn),
+		rrIdx: make(map[string]int),
 	}
 	topology, notify := d.Topology()
 	c.update(topology)
@@ -92,34 +90,38 @@ func (c *client) update(topology *walleapi.Topology) {
 			delete(c.conns, serverId)
 		}
 	}
+	for streamURI := range c.rrIdx {
+		if _, ok := c.preferred[streamURI]; !ok {
+			delete(c.rrIdx, streamURI)
+		}
+	}
 }
 
-func (c *client) ForStream(streamURI string) (walleapi.WalleApiClient, error) {
+func (c *client) ForStream(streamURI string, idx int) (walleapi.WalleApiClient, error) {
 	c.mx.Lock()
 	defer c.mx.Unlock()
 	preferredIds, ok := c.preferred[streamURI]
 	if !ok {
 		return nil, errors.Errorf("streamURI: %s, not found in topology", streamURI)
 	}
-	var oneErr error = ErrConnUnavailable
-	preferredMajority := len(preferredIds)/2 + 1
-	for idx, serverId := range preferredIds {
+	tryN := 1
+	if idx == -1 {
+		idx = c.rrIdx[streamURI]
+		c.rrIdx[streamURI] += 1
+		tryN = len(preferredIds)
+	}
+	for i := 0; i < tryN; i++ {
+		serverId := preferredIds[(idx+i)%len(preferredIds)]
 		conn, err := c.unsafeServerConn(serverId)
 		if err != nil {
-			oneErr = err
 			continue
 		}
 		if conn.GetState() == connectivity.TransientFailure {
 			continue
 		}
-		if idx > 0 && idx < preferredMajority {
-			copy(preferredIds[1:idx+1], preferredIds[:idx])
-			preferredIds[0] = serverId
-		}
 		return walleapi.NewWalleApiClient(conn), nil
 	}
-	return nil, errors.Wrapf(
-		oneErr, "no server available for: %s", streamURI)
+	return nil, ErrConnUnavailable
 }
 
 func (c *client) ForServer(serverId string) (walle_pb.WalleClient, error) {
@@ -151,7 +153,7 @@ func (c *client) unsafeServerConn(serverId string) (*grpc.ClientConn, error) {
 				Backoff: backoff.Config{
 					// TODO(zviad): Make this configurable, for clients that might
 					// have very large lease minimums.
-					BaseDelay:  LeaseMinimum,
+					BaseDelay:  LeaseMinimum / 8, // Base delay has to be < Lease/4
 					MaxDelay:   120 * time.Second,
 					Multiplier: 1.6,
 					Jitter:     0.2,

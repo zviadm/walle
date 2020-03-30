@@ -3,6 +3,7 @@ package walle
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"fmt"
 	"io/ioutil"
 	"regexp"
 	"strings"
@@ -77,9 +78,9 @@ func panicOnErr(err error) {
 		panic(err)
 	}
 }
-func panicOnNotOk(ok bool, msg string) {
+func panicOnNotOk(ok bool, msg string, args ...interface{}) {
 	if !ok {
-		panic(msg)
+		panic(fmt.Sprintf(msg, args...))
 	}
 }
 

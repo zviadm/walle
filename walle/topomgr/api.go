@@ -108,7 +108,7 @@ func (m *Manager) waitForStreamVersion(
 	ctx context.Context, streamURI string, streamVersion int64) error {
 	return wallelib.KeepTryingWithBackoff(ctx, wallelib.LeaseMinimum, time.Second,
 		func(retryN uint) (bool, bool, error) {
-			streamC, err := m.c.ForStream(streamURI)
+			streamC, err := m.c.ForStream(streamURI, -1)
 			if err != nil {
 				return true, false, err
 			}

@@ -34,7 +34,9 @@ type StreamStorage interface {
 	TailEntryId() (entryId int64, notify <-chan struct{})
 	// Returns last committed entry and all the following not-yet committed entries.
 	LastEntries() []*walleapi.Entry
-	// Returns cursor to read committed entries starting at entryId.
+	// Returns cursor to read committed entries starting at entryId. Cursor should be used
+	// as soon as possible and shouldn't be held open for too long (i.e. while waiting on some
+	// network i/o).
 	ReadFrom(entryId int64) StreamCursor
 
 	UpdateNoGapCommittedId(entryId int64)

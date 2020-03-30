@@ -157,6 +157,8 @@ func (m *storage) Stream(streamURI string, localOnly bool) (StreamStorage, bool)
 func (m *storage) NewStream(streamURI string, t *walleapi.StreamTopology) StreamStorage {
 	m.mx.Lock()
 	defer m.mx.Unlock()
+	_, ok := m.streams[streamURI]
+	panicOnNotOk(!ok, "stream %s already exists!", streamURI)
 	sess, err := m.c.OpenSession(nil)
 	panicOnErr(err)
 	sessRO, err := m.c.OpenSession(nil)
