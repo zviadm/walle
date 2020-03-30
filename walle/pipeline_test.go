@@ -8,6 +8,12 @@ import (
 	"github.com/zviadm/walle/wallelib"
 )
 
+func TestPipelineQueue(t *testing.T) {
+	_ = newPipelineQueue()
+	// q.Push(&walle_pb.PutEntryInternalRequest{})
+
+}
+
 var topo1Node = &walleapi.Topology{
 	Streams: map[string]*walleapi.StreamTopology{
 		"/mock/1": &walleapi.StreamTopology{

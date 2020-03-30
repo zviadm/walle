@@ -113,6 +113,10 @@ type pipelineQueue struct {
 	v       []*pipelineReq
 }
 
+func newPipelineQueue() *pipelineQueue {
+	return &pipelineQueue{notifyC: make(chan struct{})}
+}
+
 func (q *pipelineQueue) Len() int {
 	q.mx.Lock()
 	defer q.mx.Unlock()
@@ -138,7 +142,8 @@ func (q *pipelineQueue) CleanTillCommitted() bool {
 	return q.cleanTillCommitted()
 }
 func (q *pipelineQueue) cleanTillCommitted() bool {
-	for idx := len(q.v) - 1; idx >= 0; idx-- {
+	// for idx := len(q.v) - 1; idx >= 0; idx-- {
+	for idx := 0; idx < len(q.v); idx++ {
 		req := q.v[idx]
 		if req.R.GetEntry().GetEntryId() > req.R.CommittedEntryId {
 			continue
@@ -212,7 +217,7 @@ func newStreamPipeline(
 		ss:                  ss,
 		flushQ:              flushQ,
 		fetchCommittedEntry: fetchCommittedEntry,
-		q:                   &pipelineQueue{notifyC: make(chan struct{})},
+		q:                   newPipelineQueue(),
 	}
 	go r.Process(ctx)
 	return r

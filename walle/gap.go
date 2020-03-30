@@ -68,7 +68,7 @@ func (s *Server) readAndProcessEntries(
 	processEntry func(entry *walleapi.Entry) error) error {
 	entryId := startId
 	cursor := ss.ReadFrom(entryId)
-	defer func() { cursor.Close() }() // cursor can change through out
+	defer cursor.Close()
 	for entryId < endId {
 		entry, ok := cursor.Next()
 		if !ok || entry.GetEntryId() > endId {
@@ -77,13 +77,11 @@ func (s *Server) readAndProcessEntries(
 				entry.GetEntryId(), endId, entryId)
 		}
 		if entry.EntryId > entryId {
-			cursor.Close() // close cursor to avoid having it open while rpc is running.
 			err := s.fetchAndStoreEntries(
 				ctx, ss, entryId, entry.EntryId, processEntry)
 			if err != nil {
 				return err
 			}
-			cursor = ss.ReadFrom(entry.EntryId + 1)
 		}
 		if processEntry != nil {
 			if err := processEntry(entry); err != nil {
