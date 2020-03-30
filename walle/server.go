@@ -8,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/walle/walle/pipeline"
 	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/walle/walle/topomgr"
 	"github.com/zviadm/walle/wallelib"
@@ -21,7 +22,7 @@ type Server struct {
 	s       storage.Storage
 	c       Client
 
-	pipeline *storagePipeline
+	pipeline *pipeline.Pipeline
 	topoMgr  *topomgr.Manager
 }
 
@@ -41,7 +42,7 @@ func NewServer(
 		s:       s,
 		c:       c,
 	}
-	r.pipeline = newStoragePipeline(ctx, s.FlushSync, r.fetchCommittedEntry)
+	r.pipeline = pipeline.New(ctx, s.FlushSync, r.fetchCommittedEntry)
 
 	r.watchTopology(ctx, d, topoMgr)
 	go r.writerInfoWatcher(ctx)

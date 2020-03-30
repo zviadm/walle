@@ -1,4 +1,4 @@
-package walle
+package pipeline
 
 import (
 	"bytes"
@@ -25,10 +25,10 @@ type fetchFunc func(
 	committedId int64,
 	committedMd5 []byte) (*walleapi.Entry, error)
 
-// storagePipeline provides queue like abstraction to stream line
+// Pipeline provides queue like abstraction to stream line
 // put operations for each stream, and perform group FlushSync operations
 // for much better overall throughput.
-type storagePipeline struct {
+type Pipeline struct {
 	rootCtx             context.Context
 	flushSync           func()
 	flushQ              chan chan bool
@@ -38,11 +38,11 @@ type storagePipeline struct {
 	p  map[string]*streamPipeline
 }
 
-func newStoragePipeline(
+func New(
 	ctx context.Context,
 	flushSync func(),
-	fetchCommittedEntry fetchFunc) *storagePipeline {
-	r := &storagePipeline{
+	fetchCommittedEntry fetchFunc) *Pipeline {
+	r := &Pipeline{
 		rootCtx:             ctx,
 		flushSync:           flushSync,
 		flushQ:              make(chan chan bool, storageFlushQ),
@@ -53,7 +53,7 @@ func newStoragePipeline(
 	return r
 }
 
-func (s *storagePipeline) ForStream(ss storage.Stream) *streamPipeline {
+func (s *Pipeline) ForStream(ss storage.Stream) *streamPipeline {
 	s.mx.Lock()
 	defer s.mx.Unlock()
 	p, ok := s.p[ss.StreamURI()]
@@ -64,13 +64,13 @@ func (s *storagePipeline) ForStream(ss storage.Stream) *streamPipeline {
 	return p
 }
 
-func (s *storagePipeline) QueueFlush() <-chan bool {
+func (s *Pipeline) QueueFlush() <-chan bool {
 	c := make(chan bool, 1)
 	s.flushQ <- c
 	return c
 }
 
-func (s *storagePipeline) flusher(ctx context.Context) {
+func (s *Pipeline) flusher(ctx context.Context) {
 	q := make([]chan bool, 0, storageFlushQ)
 	for {
 		q = q[:0]
