@@ -74,7 +74,6 @@ func (p *PutCtx) Done() <-chan struct{} {
 func (p *PutCtx) set(err error) {
 	p.mx.Lock()
 	defer p.mx.Unlock()
-	zlog.Info("DEBUG: resolving putCtx ", p.Entry.EntryId, " -- ", p.done)
 	p.err = err
 	close(p.done)
 }

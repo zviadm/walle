@@ -1,6 +1,7 @@
 package walle
 
 import (
+	"context"
 	"strconv"
 	"testing"
 
@@ -69,6 +70,9 @@ func TestStreamStorage(t *testing.T) {
 	require.EqualValues(t, 1, len(entriesR))
 	require.EqualValues(t, 3, entriesR[0].EntryId)
 
+	entriesR = streamReadAll(t, ss, 10)
+	require.EqualValues(t, 0, len(entriesR))
+
 	c0 := ss.ReadFrom(1)
 	ok = ss.PutEntry(entries[5], true)
 	require.True(t, ok)
@@ -88,6 +92,44 @@ func TestStreamStorage(t *testing.T) {
 	c0.Close()
 	c0.Close() // check to make sure it is safe to close closed cursor
 	c1.Close()
+}
+
+func TestStreamStorageRaces(t *testing.T) {
+	s, err := StorageInit(TestTmpDir(), true)
+	require.NoError(t, err)
+	defer s.Close()
+	ss := s.NewStream("/s/1", &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	errC := make(chan error, 1)
+	nReaders := 3
+	for i := 0; i < nReaders; i++ {
+		go func() (err error) {
+			defer func() { errC <- err }()
+			for ctx.Err() == nil {
+				_ = streamReadAll(t, ss, 0)
+			}
+			return nil
+		}()
+	}
+	entry := entry0
+	for idx := 1; idx <= 50; idx++ {
+		data := []byte("entry " + strconv.Itoa(idx))
+		checksum := wallelib.CalculateChecksumMd5(entry.ChecksumMd5, data)
+		entry = &walleapi.Entry{
+			EntryId:     int64(idx),
+			WriterId:    entry.WriterId,
+			Data:        data,
+			ChecksumMd5: checksum,
+		}
+		ok := ss.PutEntry(entry, true)
+		require.True(t, ok)
+	}
+	cancel()
+	for i := 0; i < nReaders; i++ {
+		err = <-errC
+	}
+	require.NoError(t, err)
 }
 
 func streamReadAll(t *testing.T, ss StreamStorage, entryId int64) []*walleapi.Entry {

@@ -21,7 +21,9 @@ type streamStorage struct {
 	streamW   *wt.Mutator
 
 	// function to create new read-only sessions for ReadFrom calls.
-	sessRO func() *wt.Session
+	// sessRO func() *wt.Session
+	roMX   sync.Mutex
+	sessRO *wt.Session
 
 	mx       sync.Mutex
 	topology *walleapi.StreamTopology
@@ -97,7 +99,7 @@ func openStreamStorage(
 		topology:        &walleapi.StreamTopology{},
 		committedNotify: make(chan struct{}),
 
-		sessRO: sessRO,
+		sessRO: sessRO(),
 
 		buf8:            make([]byte, 8),
 		tailEntry:       &walleapi.Entry{},
@@ -436,38 +438,50 @@ func (m *streamStorage) unsafeUpdateTailEntry(e *walleapi.Entry) {
 
 func (m *streamStorage) ReadFrom(entryId int64) StreamCursor {
 	_, committedId, _ := m.CommittedEntryIds()
-	sess := m.sessRO()
-	cursor, err := sess.Scan(streamDS(m.streamURI))
+	m.roMX.Lock()
+	defer m.roMX.Unlock()
+	cursor, err := m.sessRO.Scan(streamDS(m.streamURI))
 	panicOnErr(err)
 	r := &streamCursor{
-		sess:        sess,
+		mx:          &m.roMX,
 		cursor:      cursor,
 		committedId: committedId,
 	}
-	binary.BigEndian.PutUint64(m.buf8, uint64(entryId))
-	mType, err := cursor.SearchNear(m.buf8)
+	var buf8 [8]byte
+	binary.BigEndian.PutUint64(buf8[:], uint64(entryId))
+	mType, err := cursor.SearchNear(buf8[:])
 	panicOnErr(err)
 	if mType == wt.SmallerMatch {
-		_, _ = r.Next()
+		_, _ = r.next()
 	}
 	return r
 }
 
 type streamCursor struct {
-	sess        *wt.Session
+	mx          *sync.Mutex
 	cursor      *wt.Scanner
 	finished    bool
 	committedId int64
 }
 
 func (m *streamCursor) Close() {
+	m.mx.Lock()
+	defer m.mx.Unlock()
+	m.close()
+}
+func (m *streamCursor) close() {
 	if !m.finished {
 		panicOnErr(m.cursor.Close())
-		panicOnErr(m.sess.Close())
 	}
 	m.finished = true
 }
 func (m *streamCursor) Next() (*walleapi.Entry, bool) {
+	m.mx.Lock()
+	defer m.mx.Unlock()
+	return m.next()
+}
+
+func (m *streamCursor) next() (*walleapi.Entry, bool) {
 	if m.finished {
 		return nil, false
 	}
@@ -476,14 +490,14 @@ func (m *streamCursor) Next() (*walleapi.Entry, bool) {
 	entry := &walleapi.Entry{}
 	panicOnErr(entry.Unmarshal(v))
 	if entry.EntryId > m.committedId {
-		m.Close()
+		m.close()
 		return nil, false
 	}
 	if err := m.cursor.Next(); err != nil {
 		if wt.ErrCode(err) != wt.ErrNotFound {
 			panicOnErr(err)
 		}
-		m.Close()
+		m.close()
 	}
 	return entry, true
 }
