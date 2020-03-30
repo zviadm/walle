@@ -3,10 +3,11 @@ package walle
 import (
 	"github.com/pkg/errors"
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/walle/wallelib"
 )
 
-func BootstrapRoot(s Storage, rootURI string, rootFile string, rootInfo *walleapi.ServerInfo) error {
+func BootstrapRoot(s storage.Storage, rootURI string, rootFile string, rootInfo *walleapi.ServerInfo) error {
 	var entryId int64 = 1
 	rootPb := &walleapi.Topology{
 		Version: entryId,
@@ -28,8 +29,8 @@ func BootstrapRoot(s Storage, rootURI string, rootFile string, rootInfo *walleap
 	}
 	entry := &walleapi.Entry{
 		EntryId:     entryId,
-		WriterId:    entry0.WriterId,
-		ChecksumMd5: wallelib.CalculateChecksumMd5(entry0.ChecksumMd5, entryData),
+		WriterId:    storage.Entry0.WriterId,
+		ChecksumMd5: wallelib.CalculateChecksumMd5(storage.Entry0.ChecksumMd5, entryData),
 		Data:        entryData,
 	}
 	if err != nil {

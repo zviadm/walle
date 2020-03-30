@@ -1,4 +1,4 @@
-package walle
+package storage
 
 import (
 	"crypto/rand"
@@ -9,6 +9,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/walle/walle/panic"
 	"github.com/zviadm/wt"
 	"github.com/zviadm/zlog"
 )
@@ -25,10 +26,10 @@ type storage struct {
 var _ Storage = &storage{}
 
 func StorageInit(dbPath string, createIfNotExists bool) (Storage, error) {
-	return storageInitWithServerId(dbPath, createIfNotExists, "")
+	return InitWithServerId(dbPath, createIfNotExists, "")
 }
 
-func storageInitWithServerId(dbPath string, createIfNotExists bool, serverId string) (Storage, error) {
+func InitWithServerId(dbPath string, createIfNotExists bool, serverId string) (Storage, error) {
 	if createIfNotExists {
 		if err := os.MkdirAll(dbPath, 0755); err != nil {
 			return nil, err
@@ -44,23 +45,23 @@ func storageInitWithServerId(dbPath string, createIfNotExists bool, serverId str
 		return nil, err
 	}
 	s, err := c.OpenSession(nil)
-	panicOnErr(err)
+	panic.OnErr(err)
 	defer s.Close()
-	panicOnErr(
+	panic.OnErr(
 		s.Create(metadataDS, &wt.DataSourceConfig{BlockCompressor: "snappy"}))
 	metaR, err := s.Scan(metadataDS)
-	panicOnErr(err)
+	panic.OnErr(err)
 	defer metaR.Close()
 	serverIdB, err := metaR.ReadUnsafeValue([]byte(glbServerId))
 	if err != nil {
 		if wt.ErrCode(err) != wt.ErrNotFound {
-			panicOnErr(err)
+			panic.OnErr(err)
 		}
 		if !createIfNotExists {
 			return nil, errors.Errorf("serverId doesn't exist in the database: %s", dbPath)
 		}
 		metaW, err := s.Mutate(metadataDS, nil)
-		panicOnErr(err)
+		panic.OnErr(err)
 		defer metaW.Close()
 		if serverId != "" {
 			serverIdB = []byte(serverId)
@@ -71,11 +72,11 @@ func storageInitWithServerId(dbPath string, createIfNotExists bool, serverId str
 				"initializing new database: %s, with serverId: %s...",
 				dbPath, hex.EncodeToString(serverIdB))
 		}
-		panicOnErr(
+		panic.OnErr(
 			metaW.Insert([]byte(glbServerId), serverIdB))
 	}
 	flushS, err := c.OpenSession(nil)
-	panicOnErr(err)
+	panic.OnErr(err)
 	r := &storage{
 		serverId: string(serverIdB),
 		c:        c,
@@ -88,16 +89,16 @@ func storageInitWithServerId(dbPath string, createIfNotExists bool, serverId str
 	zlog.Infof("storage: %s", hex.EncodeToString(serverIdB))
 
 	streamURIs := make(map[string]struct{})
-	panicOnErr(metaR.Reset())
+	panic.OnErr(metaR.Reset())
 	for {
 		if err := metaR.Next(); err != nil {
 			if wt.ErrCode(err) != wt.ErrNotFound {
-				panicOnErr(err)
+				panic.OnErr(err)
 			}
 			break
 		}
 		metaKey, err := metaR.UnsafeKey()
-		panicOnErr(err)
+		panic.OnErr(err)
 		if metaKey[0] != '/' {
 			continue
 		}
@@ -106,9 +107,9 @@ func storageInitWithServerId(dbPath string, createIfNotExists bool, serverId str
 	}
 	for streamURI := range streamURIs {
 		sess, err := c.OpenSession(nil)
-		panicOnErr(err)
+		panic.OnErr(err)
 		sessRO, err := c.OpenSession(nil)
-		panicOnErr(err)
+		panic.OnErr(err)
 		r.streams[streamURI] = openStreamStorage(r.serverId, streamURI, sess, sessRO)
 		zlog.Infof("stream: %s (isLocal? %t)", streamURI, r.streams[streamURI].IsLocal())
 	}
@@ -118,7 +119,7 @@ func storageInitWithServerId(dbPath string, createIfNotExists bool, serverId str
 func (m *storage) Close() {
 	m.mx.Lock()
 	defer m.mx.Unlock()
-	panicOnErr(m.c.Close())
+	panic.OnErr(m.c.Close())
 }
 
 func (m *storage) ServerId() string {
@@ -128,7 +129,7 @@ func (m *storage) ServerId() string {
 func (m *storage) FlushSync() {
 	m.mx.Lock()
 	defer m.mx.Unlock()
-	panicOnErr(m.flushS.LogFlush(wt.SyncOn))
+	panic.OnErr(m.flushS.LogFlush(wt.SyncOn))
 }
 
 func (m *storage) Streams(localOnly bool) []string {
@@ -158,11 +159,11 @@ func (m *storage) NewStream(streamURI string, t *walleapi.StreamTopology) Stream
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	_, ok := m.streams[streamURI]
-	panicOnNotOk(!ok, "stream %s already exists!", streamURI)
+	panic.OnNotOk(!ok, "stream %s already exists!", streamURI)
 	sess, err := m.c.OpenSession(nil)
-	panicOnErr(err)
+	panic.OnErr(err)
 	sessRO, err := m.c.OpenSession(nil)
-	panicOnErr(err)
+	panic.OnErr(err)
 	s := createStreamStorage(m.serverId, streamURI, t, sess, sessRO)
 	m.streams[streamURI] = s
 	return s

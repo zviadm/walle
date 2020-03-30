@@ -15,6 +15,8 @@ import (
 	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/walle/walle/panic"
+	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/walle/wallelib"
 )
 
@@ -42,10 +44,10 @@ func newMockSystem(
 	mClient := &mockClient{mApiClient, mSystem}
 
 	for serverId := range topology.Servers {
-		m, err := storageInitWithServerId(
+		m, err := storage.InitWithServerId(
 			path.Join(storagePath, hex.EncodeToString([]byte(serverId))+".walledb"),
 			true, serverId)
-		panicOnErr(err)
+		panic.OnErr(err)
 		mSystem.servers[serverId] = NewServer(ctx, m, mClient, mSystem, nil)
 	}
 	go func() {
@@ -101,7 +103,7 @@ func (m *mockSystem) Toggle(serverId string, enabled bool) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	_, ok := m.servers[serverId]
-	panicOnNotOk(ok, fmt.Sprintf("unknown serverId: %s", hex.EncodeToString([]byte(serverId))))
+	panic.OnNotOk(ok, fmt.Sprintf("unknown serverId: %s", hex.EncodeToString([]byte(serverId))))
 	m.isDisabled[serverId] = !enabled
 }
 

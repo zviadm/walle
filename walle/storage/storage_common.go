@@ -1,15 +1,18 @@
-package walle
+package storage
 
 import (
 	"crypto/md5"
+	"crypto/rand"
+	"encoding/binary"
 	"encoding/hex"
-	"fmt"
 	"io/ioutil"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/walle/walle/panic"
 )
 
 type WriterId string
@@ -47,14 +50,21 @@ const (
 )
 
 var (
-	maxEntryIdKey = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
-	entry0        = &walleapi.Entry{
+	Entry0 = &walleapi.Entry{
 		EntryId:     0,
 		WriterId:    string(make([]byte, writerIdLen)),
 		ChecksumMd5: make([]byte, md5.Size),
 	}
-	entry0B, _ = entry0.Marshal()
+	entry0B, _    = Entry0.Marshal()
+	maxEntryIdKey = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
 )
+
+func MakeWriterId() WriterId {
+	writerId := make([]byte, writerIdLen)
+	binary.BigEndian.PutUint64(writerId[0:8], uint64(time.Now().UnixNano()))
+	rand.Read(writerId[8:writerIdLen])
+	return WriterId(writerId)
+}
 
 func streamDS(streamURI string) string {
 	return "table:stream" + strings.ReplaceAll(streamURI, "/", "-")
@@ -73,19 +83,8 @@ func isValidStreamURI(streamURI string) error {
 	return nil
 }
 
-func panicOnErr(err error) {
-	if err != nil {
-		panic(err)
-	}
-}
-func panicOnNotOk(ok bool, msg string, args ...interface{}) {
-	if !ok {
-		panic(fmt.Sprintf(msg, args...))
-	}
-}
-
 func TestTmpDir() string {
 	d, err := ioutil.TempDir("", "tt-*")
-	panicOnErr(err)
+	panic.OnErr(err)
 	return d
 }

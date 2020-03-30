@@ -9,6 +9,8 @@ import (
 	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/walle/walle/panic"
+	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/walle/wallelib"
 	"github.com/zviadm/zlog"
 )
@@ -42,7 +44,7 @@ func (s *Server) gapHandler(ctx context.Context) {
 
 func (s *Server) gapHandlerForStream(
 	ctx context.Context,
-	ss StreamStorage,
+	ss storage.StreamStorage,
 	noGapCommittedId int64,
 	committedId int64) error {
 	newGapId := noGapCommittedId
@@ -62,7 +64,7 @@ func (s *Server) gapHandlerForStream(
 // missing entries. [startId, endId), must be a valid committed range.
 func (s *Server) readAndProcessEntries(
 	ctx context.Context,
-	ss StreamStorage,
+	ss storage.StreamStorage,
 	startId int64,
 	endId int64,
 	processEntry func(entry *walleapi.Entry) error) error {
@@ -98,7 +100,7 @@ func (s *Server) readAndProcessEntries(
 // all entries were successfully fetched and stored locally.
 func (s *Server) fetchAndStoreEntries(
 	ctx context.Context,
-	ss StreamStorage,
+	ss storage.StreamStorage,
 	startId int64, endId int64,
 	processEntry func(entry *walleapi.Entry) error) error {
 
@@ -154,7 +156,7 @@ Main:
 			}
 			startId += 1
 			ok := ss.PutEntry(entry, true)
-			panicOnNotOk(ok, "putting committed entry must always succeed!")
+			panic.OnNotOk(ok, "putting committed entry must always succeed!")
 			if processEntry != nil {
 				if err := processEntry(entry); err != nil {
 					return err

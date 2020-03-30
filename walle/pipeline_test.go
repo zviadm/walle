@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/walle/wallelib"
 )
 
@@ -29,7 +30,7 @@ var topo1Node = &walleapi.Topology{
 func BenchmarkPutEntrySerial(b *testing.B) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	_, c := newMockSystem(ctx, topo1Node, TestTmpDir())
+	_, c := newMockSystem(ctx, topo1Node, storage.TestTmpDir())
 
 	w, _, err := wallelib.WaitAndClaim(ctx, c, "/mock/1", "testhost:1001", wallelib.LeaseMinimum)
 	if err != nil {
@@ -50,7 +51,7 @@ func BenchmarkPutEntrySerial(b *testing.B) {
 func BenchmarkPutEntryPipeline(b *testing.B) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	_, c := newMockSystem(ctx, topo1Node, TestTmpDir())
+	_, c := newMockSystem(ctx, topo1Node, storage.TestTmpDir())
 
 	w, _, err := wallelib.WaitAndClaim(ctx, c, "/mock/1", "testhost:1001", wallelib.LeaseMinimum)
 	if err != nil {

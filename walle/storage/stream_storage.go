@@ -1,4 +1,4 @@
-package walle
+package storage
 
 import (
 	"bytes"
@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/walle/walle/panic"
 	"github.com/zviadm/walle/wallelib"
 	"github.com/zviadm/wt"
 )
@@ -47,27 +48,27 @@ func createStreamStorage(
 	topology *walleapi.StreamTopology,
 	sess *wt.Session,
 	sessRO *wt.Session) StreamStorage {
-	panicOnErr(isValidStreamURI(streamURI))
-	panicOnErr(sess.Create(streamDS(streamURI), &wt.DataSourceConfig{BlockCompressor: "snappy"}))
+	panic.OnErr(isValidStreamURI(streamURI))
+	panic.OnErr(sess.Create(streamDS(streamURI), &wt.DataSourceConfig{BlockCompressor: "snappy"}))
 
-	panicOnErr(sess.TxBegin(&wt.TxConfig{Sync: wt.True}))
+	panic.OnErr(sess.TxBegin(&wt.TxConfig{Sync: wt.True}))
 	metaW, err := sess.Mutate(metadataDS, nil)
-	panicOnErr(err)
+	panic.OnErr(err)
 	streamW, err := sess.Mutate(streamDS(streamURI), nil)
-	panicOnErr(err)
+	panic.OnErr(err)
 
 	v, err := topology.Marshal()
-	panicOnErr(err)
-	panicOnErr(metaW.Insert([]byte(streamURI+sfxTopology), v))
-	panicOnErr(metaW.Insert([]byte(streamURI+sfxWriterId), make([]byte, writerIdLen)))
-	panicOnErr(metaW.Insert([]byte(streamURI+sfxWriterAddr), []byte{}))
-	panicOnErr(metaW.Insert([]byte(streamURI+sfxWriterLeaseNs), make([]byte, 8)))
-	panicOnErr(metaW.Insert([]byte(streamURI+sfxCommittedId), make([]byte, 8)))
-	panicOnErr(metaW.Insert([]byte(streamURI+sfxNoGapCommittedId), make([]byte, 8)))
-	panicOnErr(streamW.Insert(make([]byte, 8), entry0B))
-	panicOnErr(sess.TxCommit())
-	panicOnErr(metaW.Close())
-	panicOnErr(streamW.Close())
+	panic.OnErr(err)
+	panic.OnErr(metaW.Insert([]byte(streamURI+sfxTopology), v))
+	panic.OnErr(metaW.Insert([]byte(streamURI+sfxWriterId), make([]byte, writerIdLen)))
+	panic.OnErr(metaW.Insert([]byte(streamURI+sfxWriterAddr), []byte{}))
+	panic.OnErr(metaW.Insert([]byte(streamURI+sfxWriterLeaseNs), make([]byte, 8)))
+	panic.OnErr(metaW.Insert([]byte(streamURI+sfxCommittedId), make([]byte, 8)))
+	panic.OnErr(metaW.Insert([]byte(streamURI+sfxNoGapCommittedId), make([]byte, 8)))
+	panic.OnErr(streamW.Insert(make([]byte, 8), entry0B))
+	panic.OnErr(sess.TxCommit())
+	panic.OnErr(metaW.Close())
+	panic.OnErr(streamW.Close())
 	return openStreamStorage(serverId, streamURI, sess, sessRO)
 }
 
@@ -77,16 +78,16 @@ func openStreamStorage(
 	sess *wt.Session,
 	sessRO *wt.Session) StreamStorage {
 	metaR, err := sess.Scan(metadataDS)
-	panicOnErr(err)
-	defer func() { panicOnErr(metaR.Close()) }()
+	panic.OnErr(err)
+	defer func() { panic.OnErr(metaR.Close()) }()
 	streamR, err := sess.Scan(streamDS(streamURI))
-	panicOnErr(err)
-	defer func() { panicOnErr(streamR.Reset()) }()
+	panic.OnErr(err)
+	defer func() { panic.OnErr(streamR.Reset()) }()
 
 	metaW, err := sess.Mutate(metadataDS, nil)
-	panicOnErr(err)
+	panic.OnErr(err)
 	streamW, err := sess.Mutate(streamDS(streamURI), nil)
-	panicOnErr(err)
+	panic.OnErr(err)
 	r := &streamStorage{
 		serverId:  serverId,
 		streamURI: streamURI,
@@ -104,29 +105,29 @@ func openStreamStorage(
 		tailEntryNotify: make(chan struct{}),
 	}
 	v, err := metaR.ReadUnsafeValue([]byte(streamURI + sfxTopology))
-	panicOnErr(err)
-	panicOnErr(r.topology.Unmarshal(v))
+	panic.OnErr(err)
+	panic.OnErr(r.topology.Unmarshal(v))
 	v, err = metaR.ReadUnsafeValue([]byte(streamURI + sfxWriterId))
-	panicOnErr(err)
+	panic.OnErr(err)
 	r.writerId = WriterId(v)
 	v, err = metaR.ReadUnsafeValue([]byte(streamURI + sfxWriterAddr))
-	panicOnErr(err)
+	panic.OnErr(err)
 	r.writerAddr = string(v)
 	v, err = metaR.ReadUnsafeValue([]byte(streamURI + sfxWriterLeaseNs))
-	panicOnErr(err)
+	panic.OnErr(err)
 	r.writerLease = time.Duration(binary.BigEndian.Uint64(v))
 	v, err = metaR.ReadUnsafeValue([]byte(streamURI + sfxCommittedId))
-	panicOnErr(err)
+	panic.OnErr(err)
 	r.committed = int64(binary.BigEndian.Uint64(v))
 	v, err = metaR.ReadUnsafeValue([]byte(streamURI + sfxNoGapCommittedId))
-	panicOnErr(err)
+	panic.OnErr(err)
 	r.noGapCommitted = int64(binary.BigEndian.Uint64(v))
 	nearType, err := streamR.SearchNear(maxEntryIdKey)
-	panicOnErr(err)
-	panicOnNotOk(nearType == wt.SmallerMatch, "must return SmallerMatch when searching with maxEntryIdKey")
+	panic.OnErr(err)
+	panic.OnNotOk(nearType == wt.SmallerMatch, "must return SmallerMatch when searching with maxEntryIdKey")
 	v, err = streamR.UnsafeValue()
-	panicOnErr(err)
-	panicOnErr(r.tailEntry.Unmarshal(v))
+	panic.OnErr(err)
+	panic.OnErr(r.tailEntry.Unmarshal(v))
 	return r
 }
 
@@ -144,12 +145,12 @@ func (m *streamStorage) UpdateTopology(topology *walleapi.StreamTopology) {
 	}
 	m.topology = topology
 	v, err := m.topology.Marshal()
-	panicOnErr(err)
+	panic.OnErr(err)
 
-	panicOnErr(m.sess.TxBegin(&wt.TxConfig{Sync: wt.True}))
-	panicOnErr(
+	panic.OnErr(m.sess.TxBegin(&wt.TxConfig{Sync: wt.True}))
+	panic.OnErr(
 		m.metaW.Update([]byte(m.streamURI+sfxTopology), v))
-	panicOnErr(m.sess.TxCommit())
+	panic.OnErr(m.sess.TxCommit())
 }
 
 func (m *streamStorage) IsLocal() bool {
@@ -191,12 +192,12 @@ func (m *streamStorage) UpdateWriter(
 	m.writerLease = lease
 	m.renewedLease = time.Now()
 
-	panicOnErr(m.sess.TxBegin(&wt.TxConfig{Sync: wt.True}))
-	panicOnErr(m.metaW.Update([]byte(m.streamURI+sfxWriterId), []byte(m.writerId)))
-	panicOnErr(m.metaW.Update([]byte(m.streamURI+sfxWriterAddr), []byte(m.writerAddr)))
+	panic.OnErr(m.sess.TxBegin(&wt.TxConfig{Sync: wt.True}))
+	panic.OnErr(m.metaW.Update([]byte(m.streamURI+sfxWriterId), []byte(m.writerId)))
+	panic.OnErr(m.metaW.Update([]byte(m.streamURI+sfxWriterAddr), []byte(m.writerAddr)))
 	binary.BigEndian.PutUint64(m.buf8, uint64(lease.Nanoseconds()))
-	panicOnErr(m.metaW.Update([]byte(m.streamURI+sfxWriterLeaseNs), []byte(m.buf8)))
-	panicOnErr(m.sess.TxCommit())
+	panic.OnErr(m.metaW.Update([]byte(m.streamURI+sfxWriterLeaseNs), []byte(m.buf8)))
+	panic.OnErr(m.sess.TxCommit())
 	return true, remainingLease
 }
 func (m *streamStorage) unsafeRemainingLease() time.Duration {
@@ -215,20 +216,20 @@ func (m *streamStorage) LastEntries() []*walleapi.Entry {
 	defer m.mx.Unlock()
 	binary.BigEndian.PutUint64(m.buf8, uint64(m.committed))
 	mType, err := m.streamR.SearchNear(m.buf8)
-	panicOnErr(err)
-	panicOnNotOk(mType == wt.ExactMatch, "committed entries mustn't have any gaps")
+	panic.OnErr(err)
+	panic.OnNotOk(mType == wt.ExactMatch, "committed entries mustn't have any gaps")
 	r := make([]*walleapi.Entry, int(m.tailEntry.EntryId-m.committed+1))
 	for idx := range r {
 		v, err := m.streamR.UnsafeValue()
-		panicOnErr(err)
+		panic.OnErr(err)
 		entry := &walleapi.Entry{}
-		panicOnErr(
+		panic.OnErr(
 			entry.Unmarshal(v))
 		r[idx] = entry
 		if idx != len(r)-1 {
-			panicOnErr(m.streamR.Next())
+			panic.OnErr(m.streamR.Next())
 		} else {
-			panicOnErr(m.streamR.Reset())
+			panic.OnErr(m.streamR.Reset())
 		}
 	}
 	return r
@@ -255,7 +256,7 @@ func (m *streamStorage) UpdateNoGapCommittedId(entryId int64) {
 	close(m.committedNotify)
 	m.committedNotify = make(chan struct{})
 	binary.BigEndian.PutUint64(m.buf8, uint64(m.noGapCommitted))
-	panicOnErr(
+	panic.OnErr(
 		m.metaW.Update([]byte(m.streamURI+sfxNoGapCommittedId), m.buf8))
 }
 
@@ -278,26 +279,26 @@ func (m *streamStorage) unsafeCommitEntry(entryId int64, entryMd5 []byte, newGap
 	if existingEntry == nil {
 		return false
 	}
-	panicOnNotOk(
+	panic.OnNotOk(
 		bytes.Compare(existingEntry.ChecksumMd5, entryMd5) == 0,
 		"committed entry md5 mimstach at: %d, %s vs %s",
 		entryId, hex.EncodeToString(entryMd5), hex.EncodeToString(existingEntry.ChecksumMd5))
-	panicOnNotOk(useTx || m.sess.InTx(), "commit must happen inside a transaction")
+	panic.OnNotOk(useTx || m.sess.InTx(), "commit must happen inside a transaction")
 	if useTx {
-		panicOnErr(m.sess.TxBegin(nil))
+		panic.OnErr(m.sess.TxBegin(nil))
 	}
 	if !newGap && m.noGapCommitted == m.committed {
 		m.noGapCommitted = entryId
 		binary.BigEndian.PutUint64(m.buf8, uint64(m.noGapCommitted))
-		panicOnErr(m.metaW.Update([]byte(m.streamURI+sfxNoGapCommittedId), m.buf8))
+		panic.OnErr(m.metaW.Update([]byte(m.streamURI+sfxNoGapCommittedId), m.buf8))
 	}
 	m.committed = entryId
 	close(m.committedNotify)
 	m.committedNotify = make(chan struct{})
 	binary.BigEndian.PutUint64(m.buf8, uint64(m.committed))
-	panicOnErr(m.metaW.Update([]byte(m.streamURI+sfxCommittedId), m.buf8))
+	panic.OnErr(m.metaW.Update([]byte(m.streamURI+sfxCommittedId), m.buf8))
 	if useTx {
-		panicOnErr(m.sess.TxCommit())
+		panic.OnErr(m.sess.TxCommit())
 	}
 	return true
 }
@@ -307,7 +308,7 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) bool {
 	defer m.mx.Unlock()
 
 	entryWriterId := WriterId(entry.WriterId)
-	panicOnNotOk(entryWriterId != "", "writerId must always be set")
+	panic.OnNotOk(entryWriterId != "", "writerId must always be set")
 	if !isCommitted && entryWriterId < m.writerId {
 		return false
 	}
@@ -330,7 +331,7 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) bool {
 			m.unsafeInsertEntry(entry)
 			return true
 		}
-		panicOnNotOk(
+		panic.OnNotOk(
 			bytes.Compare(e.ChecksumMd5, entry.ChecksumMd5) == 0,
 			"committed entry md5 mimstach at: %d, %s vs %s",
 			entry.EntryId, hex.EncodeToString(entry.ChecksumMd5), hex.EncodeToString(e.ChecksumMd5))
@@ -338,13 +339,13 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) bool {
 	}
 
 	prevEntry := m.unsafeReadEntry(entry.EntryId - 1)
-	panicOnNotOk(prevEntry != nil, "gap in uncommitted entries!")
+	panic.OnNotOk(prevEntry != nil, "gap in uncommitted entries!")
 	expectedMd5 := wallelib.CalculateChecksumMd5(prevEntry.ChecksumMd5, entry.Data)
 	if bytes.Compare(expectedMd5, entry.ChecksumMd5) != 0 {
 		if !isCommitted {
 			return false
 		}
-		panicOnNotOk(
+		panic.OnNotOk(
 			prevEntry.EntryId > m.committed, "committed entry checksum mismatch!")
 		m.unsafeMakeGapCommit(entry)
 		return true
@@ -364,30 +365,30 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) bool {
 		}
 		// Truncate entries, because rest of the uncommitted entries are no longer valid, since a new writer
 		// is writing a new entry.
-		panicOnErr(m.sess.TxBegin(nil))
+		panic.OnErr(m.sess.TxBegin(nil))
 		m.unsafeRemoveAllEntriesFrom(entry.EntryId, entry)
 	} else {
-		panicOnErr(m.sess.TxBegin(nil))
+		panic.OnErr(m.sess.TxBegin(nil))
 	}
 	// Run this code path in a transaction to reduce overall number of `fsync`-s needed in the
 	// most common/expected case.
 	m.unsafeInsertEntry(entry)
 	if isCommitted {
 		ok := m.unsafeCommitEntry(entry.EntryId, entry.ChecksumMd5, false, false)
-		panicOnNotOk(ok, "committing must always succeed in this code path")
+		panic.OnNotOk(ok, "committing must always succeed in this code path")
 	}
-	panicOnErr(m.sess.TxCommit())
+	panic.OnErr(m.sess.TxCommit())
 	return true
 }
 
 func (m *streamStorage) unsafeMakeGapCommit(entry *walleapi.Entry) {
 	// Clear out all uncommitted entries, and create a GAP.
-	panicOnErr(m.sess.TxBegin(nil))
+	panic.OnErr(m.sess.TxBegin(nil))
 	m.unsafeRemoveAllEntriesFrom(m.committed+1, entry)
 	m.unsafeInsertEntry(entry)
 	ok := m.unsafeCommitEntry(entry.EntryId, entry.ChecksumMd5, true, false)
-	panicOnNotOk(ok, "committing must always succeed in this code path")
-	panicOnErr(m.sess.TxCommit())
+	panic.OnNotOk(ok, "committing must always succeed in this code path")
+	panic.OnErr(m.sess.TxCommit())
 }
 
 // Reads entry from storage. Can return `nil` if entry is missing from local storage.
@@ -401,10 +402,10 @@ func (m *streamStorage) unsafeReadEntry(entryId int64) *walleapi.Entry {
 	if err != nil && wt.ErrCode(err) == wt.ErrNotFound {
 		return nil
 	}
-	panicOnErr(err)
+	panic.OnErr(err)
 	entry := &walleapi.Entry{}
-	panicOnErr(entry.Unmarshal(v))
-	panicOnErr(m.streamR.Reset())
+	panic.OnErr(entry.Unmarshal(v))
+	panic.OnErr(m.streamR.Reset())
 	return entry
 }
 func (m *streamStorage) unsafeInsertEntry(entry *walleapi.Entry) {
@@ -413,15 +414,15 @@ func (m *streamStorage) unsafeInsertEntry(entry *walleapi.Entry) {
 	}
 	binary.BigEndian.PutUint64(m.buf8, uint64(entry.EntryId))
 	entryB, err := entry.Marshal()
-	panicOnErr(err)
-	panicOnErr(m.streamW.Insert(m.buf8, entryB))
+	panic.OnErr(err)
+	panic.OnErr(m.streamW.Insert(m.buf8, entryB))
 }
 
 // Deletes all entries [entryId...) from storage, and sets new tailEntry afterwards.
 func (m *streamStorage) unsafeRemoveAllEntriesFrom(entryId int64, tailEntry *walleapi.Entry) {
 	for eId := entryId; eId <= m.tailEntry.EntryId; eId++ {
 		binary.BigEndian.PutUint64(m.buf8, uint64(eId))
-		panicOnErr(m.streamW.Remove(m.buf8))
+		panic.OnErr(m.streamW.Remove(m.buf8))
 	}
 	m.unsafeUpdateTailEntry(tailEntry)
 }
@@ -439,7 +440,7 @@ func (m *streamStorage) ReadFrom(entryId int64) StreamCursor {
 	m.roMX.Lock()
 	defer m.roMX.Unlock()
 	cursor, err := m.sessRO.Scan(streamDS(m.streamURI))
-	panicOnErr(err)
+	panic.OnErr(err)
 	r := &streamCursor{
 		mx:          &m.roMX,
 		cursor:      cursor,
@@ -448,7 +449,7 @@ func (m *streamStorage) ReadFrom(entryId int64) StreamCursor {
 	var buf8 [8]byte
 	binary.BigEndian.PutUint64(buf8[:], uint64(entryId))
 	mType, err := cursor.SearchNear(buf8[:])
-	panicOnErr(err)
+	panic.OnErr(err)
 	if mType == wt.SmallerMatch {
 		_, _ = r.next()
 	}
@@ -469,7 +470,7 @@ func (m *streamCursor) Close() {
 }
 func (m *streamCursor) close() {
 	if !m.finished {
-		panicOnErr(m.cursor.Close())
+		panic.OnErr(m.cursor.Close())
 	}
 	m.finished = true
 }
@@ -484,16 +485,16 @@ func (m *streamCursor) next() (*walleapi.Entry, bool) {
 		return nil, false
 	}
 	v, err := m.cursor.UnsafeValue()
-	panicOnErr(err)
+	panic.OnErr(err)
 	entry := &walleapi.Entry{}
-	panicOnErr(entry.Unmarshal(v))
+	panic.OnErr(entry.Unmarshal(v))
 	if entry.EntryId > m.committedId {
 		m.close()
 		return nil, false
 	}
 	if err := m.cursor.Next(); err != nil {
 		if wt.ErrCode(err) != wt.ErrNotFound {
-			panicOnErr(err)
+			panic.OnErr(err)
 		}
 		m.close()
 	}

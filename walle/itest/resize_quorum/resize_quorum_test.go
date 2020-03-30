@@ -10,8 +10,8 @@ import (
 	topomgr_pb "github.com/zviadm/walle/proto/topomgr"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/tt/servicelib"
-	"github.com/zviadm/walle/walle"
 	"github.com/zviadm/walle/walle/itest"
+	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/walle/walle/topomgr"
 	"github.com/zviadm/walle/wallelib"
 	"github.com/zviadm/zlog"
@@ -21,7 +21,7 @@ func TestResizeQuorum(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	rootURI := "/topology/itest"
-	wDir := walle.TestTmpDir()
+	wDir := storage.TestTmpDir()
 
 	rootTopology := itest.BootstrapDeployment(t, ctx, rootURI, wDir, itest.WalleDefaultPort)
 	s := itest.RunWalle(t, ctx, rootURI, "", rootTopology, wDir, itest.WalleDefaultPort)
@@ -52,7 +52,7 @@ func expandTopology(
 
 	topology, err := topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
 	require.NoError(t, err)
-	s := itest.RunWalle(t, ctx, rootURI, "", topology, walle.TestTmpDir(), port)
+	s := itest.RunWalle(t, ctx, rootURI, "", topology, storage.TestTmpDir(), port)
 
 	topology, err = topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
 	require.NoError(t, err)

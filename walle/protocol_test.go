@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/walle/wallelib"
 	"github.com/zviadm/zlog"
 )
@@ -31,9 +32,10 @@ var topo3Node = &walleapi.Topology{
 func TestProtocolClaimWriter(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	_, c := newMockSystem(ctx, topo3Node, TestTmpDir())
+	_, c := newMockSystem(ctx, topo3Node, storage.TestTmpDir())
 
-	w, _, err := wallelib.WaitAndClaim(ctx, c, "/mock/1", "testhost:1001", wallelib.LeaseMinimum)
+	w, _, err := wallelib.WaitAndClaim(
+		ctx, c, "/mock/1", "testhost:1001", wallelib.LeaseMinimum)
 	require.NoError(t, err)
 	defer w.Close()
 
@@ -95,7 +97,7 @@ func TestProtocolClaimBarrage(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(nClaims)*2*time.Second)
 	defer cancel()
-	_, c := newMockSystem(ctx, topo3Node, TestTmpDir())
+	_, c := newMockSystem(ctx, topo3Node, storage.TestTmpDir())
 
 	errChan := make(chan error, nClaims)
 	entries := make(chan *walleapi.Entry, nClaims)
@@ -133,7 +135,7 @@ func TestProtocolClaimBarrage(t *testing.T) {
 func TestProtocolGapRecovery(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	m, c := newMockSystem(ctx, topo3Node, TestTmpDir())
+	m, c := newMockSystem(ctx, topo3Node, storage.TestTmpDir())
 
 	w, _, err := wallelib.WaitAndClaim(ctx, c, "/mock/1", "testhost:1001", wallelib.LeaseMinimum)
 	require.NoError(t, err)

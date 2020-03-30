@@ -8,6 +8,8 @@ import (
 
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/walle/walle/panic"
+	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/walle/wallelib"
 	"github.com/zviadm/zlog"
 )
@@ -51,7 +53,7 @@ func newStoragePipeline(
 	return r
 }
 
-func (s *storagePipeline) ForStream(ss StreamStorage) *streamPipeline {
+func (s *storagePipeline) ForStream(ss storage.StreamStorage) *streamPipeline {
 	s.mx.Lock()
 	defer s.mx.Unlock()
 	p, ok := s.p[ss.StreamURI()]
@@ -95,7 +97,7 @@ func (s *storagePipeline) flusher(ctx context.Context) {
 }
 
 type streamPipeline struct {
-	ss                  StreamStorage
+	ss                  storage.StreamStorage
 	flushQ              chan<- chan bool
 	fetchCommittedEntry fetchFunc
 
@@ -210,7 +212,7 @@ func (q *pipelineQueue) Push(r *walle_pb.PutEntryInternalRequest) <-chan bool {
 
 func newStreamPipeline(
 	ctx context.Context,
-	ss StreamStorage,
+	ss storage.StreamStorage,
 	flushQ chan<- chan bool,
 	fetchCommittedEntry fetchFunc) *streamPipeline {
 	r := &streamPipeline{
@@ -272,7 +274,7 @@ func (p *streamPipeline) backfillEntry(
 		return false
 	}
 	ok := p.ss.PutEntry(entry, true)
-	panicOnNotOk(ok, "committed putEntry must always succeed")
+	panic.OnNotOk(ok, "committed putEntry must always succeed")
 	zlog.Infof("[sp] stream: %s caught up to: %d (might have created a gap)", p.ss.StreamURI(), entryId)
 	return true
 }

@@ -20,6 +20,7 @@ import (
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle"
+	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/walle/walle/topomgr"
 	"github.com/zviadm/walle/wallelib"
 )
@@ -67,7 +68,7 @@ func main() {
 		Address: net.JoinHostPort(*host, *port),
 	}
 	zlog.Infof("initializing storage: %s...", dbPath)
-	ss, err := walle.StorageInit(dbPath, true)
+	ss, err := storage.StorageInit(dbPath, true)
 	if err != nil {
 		zlog.Fatal(err)
 	}

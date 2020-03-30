@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 	topomgr_pb "github.com/zviadm/walle/proto/topomgr"
 	"github.com/zviadm/walle/tt/servicelib"
-	"github.com/zviadm/walle/walle"
 	"github.com/zviadm/walle/walle/itest"
+	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/walle/walle/topomgr"
 	"github.com/zviadm/walle/wallelib"
 	"github.com/zviadm/zlog"
@@ -19,15 +19,15 @@ func TestCrashingQuorum(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	rootURI := "/topology/itest"
-	wDir := walle.TestTmpDir()
+	wDir := storage.TestTmpDir()
 
 	rootTopology := itest.BootstrapDeployment(t, ctx, rootURI, wDir, itest.WalleDefaultPort)
 	s := make([]*servicelib.Service, 3)
 	s[0] = itest.RunWalle(t, ctx, rootURI, "", rootTopology, wDir, itest.WalleDefaultPort)
 	defer s[0].Kill(t)
-	s[1] = itest.RunWalle(t, ctx, rootURI, "", rootTopology, walle.TestTmpDir(), itest.WalleDefaultPort+1)
+	s[1] = itest.RunWalle(t, ctx, rootURI, "", rootTopology, storage.TestTmpDir(), itest.WalleDefaultPort+1)
 	defer s[1].Kill(t)
-	s[2] = itest.RunWalle(t, ctx, rootURI, "", rootTopology, walle.TestTmpDir(), itest.WalleDefaultPort+2)
+	s[2] = itest.RunWalle(t, ctx, rootURI, "", rootTopology, storage.TestTmpDir(), itest.WalleDefaultPort+2)
 	defer s[2].Kill(t)
 
 	rootD, err := wallelib.NewRootDiscovery(ctx, rootURI, rootTopology)

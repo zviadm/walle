@@ -3,8 +3,6 @@ package walle
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
-	"encoding/binary"
 	"sort"
 	"strings"
 	"sync"
@@ -12,6 +10,7 @@ import (
 
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/walle/wallelib"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -30,7 +29,7 @@ func (s *Server) ClaimWriter(
 	if req.WriterAddr == "" {
 		return nil, status.Error(codes.InvalidArgument, "writer_addr must be set")
 	}
-	writerId := makeWriterId()
+	writerId := storage.MakeWriterId()
 	ssTopology := ss.Topology()
 	serverIds, err := s.broadcastRequest(ctx, ssTopology.ServerIds,
 		func(c walle_pb.WalleClient, ctx context.Context, serverId string) error {
@@ -169,7 +168,7 @@ func (s *Server) commitMaxEntry(
 	streamURI string,
 	streamVersion int64,
 	entries map[string][]*walleapi.Entry,
-	writerId WriterId) (bool, error) {
+	writerId storage.WriterId) (bool, error) {
 	var maxEntry *walleapi.Entry
 	committed := false
 	for _, es := range entries {
@@ -222,7 +221,7 @@ func (s *Server) WriterStatus(
 }
 
 func (s *Server) broadcastWriterInfo(
-	ctx context.Context, ss StreamMetadata) (*walle_pb.WriterInfoResponse, error) {
+	ctx context.Context, ss storage.StreamMetadata) (*walle_pb.WriterInfoResponse, error) {
 	ssTopology := ss.Topology()
 	respMx := sync.Mutex{}
 	var respMax *walle_pb.WriterInfoResponse
@@ -339,13 +338,6 @@ func (s *Server) StreamEntries(
 		return err
 	}
 	return nil
-}
-
-func makeWriterId() WriterId {
-	writerId := make([]byte, writerIdLen)
-	binary.BigEndian.PutUint64(writerId[0:8], uint64(time.Now().UnixNano()))
-	rand.Read(writerId[8:writerIdLen])
-	return WriterId(writerId)
 }
 
 // Broadcasts requests to all serverIds and returns list of serverIds that have succeeded.

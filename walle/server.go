@@ -8,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/walle/walle/topomgr"
 	"github.com/zviadm/walle/wallelib"
 	"github.com/zviadm/zlog"
@@ -17,7 +18,7 @@ import (
 
 type Server struct {
 	rootCtx context.Context
-	s       Storage
+	s       storage.Storage
 	c       Client
 
 	pipeline *storagePipeline
@@ -31,7 +32,7 @@ type Client interface {
 
 func NewServer(
 	ctx context.Context,
-	s Storage,
+	s storage.Storage,
 	c Client,
 	d wallelib.Discovery,
 	topoMgr *topomgr.Manager) *Server {
@@ -65,7 +66,7 @@ func (s *Server) NewWriter(
 	if err != nil {
 		return nil, err
 	}
-	reqWriterId := WriterId(req.WriterId)
+	reqWriterId := storage.WriterId(req.WriterId)
 	ok, remainingLease := ss.UpdateWriter(reqWriterId, req.WriterAddr, time.Duration(req.LeaseMs)*time.Millisecond)
 	if !ok {
 		return nil, status.Errorf(codes.FailedPrecondition, "there is already another new writer")
@@ -112,7 +113,7 @@ func (s *Server) PutEntryInternal(
 	if err != nil {
 		return nil, err
 	}
-	writerId := WriterId(req.Entry.WriterId)
+	writerId := storage.WriterId(req.Entry.WriterId)
 	if err := s.checkAndUpdateWriterId(ctx, ss, writerId); err != nil {
 		return nil, err
 	}
@@ -246,7 +247,7 @@ type requestHeader interface {
 	GetStreamVersion() int64
 }
 
-func (s *Server) processRequestHeader(req requestHeader) (ss StreamStorage, err error) {
+func (s *Server) processRequestHeader(req requestHeader) (ss storage.StreamStorage, err error) {
 	if !s.checkServerId(req.GetServerId()) {
 		return nil, status.Errorf(codes.NotFound, "invalid serverId: %s", req.GetServerId())
 	}
@@ -264,7 +265,7 @@ func (s *Server) checkServerId(serverId string) bool {
 	return serverId == s.s.ServerId()
 }
 
-func (s *Server) checkStreamVersion(ss StreamMetadata, reqStreamVersion int64) error {
+func (s *Server) checkStreamVersion(ss storage.StreamMetadata, reqStreamVersion int64) error {
 	version := ss.Topology().Version
 	if reqStreamVersion == version-1 || reqStreamVersion == version || reqStreamVersion == version+1 {
 		return nil
@@ -274,7 +275,10 @@ func (s *Server) checkStreamVersion(ss StreamMetadata, reqStreamVersion int64) e
 
 // Checks writerId if it is still active for a given streamURI. If newer writerId is supplied, will try
 // to get updated information from other servers because this server must have missed the NewWriter call.
-func (s *Server) checkAndUpdateWriterId(ctx context.Context, ss StreamMetadata, writerId WriterId) error {
+func (s *Server) checkAndUpdateWriterId(
+	ctx context.Context,
+	ss storage.StreamMetadata,
+	writerId storage.WriterId) error {
 	for {
 		ssWriterId, writerAddr, _, _ := ss.WriterInfo()
 		if writerId == ssWriterId {
@@ -288,7 +292,7 @@ func (s *Server) checkAndUpdateWriterId(ctx context.Context, ss StreamMetadata, 
 		if err != nil {
 			return err
 		}
-		respWriterId := WriterId(resp.WriterId)
+		respWriterId := storage.WriterId(resp.WriterId)
 		if respWriterId <= ssWriterId {
 			return status.Errorf(codes.Internal, "writerId is newer than majority?: %s > %s", writerId, ssWriterId)
 		}

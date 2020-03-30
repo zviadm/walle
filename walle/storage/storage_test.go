@@ -1,4 +1,4 @@
-package walle
+package storage
 
 import (
 	"context"
@@ -31,11 +31,11 @@ func TestStreamStorage(t *testing.T) {
 	ss := s.NewStream("/s/1", &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
 
 	var entries []*walleapi.Entry
-	entries = append(entries, entry0)
+	entries = append(entries, Entry0)
 	for idx := 1; idx <= 5; idx++ {
 		entry := &walleapi.Entry{
 			EntryId:  int64(idx),
-			WriterId: entry0.WriterId,
+			WriterId: Entry0.WriterId,
 			Data:     []byte("entry " + strconv.Itoa(idx)),
 		}
 		entry.ChecksumMd5 = wallelib.CalculateChecksumMd5(entries[idx-1].ChecksumMd5, entry.Data)
@@ -112,7 +112,7 @@ func TestStreamStorageRaces(t *testing.T) {
 			return nil
 		}()
 	}
-	entry := entry0
+	entry := Entry0
 	for idx := 1; idx <= 50; idx++ {
 		data := []byte("entry " + strconv.Itoa(idx))
 		checksum := wallelib.CalculateChecksumMd5(entry.ChecksumMd5, data)
