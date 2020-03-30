@@ -13,19 +13,19 @@ import (
 
 func TestStorageOpen(t *testing.T) {
 	dbPath := TestTmpDir()
-	s, err := StorageInit(dbPath, true)
+	s, err := Init(dbPath, true)
 	require.NoError(t, err)
 	s.NewStream("/s/1", &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
 	s.Close()
 
-	s, err = StorageInit(dbPath, false)
+	s, err = Init(dbPath, false)
 	require.NoError(t, err)
 	defer s.Close()
 	require.EqualValues(t, s.Streams(false), []string{"/s/1"})
 }
 
 func TestStreamStorage(t *testing.T) {
-	s, err := StorageInit(TestTmpDir(), true)
+	s, err := Init(TestTmpDir(), true)
 	require.NoError(t, err)
 	defer s.Close()
 	ss := s.NewStream("/s/1", &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
@@ -95,7 +95,7 @@ func TestStreamStorage(t *testing.T) {
 }
 
 func TestStreamStorageRaces(t *testing.T) {
-	s, err := StorageInit(TestTmpDir(), true)
+	s, err := Init(TestTmpDir(), true)
 	require.NoError(t, err)
 	defer s.Close()
 	ss := s.NewStream("/s/1", &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
@@ -132,7 +132,7 @@ func TestStreamStorageRaces(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func streamReadAll(t *testing.T, ss StreamStorage, entryId int64) []*walleapi.Entry {
+func streamReadAll(t *testing.T, ss Stream, entryId int64) []*walleapi.Entry {
 	cursor := ss.ReadFrom(entryId)
 	defer cursor.Close()
 	var r []*walleapi.Entry

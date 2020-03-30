@@ -221,7 +221,7 @@ func (s *Server) WriterStatus(
 }
 
 func (s *Server) broadcastWriterInfo(
-	ctx context.Context, ss storage.StreamMetadata) (*walle_pb.WriterInfoResponse, error) {
+	ctx context.Context, ss storage.Metadata) (*walle_pb.WriterInfoResponse, error) {
 	ssTopology := ss.Topology()
 	respMx := sync.Mutex{}
 	var respMax *walle_pb.WriterInfoResponse

@@ -20,12 +20,12 @@ type storage struct {
 	flushS   *wt.Session
 
 	mx      sync.Mutex
-	streams map[string]StreamStorage
+	streams map[string]Stream
 }
 
 var _ Storage = &storage{}
 
-func StorageInit(dbPath string, createIfNotExists bool) (Storage, error) {
+func Init(dbPath string, createIfNotExists bool) (Storage, error) {
 	return InitWithServerId(dbPath, createIfNotExists, "")
 }
 
@@ -81,7 +81,7 @@ func InitWithServerId(dbPath string, createIfNotExists bool, serverId string) (S
 		serverId: string(serverIdB),
 		c:        c,
 		flushS:   flushS,
-		streams:  make(map[string]StreamStorage),
+		streams:  make(map[string]Stream),
 	}
 	if serverId != "" && serverId != r.serverId {
 		return nil, errors.Errorf("storage already has different serverId: %s vs %s", r.serverId, serverId)
@@ -145,7 +145,7 @@ func (m *storage) Streams(localOnly bool) []string {
 	return r
 }
 
-func (m *storage) Stream(streamURI string, localOnly bool) (StreamStorage, bool) {
+func (m *storage) Stream(streamURI string, localOnly bool) (Stream, bool) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	r, ok := m.streams[streamURI]
@@ -155,7 +155,7 @@ func (m *storage) Stream(streamURI string, localOnly bool) (StreamStorage, bool)
 	return r, ok
 }
 
-func (m *storage) NewStream(streamURI string, t *walleapi.StreamTopology) StreamStorage {
+func (m *storage) NewStream(streamURI string, t *walleapi.StreamTopology) Stream {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	_, ok := m.streams[streamURI]

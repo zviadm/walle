@@ -12,9 +12,9 @@ import (
 type Storage interface {
 	ServerId() string
 	Streams(localOnly bool) []string
-	Stream(streamURI string, localOnly bool) (StreamStorage, bool)
+	Stream(streamURI string, localOnly bool) (Stream, bool)
 
-	NewStream(streamURI string, topology *walleapi.StreamTopology) StreamStorage
+	NewStream(streamURI string, topology *walleapi.StreamTopology) Stream
 	//RemoveStream(streamURI string)
 
 	// Forces Flushes
@@ -23,29 +23,27 @@ type Storage interface {
 	Close()
 }
 
-// StreamStorage is expected to be thread-safe.
+// Stream is expected to be thread-safe.
 // Note that StreamMetadata calls are all synced automatically in the transaction log,
-// however StreamStorage calls aren't and require explicit call to FlushSync method to
+// however Stream calls aren't and require explicit call to FlushSync method to
 // guarantee durability.
-type StreamStorage interface {
-	StreamMetadata
+type Stream interface {
+	Metadata
 
 	CommittedEntryIds() (noGapCommittedId int64, committedId int64, notify <-chan struct{})
 	TailEntryId() (entryId int64, notify <-chan struct{})
 	// Returns last committed entry and all the following not-yet committed entries.
 	LastEntries() []*walleapi.Entry
-	// Returns cursor to read committed entries starting at entryId. Cursor should be used
-	// as soon as possible and shouldn't be held open for too long (i.e. while waiting on some
-	// network i/o).
-	ReadFrom(entryId int64) StreamCursor
+	// Returns cursor to read committed entries starting at entryId.
+	ReadFrom(entryId int64) Cursor
 
 	UpdateNoGapCommittedId(entryId int64)
 	CommitEntry(entryId int64, entryMd5 []byte) (success bool)
 	PutEntry(entry *walleapi.Entry, isCommitted bool) (success bool)
 }
 
-// StreamMetadata is expected to be thread-safe.
-type StreamMetadata interface {
+// Metadata is expected to be thread-safe.
+type Metadata interface {
 	StreamURI() string
 	// WriterId() string // Perf sensitive. Needs to be in-memory.
 	WriterInfo() (writerId WriterId, writerAddr string, lease time.Duration, remainingLease time.Duration)
@@ -59,10 +57,10 @@ type StreamMetadata interface {
 	IsLocal() bool
 }
 
-// StreamCursor can be used to read entries from StreamStorage. It is safe to call Close() on
+// Cursor can be used to read entries from Stream. It is safe to call Close() on
 // already closed cursor. Cursor is also automatically closed once Next() exhausts all
 // committed entries.
-type StreamCursor interface {
+type Cursor interface {
 	Next() (*walleapi.Entry, bool)
 	Close()
 }

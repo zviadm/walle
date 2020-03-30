@@ -68,7 +68,7 @@ func main() {
 		Address: net.JoinHostPort(*host, *port),
 	}
 	zlog.Infof("initializing storage: %s...", dbPath)
-	ss, err := storage.StorageInit(dbPath, true)
+	ss, err := storage.Init(dbPath, true)
 	if err != nil {
 		zlog.Fatal(err)
 	}

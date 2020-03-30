@@ -53,7 +53,7 @@ func newStoragePipeline(
 	return r
 }
 
-func (s *storagePipeline) ForStream(ss storage.StreamStorage) *streamPipeline {
+func (s *storagePipeline) ForStream(ss storage.Stream) *streamPipeline {
 	s.mx.Lock()
 	defer s.mx.Unlock()
 	p, ok := s.p[ss.StreamURI()]
@@ -97,7 +97,7 @@ func (s *storagePipeline) flusher(ctx context.Context) {
 }
 
 type streamPipeline struct {
-	ss                  storage.StreamStorage
+	ss                  storage.Stream
 	flushQ              chan<- chan bool
 	fetchCommittedEntry fetchFunc
 
@@ -212,7 +212,7 @@ func (q *pipelineQueue) Push(r *walle_pb.PutEntryInternalRequest) <-chan bool {
 
 func newStreamPipeline(
 	ctx context.Context,
-	ss storage.StreamStorage,
+	ss storage.Stream,
 	flushQ chan<- chan bool,
 	fetchCommittedEntry fetchFunc) *streamPipeline {
 	r := &streamPipeline{

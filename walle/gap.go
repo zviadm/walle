@@ -44,7 +44,7 @@ func (s *Server) gapHandler(ctx context.Context) {
 
 func (s *Server) gapHandlerForStream(
 	ctx context.Context,
-	ss storage.StreamStorage,
+	ss storage.Stream,
 	noGapCommittedId int64,
 	committedId int64) error {
 	newGapId := noGapCommittedId
@@ -64,7 +64,7 @@ func (s *Server) gapHandlerForStream(
 // missing entries. [startId, endId), must be a valid committed range.
 func (s *Server) readAndProcessEntries(
 	ctx context.Context,
-	ss storage.StreamStorage,
+	ss storage.Stream,
 	startId int64,
 	endId int64,
 	processEntry func(entry *walleapi.Entry) error) error {
@@ -100,7 +100,7 @@ func (s *Server) readAndProcessEntries(
 // all entries were successfully fetched and stored locally.
 func (s *Server) fetchAndStoreEntries(
 	ctx context.Context,
-	ss storage.StreamStorage,
+	ss storage.Stream,
 	startId int64, endId int64,
 	processEntry func(entry *walleapi.Entry) error) error {
 

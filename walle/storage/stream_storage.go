@@ -47,7 +47,7 @@ func createStreamStorage(
 	streamURI string,
 	topology *walleapi.StreamTopology,
 	sess *wt.Session,
-	sessRO *wt.Session) StreamStorage {
+	sessRO *wt.Session) Stream {
 	panic.OnErr(isValidStreamURI(streamURI))
 	panic.OnErr(sess.Create(streamDS(streamURI), &wt.DataSourceConfig{BlockCompressor: "snappy"}))
 
@@ -76,7 +76,7 @@ func openStreamStorage(
 	serverId string,
 	streamURI string,
 	sess *wt.Session,
-	sessRO *wt.Session) StreamStorage {
+	sessRO *wt.Session) Stream {
 	metaR, err := sess.Scan(metadataDS)
 	panic.OnErr(err)
 	defer func() { panic.OnErr(metaR.Close()) }()
@@ -435,7 +435,7 @@ func (m *streamStorage) unsafeUpdateTailEntry(e *walleapi.Entry) {
 	m.tailEntry = e
 }
 
-func (m *streamStorage) ReadFrom(entryId int64) StreamCursor {
+func (m *streamStorage) ReadFrom(entryId int64) Cursor {
 	_, committedId, _ := m.CommittedEntryIds()
 	m.roMX.Lock()
 	defer m.roMX.Unlock()
