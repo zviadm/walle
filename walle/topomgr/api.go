@@ -51,10 +51,11 @@ func (m *Manager) FetchTopology(
 	if err != nil {
 		return nil, err
 	}
-	defer unlock()
-	entry := p.writer.Committed()
-	topology, err := wallelib.TopologyFromEntry(entry)
-	if err != nil {
+	putCtx := p.putCtx
+	topology := proto.Clone(p.topology).(*walleapi.Topology)
+	unlock()
+
+	if err := resolvePutCtx(ctx, putCtx, nil); err != nil {
 		return nil, err
 	}
 	return topology, nil
