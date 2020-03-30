@@ -219,34 +219,34 @@ func newStreamPipeline(
 }
 
 func (p *streamPipeline) waitForId(
-	ctx context.Context, maxId int64) int64 {
+	ctx context.Context, maxId int64) (int64, error) {
 	for {
 		head, queueNotify := p.q.Peek()
 		if head == nil {
 			select {
 			case <-ctx.Done():
-				return maxId
+				return 0, ctx.Err()
 			case <-queueNotify:
 			}
 			continue
 		}
 		waitId := waitIdForRequest(head)
 		if waitId <= maxId {
-			return maxId
+			return maxId, nil
 		}
 		tailId, tailNotify := p.ss.TailEntryId()
 		maxId = tailId
 		if waitId <= tailId {
-			return maxId
+			return maxId, nil
 		}
 		select {
 		case <-ctx.Done():
-			return maxId
+			return 0, ctx.Err()
 		case <-tailNotify:
 		case <-queueNotify:
 		case <-time.After(wallelib.LeaseMinimum / 4):
 			if p.q.CleanTillCommitted() {
-				return maxId
+				return maxId, nil
 			}
 		}
 	}
@@ -274,8 +274,12 @@ func (p *streamPipeline) backfillEntry(
 
 func (p *streamPipeline) Process(ctx context.Context) {
 	var maxId int64
-	for {
-		maxId = p.waitForId(ctx, maxId)
+	for ctx.Err() == nil {
+		var err error
+		maxId, err = p.waitForId(ctx, maxId)
+		if err != nil {
+			return
+		}
 		req := p.q.Pop()
 		var ok bool
 		if req.R.GetEntry().GetEntryId() == 0 {

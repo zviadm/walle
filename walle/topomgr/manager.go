@@ -28,6 +28,7 @@ type perTopoData struct {
 	notifyDone <-chan struct{}
 	writer     *wallelib.Writer
 	topology   *walleapi.Topology
+	putCtx     *wallelib.PutCtx
 }
 
 func NewManager(c wallelib.BasicClient, addr string) *Manager {

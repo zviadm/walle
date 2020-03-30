@@ -42,7 +42,7 @@ type Writer struct {
 	cachedCliIdx int
 
 	lastEntry    *walleapi.Entry
-	reqQ         chan *writerReq
+	reqQ         chan *PutCtx
 	inFlightQ    chan struct{}
 	heartbeaterQ chan struct{}
 
@@ -56,9 +56,27 @@ type Writer struct {
 	rootCancel context.CancelFunc
 }
 
-type writerReq struct {
-	ErrC  chan error
-	Entry *walleapi.Entry
+type PutCtx struct {
+	Entry *walleapi.Entry // Read-only!
+	mx    sync.Mutex
+	err   error
+	done  chan struct{}
+}
+
+func (p *PutCtx) Err() error {
+	p.mx.Lock()
+	defer p.mx.Unlock()
+	return p.err
+}
+func (p *PutCtx) Done() <-chan struct{} {
+	return p.done
+}
+func (p *PutCtx) set(err error) {
+	p.mx.Lock()
+	defer p.mx.Unlock()
+	zlog.Info("DEBUG: resolving putCtx ", p.Entry.EntryId, " -- ", p.done)
+	p.err = err
+	close(p.done)
 }
 
 func newWriter(
@@ -81,7 +99,7 @@ func newWriter(
 		lastEntry: lastEntry,
 		// Use very large buffer for reqQ to never block. If user fills this queue up,
 		// PutEntry calls will start blocking.
-		reqQ:         make(chan *writerReq, 16384),
+		reqQ:         make(chan *PutCtx, 16384),
 		inFlightQ:    make(chan struct{}, maxInFlightPuts),
 		heartbeaterQ: make(chan struct{}, 1),
 
@@ -224,7 +242,7 @@ func (w *Writer) heartbeater(ctx context.Context) {
 	}
 }
 
-func (w *Writer) process(ctx context.Context, req *writerReq) {
+func (w *Writer) process(ctx context.Context, req *PutCtx) {
 	defer func() { <-w.inFlightQ }()
 	err := KeepTryingWithBackoff(
 		ctx, 10*time.Millisecond, w.writerLease,
@@ -258,11 +276,10 @@ func (w *Writer) process(ctx context.Context, req *writerReq) {
 	if err != nil {
 		w.cancelWithErr(err)
 	}
-	req.ErrC <- err
+	req.set(err)
 }
 
-func (w *Writer) PutEntry(data []byte) (*walleapi.Entry, <-chan error) {
-	r := make(chan error, 1)
+func (w *Writer) PutEntry(data []byte) *PutCtx {
 	entry := &walleapi.Entry{
 		EntryId:  w.lastEntry.EntryId + 1,
 		WriterId: w.writerId,
@@ -270,8 +287,12 @@ func (w *Writer) PutEntry(data []byte) (*walleapi.Entry, <-chan error) {
 	}
 	entry.ChecksumMd5 = CalculateChecksumMd5(w.lastEntry.ChecksumMd5, data)
 	w.lastEntry = entry
-	w.reqQ <- &writerReq{ErrC: r, Entry: entry}
-	return entry, r
+	r := &PutCtx{
+		Entry: entry,
+		done:  make(chan struct{}),
+	}
+	w.reqQ <- r
+	return r
 }
 
 func (w *Writer) safeCommittedEntryId() (time.Time, int64, []byte, *walleapi.Entry) {

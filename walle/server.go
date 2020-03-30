@@ -224,11 +224,10 @@ func (s *Server) ReadEntries(
 	defer cursor.Close()
 	for entryId < req.EndEntryId {
 		entry, ok := cursor.Next()
-		if !ok {
-			return status.Error(codes.NotFound, "reached end of the stream")
-		}
-		if entry.EntryId != entryId {
-			return status.Errorf(codes.NotFound, "entry: %d is missing", entryId)
+		if !ok || entry.EntryId != entryId {
+			return status.Errorf(codes.NotFound,
+				"entry: %d is missing, found: %d in [%d..%d)",
+				entryId, entry.GetEntryId(), req.StartEntryId, req.EndEntryId)
 		}
 		entryId += 1
 		// TODO(zviad): Can `send` block? in that case we might have to treat cursor

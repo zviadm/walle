@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
-	"fmt"
 	"sync"
 	"time"
 
@@ -21,9 +20,8 @@ type streamStorage struct {
 	streamR   *wt.Scanner
 	streamW   *wt.Mutator
 
-	// read-only session and separate mutex for ReadFrom calls.
-	mxRO   sync.Mutex
-	sessRO *wt.Session
+	// function to create new read-only sessions for ReadFrom calls.
+	sessRO func() *wt.Session
 
 	mx       sync.Mutex
 	topology *walleapi.StreamTopology
@@ -47,7 +45,7 @@ func createStreamStorage(
 	streamURI string,
 	topology *walleapi.StreamTopology,
 	sess *wt.Session,
-	sessRO *wt.Session) StreamStorage {
+	sessRO func() *wt.Session) StreamStorage {
 	panicOnErr(isValidStreamURI(streamURI))
 	panicOnErr(sess.Create(streamDS(streamURI), &wt.DataSourceConfig{BlockCompressor: "snappy"}))
 
@@ -76,7 +74,7 @@ func openStreamStorage(
 	serverId string,
 	streamURI string,
 	sess *wt.Session,
-	sessRO *wt.Session) StreamStorage {
+	sessRO func() *wt.Session) StreamStorage {
 	metaR, err := sess.Scan(metadataDS)
 	panicOnErr(err)
 	defer func() { panicOnErr(metaR.Close()) }()
@@ -282,9 +280,8 @@ func (m *streamStorage) unsafeCommitEntry(entryId int64, entryMd5 []byte, newGap
 	}
 	panicOnNotOk(
 		bytes.Compare(existingEntry.ChecksumMd5, entryMd5) == 0,
-		fmt.Sprintf(
-			"committed entry md5 mimstach at: %d, %s vs %s",
-			entryId, hex.EncodeToString(entryMd5), hex.EncodeToString(existingEntry.ChecksumMd5)))
+		"committed entry md5 mimstach at: %d, %s vs %s",
+		entryId, hex.EncodeToString(entryMd5), hex.EncodeToString(existingEntry.ChecksumMd5))
 	panicOnNotOk(useTx || m.sess.InTx(), "commit must happen inside a transaction")
 	if useTx {
 		panicOnErr(m.sess.TxBegin(nil))
@@ -335,7 +332,8 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) bool {
 		}
 		panicOnNotOk(
 			bytes.Compare(e.ChecksumMd5, entry.ChecksumMd5) == 0,
-			"committed entry checksum mismatch!")
+			"committed entry md5 mimstach at: %d, %s vs %s",
+			entry.EntryId, hex.EncodeToString(entry.ChecksumMd5), hex.EncodeToString(e.ChecksumMd5))
 		return true
 	}
 
@@ -438,13 +436,11 @@ func (m *streamStorage) unsafeUpdateTailEntry(e *walleapi.Entry) {
 
 func (m *streamStorage) ReadFrom(entryId int64) StreamCursor {
 	_, committedId, _ := m.CommittedEntryIds()
-	m.mxRO.Lock()
-	defer m.mxRO.Unlock()
-	cursor, err := m.sessRO.Scan(streamDS(m.streamURI))
+	sess := m.sessRO()
+	cursor, err := sess.Scan(streamDS(m.streamURI))
 	panicOnErr(err)
-
 	r := &streamCursor{
-		mx:          &m.mxRO,
+		sess:        sess,
 		cursor:      cursor,
 		committedId: committedId,
 	}
@@ -458,42 +454,36 @@ func (m *streamStorage) ReadFrom(entryId int64) StreamCursor {
 }
 
 type streamCursor struct {
-	mx          *sync.Mutex
-	finished    bool
+	sess        *wt.Session
 	cursor      *wt.Scanner
+	finished    bool
 	committedId int64
 }
 
 func (m *streamCursor) Close() {
-	m.mx.Lock()
-	defer m.mx.Unlock()
 	if !m.finished {
 		panicOnErr(m.cursor.Close())
+		panicOnErr(m.sess.Close())
 	}
 	m.finished = true
 }
 func (m *streamCursor) Next() (*walleapi.Entry, bool) {
-	m.mx.Lock()
-	defer m.mx.Unlock()
 	if m.finished {
 		return nil, false
 	}
-
 	v, err := m.cursor.UnsafeValue()
 	panicOnErr(err)
 	entry := &walleapi.Entry{}
 	panicOnErr(entry.Unmarshal(v))
 	if entry.EntryId > m.committedId {
-		m.finished = true
-		panicOnErr(m.cursor.Close())
+		m.Close()
 		return nil, false
 	}
 	if err := m.cursor.Next(); err != nil {
 		if wt.ErrCode(err) != wt.ErrNotFound {
 			panicOnErr(err)
 		}
-		m.finished = true
-		panicOnErr(m.cursor.Close())
+		m.Close()
 	}
 	return entry, true
 }

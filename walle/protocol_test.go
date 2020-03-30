@@ -51,20 +51,22 @@ func TestProtocolClaimWriter(t *testing.T) {
 	require.Less(t, int64(0), writerStatus.RemainingLeaseMs)
 	require.Greater(t, writerStatus.LeaseMs, writerStatus.RemainingLeaseMs)
 
-	e1, c1 := w.PutEntry([]byte("d1"))
-	e2, c2 := w.PutEntry([]byte("d2"))
-	require.EqualValues(t, e1.EntryId, 1, "e1: %+v", e1)
-	require.EqualValues(t, e2.EntryId, 2, "e2: %+v", e2)
+	e1 := w.PutEntry([]byte("d1"))
+	e2 := w.PutEntry([]byte("d2"))
+	require.EqualValues(t, e1.Entry.EntryId, 1, "e1: %+v", e1)
+	require.EqualValues(t, e2.Entry.EntryId, 2, "e2: %+v", e2)
 
-	err = <-c2
-	require.NoError(t, err)
-	err = <-c1
-	require.NoError(t, err)
+	zlog.Info("TEST: waiting on e1")
+	<-e1.Done()
+	require.NoError(t, e1.Err())
+	zlog.Info("TEST: waiting on e2")
+	<-e2.Done()
+	require.NoError(t, e2.Err())
 
-	e3, c3 := w.PutEntry([]byte("d3"))
-	require.EqualValues(t, e3.EntryId, 3, "e3: %+v", e3)
-	err = <-c3
-	require.NoError(t, err)
+	e3 := w.PutEntry([]byte("d3"))
+	require.EqualValues(t, e3.Entry.EntryId, 3, "e3: %+v", e3)
+	<-e3.Done()
+	require.NoError(t, e3.Err())
 	state, _ := w.WriterState()
 	require.Equal(t, wallelib.Exclusive, state)
 
@@ -107,12 +109,12 @@ func TestProtocolClaimBarrage(t *testing.T) {
 					return err
 				}
 				defer w.Close()
-				putEntry, errC := w.PutEntry([]byte(strconv.Itoa(idx)))
-				err = <-errC
-				if err != nil {
+				putCtx := w.PutEntry([]byte(strconv.Itoa(idx)))
+				<-putCtx.Done()
+				if putCtx.Err() != nil {
 					continue // This can happen if WaitAndClaim races.
 				}
-				zlog.Info("TEST: successful claim ", addr, " read: ", entry.EntryId, " put: ", putEntry.EntryId)
+				zlog.Info("TEST: successful claim ", addr, " read: ", entry.EntryId, " put: ", putCtx.Entry.EntryId)
 				entries <- entry
 				return nil
 			}
@@ -137,45 +139,45 @@ func TestProtocolGapRecovery(t *testing.T) {
 	require.NoError(t, err)
 	defer w.Close()
 
-	ee, errC := w.PutEntry([]byte("d1"))
-	require.EqualValues(t, ee.EntryId, 1, "ee: %s", ee)
-	err = <-errC
-	require.NoError(t, err)
+	ee := w.PutEntry([]byte("d1"))
+	require.EqualValues(t, ee.Entry.EntryId, 1, "ee: %s", ee)
+	<-ee.Done()
+	require.NoError(t, ee.Err())
 
 	serverIds := topo3Node.Streams["/mock/1"].ServerIds
 	m.Toggle(serverIds[0], false)
-	_, errC = w.PutEntry([]byte("d2"))
-	err = <-errC
-	require.NoError(t, err)
-	_, errC = w.PutEntry([]byte("d3"))
-	err = <-errC
-	require.NoError(t, err)
+	ee = w.PutEntry([]byte("d2"))
+	<-ee.Done()
+	require.NoError(t, ee.Err())
+	ee = w.PutEntry([]byte("d3"))
+	<-ee.Done()
+	require.NoError(t, ee.Err())
 
 	m.Toggle(serverIds[1], false)
-	eeD4, errC := w.PutEntry([]byte("d4"))
+	eeD4 := w.PutEntry([]byte("d4"))
 	select {
-	case err = <-errC:
-		t.Fatalf("PutEntry must not have succeeded: %s", err)
+	case <-eeD4.Done():
+		t.Fatalf("PutEntry must not have ended: %s", eeD4.Err())
 	case <-time.After(10 * time.Millisecond):
 	}
 
 	// serverIds[0] will need to create a GAP to succeed with the PutEntry request.
 	m.Toggle(serverIds[0], true)
 	select {
-	case err = <-errC:
+	case <-eeD4.Done():
 	case <-time.After(time.Second):
 		t.Fatalf("PutEntry didn't succeed within a timeout")
 	}
-	require.NoError(t, err)
+	require.NoError(t, eeD4.Err())
 
 	ctxTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	waitForCommitConvergence(t, ctxTimeout, m, serverIds[0], "/mock/1", eeD4.EntryId)
+	waitForCommitConvergence(t, ctxTimeout, m, serverIds[0], "/mock/1", eeD4.Entry.EntryId)
 
 	m.Toggle(serverIds[1], true)
 	// If client heartbeat is working properly, once 'serverIds[1]' is healthy again, it should force
 	// it to catchup with rest of the servers.
-	waitForCommitConvergence(t, ctxTimeout, m, serverIds[1], "/mock/1", eeD4.EntryId)
+	waitForCommitConvergence(t, ctxTimeout, m, serverIds[1], "/mock/1", eeD4.Entry.EntryId)
 }
 
 func waitForCommitConvergence(

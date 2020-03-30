@@ -33,9 +33,9 @@ func BenchmarkPutEntrySerial(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, errC := w.PutEntry([]byte("testingoooo"))
-		err := <-errC
-		if err != nil {
+		ee := w.PutEntry([]byte("testingoooo"))
+		<-ee.Done()
+		if ee.Err() != nil {
 			b.Fatal(err)
 		}
 	}
@@ -53,14 +53,13 @@ func BenchmarkPutEntryPipeline(b *testing.B) {
 	defer w.Close()
 
 	b.ResetTimer()
-	errCs := make([]<-chan error, b.N)
+	puts := make([]*wallelib.PutCtx, b.N)
 	for i := 0; i < b.N; i++ {
-		_, errC := w.PutEntry([]byte("testingoooo"))
-		errCs[i] = errC
+		puts[i] = w.PutEntry([]byte("testingoooo"))
 	}
-	for _, errC := range errCs {
-		err := <-errC
-		if err != nil {
+	for _, putCtx := range puts {
+		<-putCtx.Done()
+		if putCtx.Err() != nil {
 			b.Fatal(err)
 		}
 	}

@@ -2,6 +2,7 @@ package topomgr
 
 import (
 	"context"
+	"encoding/hex"
 	"reflect"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/zviadm/walle/proto/topomgr"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/wallelib"
+	"github.com/zviadm/zlog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -17,14 +19,17 @@ import (
 func (m *Manager) UpdateServerInfo(
 	ctx context.Context,
 	req *topomgr.UpdateServerInfoRequest) (*empty.Empty, error) {
-	updateErr, err := m.updateServerInfo(req)
-	if err := resolveUpdateErr(ctx, updateErr, err); err != nil {
+	putCtx, err := m.updateServerInfo(req)
+	if err := resolvePutCtx(ctx, putCtx, err); err != nil {
 		return nil, err
 	}
+	zlog.Infof(
+		"[tm] updated server: %s : %s -> %s",
+		req.TopologyUri, hex.EncodeToString([]byte(req.ServerId)), req.ServerInfo)
 	return &empty.Empty{}, nil
 }
 
-func (m *Manager) updateServerInfo(req *topomgr.UpdateServerInfoRequest) (<-chan error, error) {
+func (m *Manager) updateServerInfo(req *topomgr.UpdateServerInfoRequest) (*wallelib.PutCtx, error) {
 	p, unlock, err := m.perTopoMX(req.TopologyUri)
 	if err != nil {
 		return nil, err
@@ -32,9 +37,7 @@ func (m *Manager) updateServerInfo(req *topomgr.UpdateServerInfoRequest) (<-chan
 	defer unlock()
 
 	if proto.Equal(p.topology.Servers[req.ServerId], req.ServerInfo) {
-		errC := make(chan error, 1)
-		errC <- nil
-		return errC, nil
+		return p.putCtx, nil
 	}
 	p.topology.Version += 1
 	p.topology.Servers[req.ServerId] = req.ServerInfo
@@ -60,7 +63,6 @@ func (m *Manager) FetchTopology(
 func (m *Manager) UpdateServerIds(
 	ctx context.Context,
 	req *topomgr.UpdateServerIdsRequest) (*topomgr.UpdateServerIdsResponse, error) {
-
 	p, unlock, err := m.perTopoMX(req.TopologyUri)
 	if err != nil {
 		return nil, err
@@ -70,15 +72,22 @@ func (m *Manager) UpdateServerIds(
 		p.topology.Streams[req.StreamUri].GetPrevServerIds())
 	requiredStreamVersion := p.topology.Streams[req.StreamUri].GetVersion()
 	changed, err := verifyAndDiffMembershipChange(p.topology, req.StreamUri, req.ServerIds)
-	if err != nil || (!changed && prevEquals) {
-		defer unlock()
+	if err != nil {
+		unlock()
 		if err != nil {
 			return nil, status.Error(codes.FailedPrecondition, err.Error())
 		}
+	}
+	if !changed && prevEquals {
+		topologyVersion := p.topology.Version
+		putCtx := p.putCtx
+		unlock()
+		if err := resolvePutCtx(ctx, putCtx, nil); err != nil {
+			return nil, err
+		}
 		return &topomgr.UpdateServerIdsResponse{
-			TopologyVersion: p.topology.Version,
-			StreamVersion:   requiredStreamVersion,
-		}, nil
+			TopologyVersion: topologyVersion,
+			StreamVersion:   requiredStreamVersion}, nil
 	}
 	unlock()
 
@@ -87,7 +96,7 @@ func (m *Manager) UpdateServerIds(
 		nUpdates += 1
 	}
 	var resp *topomgr.UpdateServerIdsResponse
-	var updateErr <-chan error
+	var putCtx *wallelib.PutCtx
 	for i := 0; i < nUpdates; i++ {
 		if requiredStreamVersion > 0 {
 			if err := m.waitForStreamVersion(
@@ -95,8 +104,8 @@ func (m *Manager) UpdateServerIds(
 				return nil, err
 			}
 		}
-		resp, updateErr, err = m.updateServerIds(ctx, req, requiredStreamVersion)
-		if err := resolveUpdateErr(ctx, updateErr, err); err != nil {
+		resp, putCtx, err = m.updateServerIds(ctx, req, requiredStreamVersion)
+		if err := resolvePutCtx(ctx, putCtx, err); err != nil {
 			return nil, err
 		}
 		requiredStreamVersion = resp.StreamVersion
@@ -128,7 +137,7 @@ func (m *Manager) waitForStreamVersion(
 func (m *Manager) updateServerIds(
 	ctx context.Context,
 	req *topomgr.UpdateServerIdsRequest,
-	requiredStreamVersion int64) (*topomgr.UpdateServerIdsResponse, <-chan error, error) {
+	requiredStreamVersion int64) (*topomgr.UpdateServerIdsResponse, *wallelib.PutCtx, error) {
 	p, unlock, err := m.perTopoMX(req.TopologyUri)
 	if err != nil {
 		return nil, nil, err
@@ -150,8 +159,8 @@ func (m *Manager) updateServerIds(
 		TopologyVersion: p.topology.Version,
 		StreamVersion:   streamT.Version,
 	}
-	updateErr := p.commitTopology()
-	return r, updateErr, nil
+	putCtx := p.commitTopology()
+	return r, putCtx, nil
 }
 
 func (m *Manager) perTopoMX(topologyURI string) (p *perTopoData, unlock func(), err error) {
@@ -173,23 +182,27 @@ func (m *Manager) perTopoMX(topologyURI string) (p *perTopoData, unlock func(), 
 	return p, m.mx.Unlock, err
 }
 
-func (p *perTopoData) commitTopology() <-chan error {
+func (p *perTopoData) commitTopology() *wallelib.PutCtx {
 	topologyB, err := p.topology.Marshal()
 	if err != nil {
 		panic(err) // this must never happen, crashing is the only sane solution.
 	}
-	_, errC := p.writer.PutEntry(topologyB)
-	return errC
+	putCtx := p.writer.PutEntry(topologyB)
+	p.putCtx = putCtx
+	return putCtx
 }
 
-func resolveUpdateErr(ctx context.Context, updateErr <-chan error, err error) error {
+func resolvePutCtx(ctx context.Context, putCtx *wallelib.PutCtx, err error) error {
 	if err != nil {
 		return err
+	}
+	if putCtx == nil {
+		return nil
 	}
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case err = <-updateErr:
-		return err
+	case <-putCtx.Done():
+		return putCtx.Err()
 	}
 }
