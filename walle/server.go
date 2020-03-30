@@ -247,7 +247,7 @@ type requestHeader interface {
 	GetStreamVersion() int64
 }
 
-func (s *Server) processRequestHeader(req requestHeader) (ss storage.StreamStorage, err error) {
+func (s *Server) processRequestHeader(req requestHeader) (ss storage.Stream, err error) {
 	if !s.checkServerId(req.GetServerId()) {
 		return nil, status.Errorf(codes.NotFound, "invalid serverId: %s", req.GetServerId())
 	}
@@ -265,7 +265,7 @@ func (s *Server) checkServerId(serverId string) bool {
 	return serverId == s.s.ServerId()
 }
 
-func (s *Server) checkStreamVersion(ss storage.StreamMetadata, reqStreamVersion int64) error {
+func (s *Server) checkStreamVersion(ss storage.Metadata, reqStreamVersion int64) error {
 	version := ss.Topology().Version
 	if reqStreamVersion == version-1 || reqStreamVersion == version || reqStreamVersion == version+1 {
 		return nil
@@ -277,7 +277,7 @@ func (s *Server) checkStreamVersion(ss storage.StreamMetadata, reqStreamVersion 
 // to get updated information from other servers because this server must have missed the NewWriter call.
 func (s *Server) checkAndUpdateWriterId(
 	ctx context.Context,
-	ss storage.StreamMetadata,
+	ss storage.Metadata,
 	writerId storage.WriterId) error {
 	for {
 		ssWriterId, writerAddr, _, _ := ss.WriterInfo()
