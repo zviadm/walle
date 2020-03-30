@@ -3,6 +3,7 @@ package walle
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"time"
 
@@ -51,7 +52,9 @@ func (s *Server) gapHandlerForStream(
 		entry, ok := cursor.Next()
 		panicOnNotOk(
 			ok && entry.EntryId <= committedId,
-			"committed entry wasn't found by cursor!")
+			fmt.Sprintf(
+				"committed entry wasn't found by cursor: %d > %d (gap: %d)!",
+				entry.GetEntryId(), committedId, noGapCommittedId))
 		if entry.EntryId > noGapCommittedId+1 {
 			err := s.fetchAndStoreEntries(ctx, ss, noGapCommittedId+1, entry.EntryId, nil)
 			if err != nil {

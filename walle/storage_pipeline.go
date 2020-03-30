@@ -98,9 +98,7 @@ type streamPipeline struct {
 	flushQ              chan<- chan bool
 	fetchCommittedEntry fetchFunc
 
-	mx      sync.Mutex
-	q       *pipelineQueue
-	qNotify chan struct{}
+	q *pipelineQueue
 }
 
 type pipelineReq struct {
@@ -109,21 +107,58 @@ type pipelineReq struct {
 }
 
 type pipelineQueue struct {
-	v []*pipelineReq
+	mx      sync.Mutex
+	notifyC chan struct{}
+	v       []*pipelineReq
 }
 
-func (q *pipelineQueue) Len() int { return len(q.v) }
+func (q *pipelineQueue) Len() int {
+	q.mx.Lock()
+	defer q.mx.Unlock()
+	return len(q.v)
+}
+func (q *pipelineQueue) notify() {
+	close(q.notifyC)
+	q.notifyC = make(chan struct{})
+}
 func (q *pipelineQueue) Pop() *pipelineReq {
+	q.mx.Lock()
+	defer q.mx.Unlock()
 	r := q.v[0]
 	copy(q.v, q.v[1:])
 	q.v[len(q.v)-1] = nil
 	q.v = q.v[:len(q.v)-1]
+	q.notify()
 	return r
 }
-func (q *pipelineQueue) Peek() *pipelineReq {
-	return q.v[0]
+func (q *pipelineQueue) CleanTillCommitted() bool {
+	q.mx.Lock()
+	defer q.mx.Unlock()
+	for idx := len(q.v) - 1; idx >= 0; idx-- {
+		if q.v[idx].R.GetEntry().GetEntryId() > q.v[idx].R.CommittedEntryId {
+			continue
+		}
+		for k := 0; k < idx; k++ {
+			q.v[k].okC <- false
+			q.v[k] = nil
+		}
+		q.v = q.v[idx:]
+		q.notify()
+		return true
+	}
+	return false
 }
-func (q *pipelineQueue) Push(r *walle_pb.PutEntryInternalRequest) (<-chan bool, bool) {
+func (q *pipelineQueue) Peek() (*walle_pb.PutEntryInternalRequest, <-chan struct{}) {
+	q.mx.Lock()
+	defer q.mx.Unlock()
+	if len(q.v) == 0 {
+		return nil, q.notifyC
+	}
+	return q.v[0].R, q.notifyC
+}
+func (q *pipelineQueue) Push(r *walle_pb.PutEntryInternalRequest) <-chan bool {
+	q.mx.Lock()
+	defer q.mx.Unlock()
 	waitId := waitIdForRequest(r)
 	rIdx := 0
 	for idx := len(q.v) - 1; idx >= 0; idx-- {
@@ -131,9 +166,11 @@ func (q *pipelineQueue) Push(r *walle_pb.PutEntryInternalRequest) (<-chan bool, 
 		if req.R.CommittedEntryId == r.CommittedEntryId &&
 			req.R.GetEntry().GetEntryId() == r.GetEntry().GetEntryId() &&
 			bytes.Compare(req.R.GetEntry().GetChecksumMd5(), r.GetEntry().GetChecksumMd5()) == 0 {
-			return req.okC, (idx == 0)
+			return req.okC
 		}
-		if waitIdForRequest(req.R) >= waitId {
+		reqWaitId := waitIdForRequest(req.R)
+		if reqWaitId > waitId ||
+			(reqWaitId == waitId && req.R.GetEntry().GetEntryId() > r.GetEntry().GetEntryId()) {
 			continue
 		}
 		rIdx = idx + 1
@@ -144,11 +181,19 @@ func (q *pipelineQueue) Push(r *walle_pb.PutEntryInternalRequest) (<-chan bool, 
 	copy(q.v[rIdx+1:], q.v[rIdx:])
 	q.v[rIdx] = req
 	if len(q.v) > streamPipelineQ {
+		zlog.Info(
+			"DEBUG: pipeline is overflowing ",
+			q.v[0].R.CommittedEntryId, " -- ", q.v[0].R.GetEntry().GetEntryId(), " -- ",
+			r.CommittedEntryId, " -- ", r.GetEntry().GetEntryId(), " -- ",
+			q.v[len(q.v)-1].R.CommittedEntryId, " -- ", q.v[len(q.v)-1].R.GetEntry().GetEntryId())
 		q.v[len(q.v)-1].okC <- false
 		q.v[len(q.v)-1] = nil
 		q.v = q.v[:len(q.v)-1]
 	}
-	return req.okC, q.v[0] == req
+	if q.v[0] == req {
+		q.notify()
+	}
+	return req.okC
 }
 
 func newStreamPipeline(
@@ -160,8 +205,7 @@ func newStreamPipeline(
 		ss:                  ss,
 		flushQ:              flushQ,
 		fetchCommittedEntry: fetchCommittedEntry,
-		q:                   new(pipelineQueue),
-		qNotify:             make(chan struct{}),
+		q:                   &pipelineQueue{notifyC: make(chan struct{})},
 	}
 	go r.Process(ctx)
 	return r
@@ -172,7 +216,7 @@ func (p *streamPipeline) Process(ctx context.Context) {
 	for {
 	WaitLoop:
 		for {
-			head, queueNotify := p.peek()
+			head, queueNotify := p.q.Peek()
 			if head == nil {
 				select {
 				case <-ctx.Done():
@@ -190,21 +234,21 @@ func (p *streamPipeline) Process(ctx context.Context) {
 			if waitId <= tailId {
 				break
 			}
-			var breakoutC <-chan time.Time
-			if head.CommittedEntryId >= head.GetEntry().GetEntryId() {
-				breakoutC = time.After(10 * time.Millisecond) // TODO(zviad): timeout constant
-			}
-
 			select {
 			case <-ctx.Done():
 				return
 			case <-tailNotify:
 			case <-queueNotify:
-			case <-breakoutC:
-				break WaitLoop
+			case <-time.After(10 * time.Millisecond):
+				if p.q.CleanTillCommitted() {
+					break WaitLoop
+				}
+				// zlog.Info(
+				// 	"DEBUG: pipeline is stuck? ",
+				// 	p.q.Len(), " -- ", head.CommittedEntryId, " -- ", head.GetEntry().GetEntryId(), " -- ", maxId)
 			}
 		}
-		req := p.pop()
+		req := p.q.Pop()
 		var ok bool
 		if req.R.GetEntry().GetEntryId() == 0 {
 			ok = p.ss.CommitEntry(req.R.CommittedEntryId, req.R.CommittedEntryMd5)
@@ -234,9 +278,9 @@ func (p *streamPipeline) Process(ctx context.Context) {
 				maxId = req.R.Entry.EntryId
 			}
 		}
-		zlog.Info(
-			"DEBUG: pipeline ", p.ss.StreamURI(), "-- ",
-			req.R.CommittedEntryId, " -- ", req.R.GetEntry().GetEntryId(), " -- ", maxId, " -- ", ok)
+		// zlog.Info(
+		// 	"DEBUG: pipeline ", p.ss.StreamURI(), "-- ",
+		// 	req.R.CommittedEntryId, " -- ", req.R.GetEntry().GetEntryId(), " -- ", maxId, " -- ", ok)
 		if !ok {
 			req.okC <- false
 		} else {
@@ -246,29 +290,7 @@ func (p *streamPipeline) Process(ctx context.Context) {
 }
 
 func (p *streamPipeline) Queue(r *walle_pb.PutEntryInternalRequest) <-chan bool {
-	p.mx.Lock()
-	defer p.mx.Unlock()
-	okC, notify := p.q.Push(r)
-	if notify {
-		close(p.qNotify)
-		p.qNotify = make(chan struct{})
-	}
-	return okC
-}
-
-func (p *streamPipeline) peek() (*walle_pb.PutEntryInternalRequest, <-chan struct{}) {
-	p.mx.Lock()
-	defer p.mx.Unlock()
-	if p.q.Len() == 0 {
-		return nil, p.qNotify
-	}
-	return p.q.Peek().R, p.qNotify
-}
-
-func (p *streamPipeline) pop() *pipelineReq {
-	p.mx.Lock()
-	defer p.mx.Unlock()
-	return p.q.Pop()
+	return p.q.Push(r)
 }
 
 func waitIdForRequest(r *walle_pb.PutEntryInternalRequest) int64 {

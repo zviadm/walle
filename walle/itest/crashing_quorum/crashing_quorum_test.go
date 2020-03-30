@@ -94,19 +94,25 @@ func TestCrashingQuorum(t *testing.T) {
 	}
 
 	time.Sleep(5 * time.Second)
-	wState, _ := w.WriterState()
+	wState, stateNotify := w.WriterState()
 	require.Equal(t, wallelib.Exclusive, wState)
 
 	servicelib.IptablesBlockPort(t, itest.WalleDefaultPort+2)
 	s[2].Kill(t)
 	zlog.Info("TEST: killed s[2] process")
 
-	for _, errC := range errCs {
+	for idx, errC := range errCs {
 		select {
+		case <-ctx.Done():
+			require.FailNow(t, "putEntry timedout, exiting!")
 		case err := <-errC:
 			require.NoError(t, err)
-		case <-time.After(5 * time.Second):
-			require.FailNow(t, "putEntry timedout, exiting!")
+		case <-stateNotify:
+			wState, stateNotify = w.WriterState()
+			require.Equal(t, wallelib.Exclusive, wState)
+		}
+		if idx%100 == 0 {
+			zlog.Info("TEST: putEntry success ", idx)
 		}
 	}
 	zlog.Info("TEST: processed all entries: ", len(errCs))

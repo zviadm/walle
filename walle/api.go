@@ -374,18 +374,17 @@ func (s *Server) broadcastRequest(
 		c walle_pb.WalleClient,
 		ctx context.Context,
 		serverId string) error) (successIds []string, err error) {
-	// deadline, ok := ctx.Deadline()
-	// if !ok {
-	// 	deadline = time.Now().Add(time.Second) // TODO(zviad): what kind of timeout to use?
-	// }
-	// callCtx, cancel := context.WithDeadline(context.Background(), deadline)
-	// defer func() {
-	// 	if err != nil {
-	// 		cancel()
-	// 	}
-	// }()
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	callCtx := ctx
+	deadline, ok := ctx.Deadline()
+	if ok {
+		var cancel context.CancelFunc
+		callCtx, cancel = context.WithDeadline(context.Background(), deadline)
+		defer func() {
+			if err != nil {
+				cancel()
+			}
+		}()
+	}
 	type callErr struct {
 		ServerId string
 		Err      error

@@ -26,11 +26,14 @@ func (t *client) connectAndDo(
 	ctx context.Context,
 	topologyURI string,
 	f func(ctx context.Context, c topomgr.TopoManagerClient) error) (err error) {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	callTimeout := 2 * time.Second
+	ctx, cancel := context.WithTimeout(ctx, 5*callTimeout)
 	defer cancel()
 	return wallelib.KeepTryingWithBackoff(
-		ctx, wallelib.LeaseMinimum, time.Second,
+		ctx, wallelib.LeaseMinimum, callTimeout,
 		func(retryN uint) (bool, bool, error) {
+			ctx, cancel := context.WithTimeout(ctx, callTimeout)
+			defer cancel()
 			cli, err := t.c.ForStream(topologyURI)
 			if err != nil {
 				return false, false, err
@@ -43,16 +46,14 @@ func (t *client) connectAndDo(
 			if wStatus.RemainingLeaseMs <= 0 {
 				return false, false, errors.Errorf("no active manager for: %s", topologyURI)
 			}
-			ctxConn, cancel := context.WithTimeout(ctx, time.Second)
-			defer cancel()
-			conn, err := grpc.DialContext(ctxConn, wStatus.WriterAddr, grpc.WithInsecure(), grpc.WithBlock())
+			conn, err := grpc.DialContext(ctx, wStatus.WriterAddr, grpc.WithInsecure(), grpc.WithBlock())
 			if err != nil {
 				return false, false, err
 			}
 			defer conn.Close()
 			err = f(ctx, topomgr.NewTopoManagerClient(conn))
-			errStatus, _ := status.FromError(err)
-			errFinal := errStatus.Code() == codes.OK || errStatus.Code() == codes.FailedPrecondition
+			errCode := status.Convert(err).Code()
+			errFinal := errCode == codes.OK || errCode == codes.FailedPrecondition
 			return errFinal, false, err
 		})
 }
