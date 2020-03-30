@@ -205,9 +205,9 @@ func (w *Writer) process(ctx context.Context, req *writerReq) {
 				return false, silenceErr, err
 			}
 			now := time.Now()
-			putCtx, cancel := context.WithTimeout(ctx, w.writerLease)
-			defer cancel()
-			_, err = cli.PutEntry(putCtx, &walleapi.PutEntryRequest{
+			// putCtx, cancel := context.WithTimeout(ctx, maxInFlightPuts*)
+			// defer cancel()
+			_, err = cli.PutEntry(ctx, &walleapi.PutEntryRequest{
 				StreamUri:         w.streamURI,
 				Entry:             req.Entry,
 				CommittedEntryId:  toCommit.EntryId,

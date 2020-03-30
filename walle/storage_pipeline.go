@@ -7,6 +7,8 @@ import (
 	"time"
 
 	walle_pb "github.com/zviadm/walle/proto/walle"
+	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/zlog"
 )
 
 const (
@@ -14,24 +16,35 @@ const (
 	streamPipelineQ = 256 // TODO(zviad): This should be in MBs.
 )
 
+type fetchFunc func(
+	ctx context.Context,
+	streamURI string,
+	committedId int64,
+	committedMd5 []byte) (*walleapi.Entry, error)
+
 // storagePipeline provides queue like abstraction to stream line
 // put operations for each stream, and perform group FlushSync operations
 // for much better overall throughput.
 type storagePipeline struct {
-	rootCtx   context.Context
-	flushSync func()
-	flushQ    chan chan bool
+	rootCtx             context.Context
+	flushSync           func()
+	flushQ              chan chan bool
+	fetchCommittedEntry fetchFunc
 
 	mx sync.Mutex
 	p  map[string]*streamPipeline
 }
 
-func newStoragePipeline(ctx context.Context, flushSync func()) *storagePipeline {
+func newStoragePipeline(
+	ctx context.Context,
+	flushSync func(),
+	fetchCommittedEntry fetchFunc) *storagePipeline {
 	r := &storagePipeline{
-		rootCtx:   ctx,
-		flushSync: flushSync,
-		flushQ:    make(chan chan bool, storageFlushQ),
-		p:         make(map[string]*streamPipeline),
+		rootCtx:             ctx,
+		flushSync:           flushSync,
+		flushQ:              make(chan chan bool, storageFlushQ),
+		fetchCommittedEntry: fetchCommittedEntry,
+		p:                   make(map[string]*streamPipeline),
 	}
 	go r.flusher(ctx)
 	return r
@@ -42,7 +55,7 @@ func (s *storagePipeline) ForStream(ss StreamStorage) *streamPipeline {
 	defer s.mx.Unlock()
 	p, ok := s.p[ss.StreamURI()]
 	if !ok {
-		p = newStreamPipeline(s.rootCtx, ss, s.flushQ)
+		p = newStreamPipeline(s.rootCtx, ss, s.flushQ, s.fetchCommittedEntry)
 		s.p[ss.StreamURI()] = p
 	}
 	return p
@@ -81,8 +94,9 @@ func (s *storagePipeline) flusher(ctx context.Context) {
 }
 
 type streamPipeline struct {
-	ss     StreamStorage
-	flushQ chan<- chan bool
+	ss                  StreamStorage
+	flushQ              chan<- chan bool
+	fetchCommittedEntry fetchFunc
 
 	mx      sync.Mutex
 	q       *pipelineQueue
@@ -140,12 +154,14 @@ func (q *pipelineQueue) Push(r *walle_pb.PutEntryInternalRequest) (<-chan bool, 
 func newStreamPipeline(
 	ctx context.Context,
 	ss StreamStorage,
-	flushQ chan<- chan bool) *streamPipeline {
+	flushQ chan<- chan bool,
+	fetchCommittedEntry fetchFunc) *streamPipeline {
 	r := &streamPipeline{
-		ss:      ss,
-		flushQ:  flushQ,
-		q:       new(pipelineQueue),
-		qNotify: make(chan struct{}),
+		ss:                  ss,
+		flushQ:              flushQ,
+		fetchCommittedEntry: fetchCommittedEntry,
+		q:                   new(pipelineQueue),
+		qNotify:             make(chan struct{}),
 	}
 	go r.Process(ctx)
 	return r
@@ -192,6 +208,22 @@ func (p *streamPipeline) Process(ctx context.Context) {
 		var ok bool
 		if req.R.GetEntry().GetEntryId() == 0 {
 			ok = p.ss.CommitEntry(req.R.CommittedEntryId, req.R.CommittedEntryMd5)
+			if !ok {
+				// Try to fetch the committed entry from other servers and create a GAP locally to continue with
+				// the put.
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second) // TODO(zviad): timeout constant?
+				defer cancel()
+				entry, err := p.fetchCommittedEntry(
+					ctx, p.ss.StreamURI(), req.R.CommittedEntryId, req.R.CommittedEntryMd5)
+				if err != nil {
+					zlog.Warningf("[sp] err fetching: %s:%d - %s", p.ss.StreamURI(), req.R.CommittedEntryId, err)
+				} else {
+					ok = p.ss.PutEntry(entry, true)
+					zlog.Infof(
+						"[sp] stream: %s caught up to: %d (might have created a gap)",
+						p.ss.StreamURI(), req.R.CommittedEntryId)
+				}
+			}
 			if ok && req.R.CommittedEntryId > maxId {
 				maxId = req.R.CommittedEntryId
 			}
@@ -202,6 +234,9 @@ func (p *streamPipeline) Process(ctx context.Context) {
 				maxId = req.R.Entry.EntryId
 			}
 		}
+		zlog.Info(
+			"DEBUG: pipeline ", p.ss.StreamURI(), "-- ",
+			req.R.CommittedEntryId, " -- ", req.R.GetEntry().GetEntryId(), " -- ", maxId, " -- ", ok)
 		if !ok {
 			req.okC <- false
 		} else {

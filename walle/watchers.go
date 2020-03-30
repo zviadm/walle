@@ -96,7 +96,9 @@ func (s *Server) writerInfoWatcher(ctx context.Context) {
 			resp, err := s.ClaimWriter(ctx,
 				&walleapi.ClaimWriterRequest{StreamUri: streamURI, WriterAddr: writerAddr})
 			if err != nil {
-				zlog.Warningf("[ww] err resolving %s: %s", streamURI, err)
+				zlog.Warningf(
+					"[ww] err resolving %s, (prev: %s, %dms) -- %s",
+					streamURI, wInfo.WriterAddr, wInfo.RemainingLeaseMs, err)
 				continue
 			}
 			zlog.Infof(

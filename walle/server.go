@@ -7,6 +7,7 @@ import (
 
 	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
+	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/topomgr"
 	"github.com/zviadm/walle/wallelib"
 	"github.com/zviadm/zlog"
@@ -35,11 +36,11 @@ func NewServer(
 	d wallelib.Discovery,
 	topoMgr *topomgr.Manager) *Server {
 	r := &Server{
-		rootCtx:  ctx,
-		s:        s,
-		c:        c,
-		pipeline: newStoragePipeline(ctx, s.FlushSync),
+		rootCtx: ctx,
+		s:       s,
+		c:       c,
 	}
+	r.pipeline = newStoragePipeline(ctx, s.FlushSync, r.fetchCommittedEntry)
 
 	r.watchTopology(ctx, d, topoMgr)
 	go r.writerInfoWatcher(ctx)
@@ -164,58 +165,71 @@ func (s *Server) commitEntry(
 	case <-ctx.Done():
 		return false, ctx.Err()
 	case ok := <-okC:
-		if ok {
-			return false, nil
+		if !ok {
+			return false, status.Errorf(codes.OutOfRange, "commitId: %d", committedEntryId)
 		}
-		// Try to fetch the committed entry from other servers and create a GAP locally to continue with
-		// the put.
-		ssTopology := ss.Topology()
-		fetchCtx, cancel := context.WithCancel(ctx)
-		defer cancel()
-		var errs []error
-		errsN := 0
-		errsC := make(chan error, len(ssTopology.ServerIds))
-		for _, serverId := range ssTopology.ServerIds {
-			if serverId == s.s.ServerId() {
-				continue
-			}
-			c, err := s.c.ForServer(serverId)
-			if err != nil {
-				errs = append(errs, err)
-				continue
-			}
-			errsN += 1
-			go func(c walle_pb.WalleClient, serverId string) (err error) {
-				defer func() { errsC <- err }()
-				r, err := c.ReadEntries(fetchCtx, &walle_pb.ReadEntriesRequest{
-					ServerId:      serverId,
-					StreamUri:     ss.StreamURI(),
-					StreamVersion: ssTopology.Version,
-					StartEntryId:  committedEntryId,
-					EndEntryId:    committedEntryId + 1,
-				})
-				if err != nil {
-					return err
-				}
-				entry, err := r.Recv()
-				if err != nil {
-					return err
-				}
-				ok := ss.PutEntry(entry, true)
-				panicOnNotOk(ok, "putting committed entry must always succeed!")
-				return nil
-			}(c, serverId)
-		}
-		for i := 0; i < errsN; i++ {
-			err := <-errsC
-			if err == nil {
-				zlog.Infof("[%s] commit caught up to: %d (might have created a gap)", ss.StreamURI(), committedEntryId)
-				return true, nil
-			}
-			errs = append(errs, err)
-		}
-		return false, status.Errorf(codes.OutOfRange, "commit entryId: %d - %s", committedEntryId, errs)
+		return false, nil
 	}
+}
+
+func (s *Server) fetchCommittedEntry(
+	ctx context.Context,
+	streamURI string,
+	committedEntryId int64,
+	committedEntryMd5 []byte) (*walleapi.Entry, error) {
+	ss, ok := s.s.Stream(streamURI, true)
+	if !ok {
+		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found locally", streamURI)
+	}
+	ssTopology := ss.Topology()
+	fetchCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	var errs []error
+	errsN := 0
+	errsC := make(chan error, len(ssTopology.ServerIds))
+	entriesC := make(chan *walleapi.Entry, len(ssTopology.ServerIds))
+	for _, serverId := range ssTopology.ServerIds {
+		if serverId == s.s.ServerId() {
+			continue
+		}
+		c, err := s.c.ForServer(serverId)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		errsN += 1
+		go func(c walle_pb.WalleClient, serverId string) {
+			r, err := c.ReadEntries(fetchCtx, &walle_pb.ReadEntriesRequest{
+				ServerId:      serverId,
+				StreamUri:     ss.StreamURI(),
+				StreamVersion: ssTopology.Version,
+				StartEntryId:  committedEntryId,
+				EndEntryId:    committedEntryId + 1,
+			})
+			if err != nil {
+				errsC <- err
+				return
+			}
+			entry, err := r.Recv()
+			if err != nil {
+				errsC <- err
+				return
+			}
+			ok := ss.PutEntry(entry, true)
+			panicOnNotOk(ok, "putting committed entry must always succeed!")
+			entriesC <- entry
+			return
+		}(c, serverId)
+	}
+	for i := 0; i < errsN; i++ {
+		select {
+		case err := <-errsC:
+			errs = append(errs, err)
+		case entry := <-entriesC:
+			return entry, nil
+		}
+	}
+	return nil, errors.Errorf("%s", errs)
 }
 
 func (s *Server) LastEntries(
