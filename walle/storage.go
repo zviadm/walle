@@ -107,16 +107,12 @@ func storageInitWithServerId(dbPath string, createIfNotExists bool, serverId str
 	for streamURI := range streamURIs {
 		sess, err := c.OpenSession(nil)
 		panicOnErr(err)
-		r.streams[streamURI] = openStreamStorage(r.serverId, streamURI, sess, r.sessRO)
+		sessRO, err := c.OpenSession(nil)
+		panicOnErr(err)
+		r.streams[streamURI] = openStreamStorage(r.serverId, streamURI, sess, sessRO)
 		zlog.Infof("stream: %s (isLocal? %t)", streamURI, r.streams[streamURI].IsLocal())
 	}
 	return r, nil
-}
-
-func (m *storage) sessRO() *wt.Session {
-	sessRO, err := m.c.OpenSession(nil)
-	panicOnErr(err)
-	return sessRO
 }
 
 func (m *storage) Close() {
@@ -165,7 +161,9 @@ func (m *storage) NewStream(streamURI string, t *walleapi.StreamTopology) Stream
 	panicOnNotOk(!ok, "stream %s already exists!", streamURI)
 	sess, err := m.c.OpenSession(nil)
 	panicOnErr(err)
-	s := createStreamStorage(m.serverId, streamURI, t, sess, m.sessRO)
+	sessRO, err := m.c.OpenSession(nil)
+	panicOnErr(err)
+	s := createStreamStorage(m.serverId, streamURI, t, sess, sessRO)
 	m.streams[streamURI] = s
 	return s
 }

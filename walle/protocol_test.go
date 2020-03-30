@@ -90,7 +90,7 @@ func TestProtocolClaimWriter(t *testing.T) {
 }
 
 func TestProtocolClaimBarrage(t *testing.T) {
-	nClaims := 30
+	nClaims := 10
 	lease := wallelib.LeaseMinimum
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(nClaims)*2*time.Second)
@@ -108,9 +108,9 @@ func TestProtocolClaimBarrage(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				defer w.Close()
 				putCtx := w.PutEntry([]byte(strconv.Itoa(idx)))
 				<-putCtx.Done()
+				w.Close()
 				if putCtx.Err() != nil {
 					continue // This can happen if WaitAndClaim races.
 				}

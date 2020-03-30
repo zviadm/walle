@@ -20,8 +20,7 @@ type streamStorage struct {
 	streamR   *wt.Scanner
 	streamW   *wt.Mutator
 
-	// function to create new read-only sessions for ReadFrom calls.
-	// sessRO func() *wt.Session
+	// separate read only session and lock for ReadFrom calls.
 	roMX   sync.Mutex
 	sessRO *wt.Session
 
@@ -47,7 +46,7 @@ func createStreamStorage(
 	streamURI string,
 	topology *walleapi.StreamTopology,
 	sess *wt.Session,
-	sessRO func() *wt.Session) StreamStorage {
+	sessRO *wt.Session) StreamStorage {
 	panicOnErr(isValidStreamURI(streamURI))
 	panicOnErr(sess.Create(streamDS(streamURI), &wt.DataSourceConfig{BlockCompressor: "snappy"}))
 
@@ -76,7 +75,7 @@ func openStreamStorage(
 	serverId string,
 	streamURI string,
 	sess *wt.Session,
-	sessRO func() *wt.Session) StreamStorage {
+	sessRO *wt.Session) StreamStorage {
 	metaR, err := sess.Scan(metadataDS)
 	panicOnErr(err)
 	defer func() { panicOnErr(metaR.Close()) }()
@@ -93,13 +92,12 @@ func openStreamStorage(
 		streamURI: streamURI,
 
 		sess:            sess,
+		sessRO:          sessRO,
 		metaW:           metaW,
 		streamR:         streamR,
 		streamW:         streamW,
 		topology:        &walleapi.StreamTopology{},
 		committedNotify: make(chan struct{}),
-
-		sessRO: sessRO(),
 
 		buf8:            make([]byte, 8),
 		tailEntry:       &walleapi.Entry{},
