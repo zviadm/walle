@@ -161,11 +161,12 @@ func (p *streamPipeline) waitForReady(
 }
 
 func (p *streamPipeline) writerLease() time.Duration {
-	_, _, writerLease, _ := p.ss.WriterInfo()
-	if writerLease < wallelib.LeaseMinimum {
-		writerLease = wallelib.LeaseMinimum
-	}
-	return writerLease
+	// _, _, writerLease, _ := p.ss.WriterInfo()
+	// if writerLease < wallelib.LeaseMinimum {
+	// 	writerLease = wallelib.LeaseMinimum
+	// }
+	// return writerLease
+	return wallelib.LeaseMinimum
 }
 
 func (p *streamPipeline) backfillEntry(
