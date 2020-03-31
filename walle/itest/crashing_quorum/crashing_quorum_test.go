@@ -54,12 +54,12 @@ func TestCrashingQuorum(t *testing.T) {
 	require.NoError(t, err)
 
 	defer servicelib.IptablesClearAll(t)
-	crashCtx, crashCancel := context.WithCancel(ctx)
 	crashWG := sync.WaitGroup{}
 	crashWG.Add(1)
-	go crashLoop(t, crashCtx, s, &crashWG)
+	crashC := make(chan time.Duration)
+	go crashLoop(t, s, crashC, &crashWG)
 	defer func() {
-		crashCancel()
+		close(crashC)
 		crashWG.Wait()
 	}()
 
@@ -70,25 +70,33 @@ func TestCrashingQuorum(t *testing.T) {
 	require.EqualValues(t, 0, e.EntryId)
 	zlog.Info("TEST: writer claimed for /t1/blast")
 
-	itest.PutBatch(t, w, 20000, 100)
+	for i := 0; i < 6; i++ {
+		zlog.Info("TEST: CRASH ITERATION --- ", i)
+		crashC <- 100 * time.Millisecond
+		itest.PutBatch(t, w, 2000, 1000)
+		crashC <- 0
+		<-crashC
+	}
 }
 
-func crashLoop(t *testing.T, ctx context.Context, s []*servicelib.Service, wg *sync.WaitGroup) {
+func crashLoop(t *testing.T, s []*servicelib.Service, crashC chan time.Duration, wg *sync.WaitGroup) {
 	defer wg.Done()
+	ctx := context.Background()
 	for i := 0; ; i++ {
+		delay, ok := <-crashC
+		if !ok {
+			return
+		}
 		idx := i % len(s)
+		time.Sleep(delay)
 		servicelib.IptablesBlockPort(t, itest.WalleDefaultPort+idx)
 		zlog.Infof("TEST: killing s[%d] process", idx)
 		s[idx].Kill(t)
 
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(8 * time.Second):
-		}
-
+		<-crashC
 		servicelib.IptablesUnblockPort(t, itest.WalleDefaultPort+idx)
 		zlog.Infof("TEST: starting s[%d] process", idx)
-		s[idx].Start(t, context.Background())
+		s[idx].Start(t, ctx)
+		crashC <- 0
 	}
 }
