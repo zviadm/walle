@@ -44,9 +44,9 @@ func TestTwoLevelTopology(t *testing.T) {
 
 	// Start regular WALLE servers serving in `/topology/t1`.
 	nT1 := 3
-	for i := 0; i < nT1; i++ {
+	for i := 1; i <= nT1; i++ {
 		sT1 := itest.RunWalle(
-			t, ctx, rootURI, topologyT1URI, rootTopology, storage.TestTmpDir(), itest.WalleDefaultPort+i+1)
+			t, ctx, rootURI, topologyT1URI, rootTopology, storage.TestTmpDir(), itest.WalleDefaultPort+i)
 		defer sT1.Kill(t)
 	}
 

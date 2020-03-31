@@ -44,17 +44,20 @@ func NewDiscovery(
 	topologyURI string,
 	topology *walleapi.Topology) (Discovery, error) {
 	if topology.GetVersion() == 0 {
-		retryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		retryCtx, cancel := context.WithTimeout(ctx, 5*time.Second) // TODO(zviad): Configure timeout?
 		defer cancel()
 		err := KeepTryingWithBackoff(
-			retryCtx, time.Second/10, time.Second,
+			retryCtx, time.Second, time.Second,
 			func(retryN uint) (bool, bool, error) {
 				cli, err := root.ForStream(topologyURI, -1)
 				if err != nil {
 					return false, false, err
 				}
 				topology, err = streamUpdates(retryCtx, cli, topologyURI, -1)
-				return true, false, err
+				if err != nil {
+					return false, false, err
+				}
+				return true, false, nil
 			})
 		if err != nil {
 			return nil, err
