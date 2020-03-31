@@ -31,11 +31,6 @@ func newQueue(maxSizeB int) *queue {
 	}
 }
 
-// func (q *queue) Len() int {
-// 	q.mx.Lock()
-// 	defer q.mx.Unlock()
-// 	return len(q.v)
-// }
 func (q *queue) notify() {
 	close(q.notifyC)
 	q.notifyC = make(chan struct{})
