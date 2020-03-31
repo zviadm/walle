@@ -93,7 +93,10 @@ func crashLoop(t *testing.T, s []*servicelib.Service, crashC chan time.Duration,
 		zlog.Infof("TEST: killing s[%d] process", idx)
 		s[idx].Kill(t)
 
-		<-crashC
+		_, ok = <-crashC
+		if !ok {
+			return
+		}
 		servicelib.IptablesUnblockPort(t, itest.WalleDefaultPort+idx)
 		zlog.Infof("TEST: starting s[%d] process", idx)
 		s[idx].Start(t, ctx)
