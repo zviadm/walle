@@ -37,15 +37,50 @@ boundary.
 
 TODO(zviad): Insert graphic of replication with WALLE vs Point-to-point replication.
 
-## Architecture
+## Setup
 
-### Streams
+Terms:
+- Deployment
+- Cluster
+- Node
+- Stream
+
+### Deployment
+
+There would generally be only one production deployment of WALLE for all use cases. Even in multi
+region setup, there would still be only one main deployment. Separate deployments may exist to separate production
+and testing clusters for safety reasons, and to provide safer grounds for testing upgrades and other operational experiments.
+
+### Cluster
+
+Each deployment consists of separate WALLE clusters. Clusters can be region local, or cross region
+depending on the use case. Restriction is that each node can only belong to one cluster.
+
+### Node
+
+Node is a single WALLE process. Each node only belongs to one cluster. Each disk on a host is expected to be
+handled by separate process, hence each disk would belong to separate nodes.
+
+## Stream
+
+Each cluster consists of separate streams, and nodes can serve multiple different streams from the same cluster. Stream
+is replicated, ordered, exclusively written set of entries. Streams can be indepedently configured for replication level
+and region placement. Each stream is fully independent from each other.
+
+In a nut shell, each stream is expected to be a separate durable write ahead log, that has only one exclusive writer
+at a time. Thus it is expected that each partition of a system that is using WALLE, would have separate streams for
+each of those partitions.
+
+### Writer
+
+Exclusive writer of a stream is simply referred to as a "writer". Concept of exclusive "writer" is what ties in leader
+election and write ahead logging together. System that is writing data to WALLE doesn't need to use another piece
+of infrastructure to do leader election. WALLE provides APIs that can be used to elect and claim a "writer"
+for a particular stream, with its own protocols on how failover happens if current "writer" is no longer responsive.
+
+Exclusive writer of a stream also comes with the built-in "read lease" or "master lease" concept. This allows
+exclusive "writer" to server reads of the "current state", without needing to perform network calls and writes for
+syncing. More on this in the detailed protocol description. `TODO(zviad): link to protocol`
 
 ### Topology
 
-###
-
-##
-
-
-##
