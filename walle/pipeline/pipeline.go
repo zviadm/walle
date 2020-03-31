@@ -152,7 +152,7 @@ func (p *streamPipeline) waitForReady(
 			return 0, ctx.Err()
 		case <-tailNotify:
 		case <-queueNotify:
-		case <-time.After(wallelib.LeaseMinimum / 4):
+		case <-time.After(p.writerLease() / 4):
 			if p.q.PopTillCommitted() {
 				return maxId, nil
 			}
@@ -160,13 +160,17 @@ func (p *streamPipeline) waitForReady(
 	}
 }
 
-func (p *streamPipeline) backfillEntry(
-	ctx context.Context, entryId int64, entryMd5 []byte) bool {
+func (p *streamPipeline) writerLease() time.Duration {
 	_, _, writerLease, _ := p.ss.WriterInfo()
 	if writerLease < wallelib.LeaseMinimum {
 		writerLease = wallelib.LeaseMinimum
 	}
-	ctx, cancel := context.WithTimeout(ctx, writerLease/4)
+	return writerLease
+}
+
+func (p *streamPipeline) backfillEntry(
+	ctx context.Context, entryId int64, entryMd5 []byte) bool {
+	ctx, cancel := context.WithTimeout(ctx, p.writerLease()/4)
 	defer cancel()
 	entry, err := p.fetchCommittedEntry(
 		ctx, p.ss.StreamURI(), entryId, entryMd5)
