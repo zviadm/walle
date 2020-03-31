@@ -8,7 +8,7 @@ import (
 )
 
 func TestPipelineQueue(t *testing.T) {
-	q := newQueue(100)
+	q := newQueue(1024 * 1024)
 	for i := 1; i <= 5; i++ {
 		_ = q.Queue(&Request{EntryId: int64(i), Committed: true})
 	}
@@ -47,4 +47,16 @@ func TestPipelineQueue(t *testing.T) {
 	require.EqualValues(t, 11, ii.R.Entry.EntryId)
 	require.False(t, ii.R.Committed)
 	require.EqualValues(t, 3, len(q.v))
+}
+
+func BenchmarkQueue(b *testing.B) {
+	q := newQueue(1024 * 1024 * 1024)
+	for i := 0; i < 1024; i++ {
+		_ = q.Queue(&Request{EntryId: int64(i), Committed: true})
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = q.Queue(&Request{EntryId: int64(i + 1024), Committed: true})
+		_ = q.PopReady(int64(i))
+	}
 }

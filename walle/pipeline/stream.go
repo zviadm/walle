@@ -14,7 +14,7 @@ import (
 )
 
 var flagStreamQueueMB = flag.Int(
-	"walle.stream_queue_mb", 32, "Maximum size of the in-flight/in-memory request queue per stream.")
+	"walle.stream_queue_mb", 16, "Maximum size of the in-flight/in-memory request queue per stream.")
 
 type stream struct {
 	ss                  storage.Stream
