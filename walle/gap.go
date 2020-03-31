@@ -23,16 +23,18 @@ func (s *Server) gapHandler(ctx context.Context) {
 			if !ok {
 				continue
 			}
-			noGapCommittedId, committedId, _ := ss.CommittedEntryIds()
-			if noGapCommittedId >= committedId {
-				continue
+			for {
+				noGapCommittedId, committedId, _ := ss.CommittedEntryIds()
+				if noGapCommittedId >= committedId {
+					break
+				}
+				err := s.gapHandlerForStream(ctx, ss, noGapCommittedId, committedId)
+				if err != nil {
+					zlog.Warningf("[gh] err filling gap: %s %d -> %d, %s", ss.StreamURI(), noGapCommittedId, committedId, err)
+					break
+				}
+				zlog.Infof("[gh] filled: %s %d -> %d", ss.StreamURI(), noGapCommittedId, committedId)
 			}
-			err := s.gapHandlerForStream(ctx, ss, noGapCommittedId, committedId)
-			if err != nil {
-				zlog.Warningf("[gh] err filling gap: %s %d -> %d, %s", ss.StreamURI(), noGapCommittedId, committedId, err)
-				continue
-			}
-			zlog.Infof("[gh] filled: %s %d -> %d", ss.StreamURI(), noGapCommittedId, committedId)
 		}
 		select {
 		case <-ctx.Done():
@@ -47,17 +49,13 @@ func (s *Server) gapHandlerForStream(
 	ss storage.Stream,
 	noGapCommittedId int64,
 	committedId int64) error {
-	newGapId := noGapCommittedId
-	processEntry := func(e *walleapi.Entry) error {
-		newGapId = e.EntryId
-		return nil
-	}
 	err := s.readAndProcessEntries(
-		ctx, ss, noGapCommittedId, committedId, processEntry)
-	if newGapId > noGapCommittedId {
-		ss.UpdateNoGapCommittedId(newGapId)
+		ctx, ss, noGapCommittedId, committedId, nil)
+	if err != nil {
+		return err
 	}
-	return err
+	ss.UpdateNoGapCommittedId(committedId)
+	return nil
 }
 
 // Reads and processes committed entries in range: [startId, endId). Will backfill any of the
@@ -68,29 +66,38 @@ func (s *Server) readAndProcessEntries(
 	startId int64,
 	endId int64,
 	processEntry func(entry *walleapi.Entry) error) error {
-	entryId := startId
-	cursor := ss.ReadFrom(entryId)
+	cursor := ss.ReadFrom(startId)
 	defer cursor.Close()
+
+	entryId := startId
 	for entryId < endId {
-		entry, ok := cursor.Next()
-		if !ok || entry.GetEntryId() > endId {
+		var ok bool
+		var nextEntryId int64
+		var nextEntry *walleapi.Entry
+		if processEntry != nil {
+			nextEntry, ok = cursor.Next()
+			nextEntryId = nextEntry.GetEntryId()
+		} else {
+			nextEntryId, ok = cursor.Skip()
+		}
+		if !ok || nextEntryId > endId {
 			return errors.Errorf(
 				"ERR_FATAL; committed entry wasn't found by cursor: %d > %d (from: %d)!",
-				entry.GetEntryId(), endId, entryId)
+				nextEntryId, endId, entryId)
 		}
-		if entry.EntryId > entryId {
+		if nextEntryId > entryId+1 {
 			err := s.fetchAndStoreEntries(
-				ctx, ss, entryId, entry.EntryId, processEntry)
+				ctx, ss, entryId, nextEntryId, processEntry)
 			if err != nil {
 				return err
 			}
 		}
 		if processEntry != nil {
-			if err := processEntry(entry); err != nil {
+			if err := processEntry(nextEntry); err != nil {
 				return err
 			}
 		}
-		entryId = entry.EntryId
+		entryId = nextEntryId
 	}
 	return nil
 }

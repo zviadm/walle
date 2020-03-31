@@ -62,5 +62,6 @@ type Metadata interface {
 // committed entries.
 type Cursor interface {
 	Next() (*walleapi.Entry, bool)
+	Skip() (int64, bool)
 	Close()
 }

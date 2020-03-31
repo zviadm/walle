@@ -451,7 +451,7 @@ func (m *streamStorage) ReadFrom(entryId int64) Cursor {
 	mType, err := cursor.SearchNear(buf8[:])
 	panic.OnErr(err)
 	if mType == wt.SmallerMatch {
-		_, _ = r.next()
+		_, _ = r.skip()
 	}
 	return r
 }
@@ -474,13 +474,33 @@ func (m *streamCursor) close() {
 	}
 	m.finished = true
 }
+func (m *streamCursor) Skip() (int64, bool) {
+	m.mx.Lock()
+	defer m.mx.Unlock()
+	return m.skip()
+}
+func (m *streamCursor) skip() (int64, bool) {
+	if m.finished {
+		return 0, false
+	}
+	v, err := m.cursor.UnsafeKey()
+	panic.OnErr(err)
+	entryId := int64(binary.BigEndian.Uint64(v))
+	if entryId > m.committedId {
+		m.close()
+		return 0, false
+	}
+	if err := m.cursor.Next(); err != nil {
+		if wt.ErrCode(err) != wt.ErrNotFound {
+			panic.OnErr(err)
+		}
+		m.close()
+	}
+	return entryId, true
+}
 func (m *streamCursor) Next() (*walleapi.Entry, bool) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
-	return m.next()
-}
-
-func (m *streamCursor) next() (*walleapi.Entry, bool) {
 	if m.finished {
 		return nil, false
 	}
