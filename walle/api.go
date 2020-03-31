@@ -19,15 +19,16 @@ import (
 func (s *Server) ClaimWriter(
 	ctx context.Context,
 	req *walleapi.ClaimWriterRequest) (*walleapi.ClaimWriterResponse, error) {
+	if req.LeaseMs != 0 && req.LeaseMs < wallelib.LeaseMinimum.Nanoseconds()/time.Millisecond.Nanoseconds() {
+		return nil, status.Errorf(codes.FailedPrecondition, "lease_ms: %d must be >%s", req.LeaseMs, wallelib.LeaseMinimum)
+	}
+	if req.WriterAddr == "" {
+		return nil, status.Error(codes.FailedPrecondition, "writer_addr must be set")
+	}
+
 	ss, ok := s.s.Stream(req.GetStreamUri(), true)
 	if !ok {
 		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found locally", req.GetStreamUri())
-	}
-	if req.LeaseMs != 0 && req.LeaseMs < wallelib.LeaseMinimum.Nanoseconds()/time.Millisecond.Nanoseconds() {
-		return nil, status.Errorf(codes.InvalidArgument, "lease_ms: %d must be >%s", req.LeaseMs, wallelib.LeaseMinimum)
-	}
-	if req.WriterAddr == "" {
-		return nil, status.Error(codes.InvalidArgument, "writer_addr must be set")
 	}
 	writerId := storage.MakeWriterId()
 	ssTopology := ss.Topology()
@@ -259,6 +260,14 @@ func (s *Server) broadcastWriterInfo(
 
 func (s *Server) PutEntry(
 	ctx context.Context, req *walleapi.PutEntryRequest) (*walleapi.PutEntryResponse, error) {
+	if req.Entry.GetWriterId() == "" {
+		return nil, status.Errorf(codes.FailedPrecondition, "writer_id must be set")
+	}
+	if len(req.Entry.Data) > wallelib.MaxEntrySize {
+		return nil, status.Errorf(
+			codes.FailedPrecondition, "entry too large: %d > %d", len(req.Entry.Data), wallelib.MaxEntrySize)
+	}
+
 	ss, ok := s.s.Stream(req.GetStreamUri(), true)
 	if !ok {
 		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found locally", req.GetStreamUri())

@@ -13,8 +13,10 @@ import (
 )
 
 const (
+	LeaseMinimum = 100 * time.Millisecond
+	MaxEntrySize = 1024 * 1024 // 1MB
+
 	shortBeat       = 5 * time.Millisecond
-	LeaseMinimum    = 100 * time.Millisecond
 	maxInFlightPuts = 128
 )
 
