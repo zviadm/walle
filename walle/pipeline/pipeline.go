@@ -3,20 +3,13 @@ package pipeline
 import (
 	"context"
 	"sync"
-	"time"
 
 	"github.com/zviadm/walle/proto/walleapi"
-	"github.com/zviadm/walle/walle/panic"
 	"github.com/zviadm/walle/walle/storage"
-	"github.com/zviadm/walle/wallelib"
-	"github.com/zviadm/zlog"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 const (
-	storageFlushQ   = 8192
-	streamPipelineQ = 256 // TODO(zviad): This should be in MBs.
+	storageFlushQ = 8192
 )
 
 type fetchFunc func(
@@ -35,7 +28,7 @@ type Pipeline struct {
 	fetchCommittedEntry fetchFunc
 
 	mx sync.Mutex
-	p  map[string]*streamPipeline
+	p  map[string]*stream
 }
 
 func New(
@@ -47,18 +40,18 @@ func New(
 		flushSync:           flushSync,
 		flushQ:              make(chan *ResultCtx, storageFlushQ),
 		fetchCommittedEntry: fetchCommittedEntry,
-		p:                   make(map[string]*streamPipeline),
+		p:                   make(map[string]*stream),
 	}
 	go r.flusher(ctx)
 	return r
 }
 
-func (s *Pipeline) ForStream(ss storage.Stream) *streamPipeline {
+func (s *Pipeline) ForStream(ss storage.Stream) *stream {
 	s.mx.Lock()
 	defer s.mx.Unlock()
 	p, ok := s.p[ss.StreamURI()]
 	if !ok {
-		p = newStreamPipeline(s.rootCtx, ss, s.flushQ, s.fetchCommittedEntry)
+		p = newStream(s.rootCtx, ss, s.flushQ, s.fetchCommittedEntry)
 		s.p[ss.StreamURI()] = p
 	}
 	return p
@@ -94,138 +87,4 @@ func (s *Pipeline) flusher(ctx context.Context) {
 			r.set(nil)
 		}
 	}
-}
-
-type streamPipeline struct {
-	ss                  storage.Stream
-	flushQ              chan<- *ResultCtx
-	fetchCommittedEntry fetchFunc
-
-	q *queue
-}
-
-func newStreamPipeline(
-	ctx context.Context,
-	ss storage.Stream,
-	flushQ chan<- *ResultCtx,
-	fetchCommittedEntry fetchFunc) *streamPipeline {
-	r := &streamPipeline{
-		ss:                  ss,
-		flushQ:              flushQ,
-		fetchCommittedEntry: fetchCommittedEntry,
-		q:                   newQueue(),
-	}
-	go r.Process(ctx)
-	return r
-}
-
-func (p *streamPipeline) waitForReady(
-	ctx context.Context, maxId int64) (int64, error) {
-	for {
-		if qLen := p.q.Len(); qLen > streamPipelineQ {
-			zlog.Warningf(
-				"[sp] pipeline queue is overflowing %s: %d, maxId: %d",
-				p.ss.StreamURI(), qLen, maxId)
-			p.q.PopTillCommitted()
-			return maxId, nil
-		}
-
-		head, queueNotify := p.q.Peek()
-		if head == nil {
-			select {
-			case <-ctx.Done():
-				return 0, ctx.Err()
-			case <-queueNotify:
-			}
-			continue
-		}
-		if head.IsReady(maxId) {
-			return maxId, nil
-		}
-		tailId, tailNotify := p.ss.TailEntryId()
-		maxId = tailId
-		if head.IsReady(tailId) {
-			return maxId, nil
-		}
-		select {
-		case <-ctx.Done():
-			return 0, ctx.Err()
-		case <-tailNotify:
-		case <-queueNotify:
-		case <-time.After(p.writerLease() / 4):
-			if p.q.PopTillCommitted() {
-				return maxId, nil
-			}
-		}
-	}
-}
-
-func (p *streamPipeline) writerLease() time.Duration {
-	// _, _, writerLease, _ := p.ss.WriterInfo()
-	// if writerLease < wallelib.LeaseMinimum {
-	// 	writerLease = wallelib.LeaseMinimum
-	// }
-	// return writerLease
-	return wallelib.LeaseMinimum
-}
-
-func (p *streamPipeline) backfillEntry(
-	ctx context.Context, entryId int64, entryMd5 []byte) bool {
-	ctx, cancel := context.WithTimeout(ctx, p.writerLease()/4)
-	defer cancel()
-	entry, err := p.fetchCommittedEntry(
-		ctx, p.ss.StreamURI(), entryId, entryMd5)
-	if err != nil {
-		zlog.Warningf("[sp] err fetching: %s:%d - %s", p.ss.StreamURI(), entryId, err)
-		return false
-	}
-	ok := p.ss.PutEntry(entry, true)
-	panic.OnNotOk(ok, "committed putEntry must always succeed")
-	zlog.Infof("[sp] stream: %s caught up to: %d (might have created a gap)", p.ss.StreamURI(), entryId)
-	return true
-}
-
-func (p *streamPipeline) Process(ctx context.Context) {
-	var maxId int64
-	for ctx.Err() == nil {
-		var err error
-		maxId, err = p.waitForReady(ctx, maxId)
-		if err != nil {
-			return
-		}
-		req := p.q.Pop()
-		var ok bool
-		if req.R.Entry == nil {
-			ok = p.ss.CommitEntry(req.R.EntryId, req.R.EntryMd5)
-			if !ok {
-				ok = p.backfillEntry(ctx, req.R.EntryId, req.R.EntryMd5)
-			}
-		} else {
-			ok = p.ss.PutEntry(req.R.Entry, req.R.Committed)
-		}
-		if ok && req.R.EntryId > maxId {
-			maxId = req.R.EntryId
-		}
-		if !ok {
-			req.Res.set(status.Errorf(codes.OutOfRange, "entryId: %d", req.R.EntryId))
-		} else {
-			p.flushQ <- req.Res
-		}
-	}
-}
-
-func (p *streamPipeline) QueueCommit(entryId int64, entryMd5 []byte) *ResultCtx {
-	return p.q.Queue(&Request{
-		EntryId:   entryId,
-		EntryMd5:  entryMd5,
-		Committed: true,
-	})
-}
-func (p *streamPipeline) QueuePut(e *walleapi.Entry, isCommitted bool) *ResultCtx {
-	return p.q.Queue(&Request{
-		EntryId:   e.EntryId,
-		EntryMd5:  e.ChecksumMd5,
-		Committed: isCommitted,
-		Entry:     e,
-	})
 }
