@@ -93,7 +93,7 @@ func newWriter(
 		writerLease: writerLease,
 		writerAddr:  writerAddr,
 		writerId:    writerId,
-		longBeat:    writerLease / 10,
+		longBeat:    writerLease / 8,
 
 		lastEntry: lastEntry,
 		// Use very large buffer for reqQ to never block. If user fills this queue up,
@@ -243,8 +243,12 @@ func (w *Writer) heartbeater(ctx context.Context) {
 
 func (w *Writer) process(ctx context.Context, req *PutCtx) {
 	defer func() { <-w.inFlightQ }()
+	timeout := time.Second // TODO(zviad): should this come from a config?
+	if w.writerLease > timeout {
+		timeout = w.writerLease
+	}
 	err := KeepTryingWithBackoff(
-		ctx, 10*time.Millisecond, w.writerLease,
+		ctx, w.longBeat, w.writerLease,
 		func(retryN uint) (bool, bool, error) {
 			_, _, _, toCommit := w.safeCommittedEntryId()
 			if toCommit.EntryId >= req.Entry.EntryId {
@@ -256,7 +260,7 @@ func (w *Writer) process(ctx context.Context, req *PutCtx) {
 				return false, silentErr, err
 			}
 			now := time.Now()
-			putCtx, cancel := context.WithTimeout(ctx, 10*time.Second) // TODO(zviad): Figure out this timeout.
+			putCtx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 			_, err = cli.PutEntry(putCtx, &walleapi.PutEntryRequest{
 				StreamUri:         w.streamURI,

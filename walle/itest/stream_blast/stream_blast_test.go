@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	topomgr_pb "github.com/zviadm/walle/proto/topomgr"
+	"github.com/zviadm/walle/tt/servicelib"
 	"github.com/zviadm/walle/walle/itest"
 	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/walle/walle/topomgr"
@@ -24,12 +25,13 @@ func TestStreamBlast(t *testing.T) {
 	blastURI := "/t1/blast"
 
 	rootTopology := itest.BootstrapDeployment(t, ctx, rootURI, wDir, itest.WalleDefaultPort)
-	s := itest.RunWalle(t, ctx, rootURI, "", rootTopology, wDir, itest.WalleDefaultPort)
-	defer s.Stop(t)
-	for i := 1; i <= 3; i++ {
-		s := itest.RunWalle(
+	s := make([]*servicelib.Service, 3)
+	s[0] = itest.RunWalle(t, ctx, rootURI, "", rootTopology, wDir, itest.WalleDefaultPort)
+	defer s[0].Stop(t)
+	for i := 1; i <= 2; i++ {
+		s[i] = itest.RunWalle(
 			t, ctx, rootURI, "", rootTopology, storage.TestTmpDir(), itest.WalleDefaultPort+i)
-		defer s.Kill(t)
+		defer s[i].Kill(t)
 	}
 
 	rootD, err := wallelib.NewRootDiscovery(ctx, rootURI, rootTopology)
@@ -51,26 +53,16 @@ func TestStreamBlast(t *testing.T) {
 	require.NoError(t, err)
 	defer w.Close()
 
-	t0 := time.Now()
-	nBatch := 20000
-	puts := make([]*wallelib.PutCtx, 0, nBatch)
-	putIdx := 0
-	for i := 0; i < nBatch; i++ {
-		putCtx := w.PutEntry([]byte("testingoooo"))
-		puts = append(puts, putCtx)
+	// Test with full quorum.
+	itest.PutBatch(t, w, 3000, 10)
+	itest.PutBatch(t, w, 3000, 100)
+	itest.PutBatch(t, w, 3000, 1000)
 
-		if i-putIdx > 1000 {
-			<-puts[putIdx].Done()
-			require.NoError(t, puts[putIdx].Err())
-			if puts[putIdx].Entry.EntryId%1000 == 0 {
-				zlog.Info("TEST: putEntry success ", putCtx.Entry.EntryId)
-			}
-			putIdx += 1
-		}
-	}
-	for i := putIdx; i < len(puts); i++ {
-		<-puts[i].Done()
-		require.NoError(t, puts[i].Err())
-	}
-	zlog.Info("TEST: processed all entries: ", len(puts), " ", time.Now().Sub(t0))
+	// Test with one node down.
+	defer servicelib.IptablesClearAll(t)
+	servicelib.IptablesBlockPort(t, itest.WalleDefaultPort+2)
+	s[2].Kill(t)
+	itest.PutBatch(t, w, 3000, 10)
+	itest.PutBatch(t, w, 3000, 100)
+	itest.PutBatch(t, w, 3000, 1000)
 }

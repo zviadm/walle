@@ -2,7 +2,6 @@ package crashing_quorum
 
 import (
 	"context"
-	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -71,28 +70,7 @@ func TestCrashingQuorum(t *testing.T) {
 	require.EqualValues(t, 0, e.EntryId)
 	zlog.Info("TEST: writer claimed for /t1/blast")
 
-	t0 := time.Now()
-	nBatch := 20000
-	puts := make([]*wallelib.PutCtx, 0, nBatch)
-	putIdx := 0
-	for i := 0; i < nBatch; i++ {
-		putCtx := w.PutEntry([]byte("testingoooo " + strconv.Itoa(i)))
-		puts = append(puts, putCtx)
-
-		if i-putIdx > 1000 {
-			<-puts[putIdx].Done()
-			require.NoError(t, puts[putIdx].Err())
-			if puts[putIdx].Entry.EntryId%1000 == 0 {
-				zlog.Info("TEST: putEntry success ", putCtx.Entry.EntryId)
-			}
-			putIdx += 1
-		}
-	}
-	for i := putIdx; i < len(puts); i++ {
-		<-puts[i].Done()
-		require.NoError(t, puts[i].Err())
-	}
-	zlog.Info("TEST: processed all entries: ", len(puts), " ", time.Now().Sub(t0))
+	itest.PutBatch(t, w, 20000, 100)
 }
 
 func crashLoop(t *testing.T, ctx context.Context, s []*servicelib.Service, wg *sync.WaitGroup) {
@@ -106,7 +84,7 @@ func crashLoop(t *testing.T, ctx context.Context, s []*servicelib.Service, wg *s
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(2 * time.Second):
+		case <-time.After(8 * time.Second):
 		}
 
 		servicelib.IptablesUnblockPort(t, itest.WalleDefaultPort+idx)

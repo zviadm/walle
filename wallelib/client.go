@@ -144,17 +144,16 @@ func (c *client) unsafeServerConn(serverId string) (*grpc.ClientConn, error) {
 		if !ok {
 			return nil, errors.Errorf("serverId: %s, not found in topology", serverId)
 		}
-		// TODO(zviad): Decide what to do about security...
 		var err error
 		conn, err = grpc.Dial(
 			serverInfo.Address,
-			grpc.WithInsecure(),
+			grpc.WithInsecure(), // TODO(zviad): Decide what to do about security...
 			grpc.WithConnectParams(grpc.ConnectParams{
 				Backoff: backoff.Config{
 					// TODO(zviad): Make this configurable, for clients that might
 					// have very large lease minimums.
-					BaseDelay:  LeaseMinimum / 8, // Base delay has to be < Lease/4
-					MaxDelay:   120 * time.Second,
+					BaseDelay:  LeaseMinimum / 6, // Base delay has to be < Lease/4
+					MaxDelay:   30 * time.Second,
 					Multiplier: 1.6,
 					Jitter:     0.2,
 				},
