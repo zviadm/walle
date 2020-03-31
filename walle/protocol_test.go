@@ -192,14 +192,17 @@ func waitForCommitConvergence(
 	s, _ := m.Server(serverId)
 	ss, _ := s.s.Stream(streamURI, false)
 	for {
-		noGap, committed, notify := ss.CommittedEntryIds()
-		if noGap == committed && committed == expectedCommitId {
+		gapStart, gapEnd := ss.GapRange()
+		committed, _ := ss.CommittedEntryId()
+		if gapStart >= gapEnd && committed == expectedCommitId {
 			break
 		}
 		select {
-		case <-notify:
 		case <-ctx.Done():
-			t.Fatalf("timedout waiting for GAP/Catchup Handler: %d -> %d != %d", noGap, committed, expectedCommitId)
+			t.Fatalf(
+				"timedout waiting for GAP/Catchup Handler: %d -> %d, %d != %d",
+				gapStart, gapEnd, committed, expectedCommitId)
+		case <-time.After(10 * time.Millisecond):
 		}
 	}
 }

@@ -38,12 +38,13 @@ const (
 	glbTopology = ".topology"
 
 	// Per streamURI key suffixes
-	sfxTopology         = ":topology"
-	sfxWriterId         = ":writer_id"
-	sfxWriterAddr       = ":writer_addr"
-	sfxWriterLeaseNs    = ":writer_lease_ns"
-	sfxCommittedId      = ":committed_id"
-	sfxNoGapCommittedId = ":no_gap_comitted_id"
+	sfxTopology      = ":topology"
+	sfxWriterId      = ":writer_id"
+	sfxWriterAddr    = ":writer_addr"
+	sfxWriterLeaseNs = ":writer_lease_ns"
+	sfxCommittedId   = ":committed_id"
+	sfxGapStartId    = ":gap_start_id"
+	sfxGapEndId      = ":gap_end_id"
 
 	writerIdLen = 16
 	serverIdLen = 16

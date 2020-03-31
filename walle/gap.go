@@ -24,16 +24,16 @@ func (s *Server) gapHandler(ctx context.Context) {
 				continue
 			}
 			for {
-				noGapCommittedId, committedId, _ := ss.CommittedEntryIds()
-				if noGapCommittedId >= committedId {
+				gapStart, gapEnd := ss.GapRange()
+				if gapStart >= gapEnd {
 					break
 				}
-				err := s.gapHandlerForStream(ctx, ss, noGapCommittedId, committedId)
+				err := s.gapHandlerForStream(ctx, ss, gapStart, gapEnd)
 				if err != nil {
-					zlog.Warningf("[gh] err filling gap: %s %d -> %d, %s", ss.StreamURI(), noGapCommittedId, committedId, err)
+					zlog.Warningf("[gh] err filling gap: %s %d -> %d, %s", ss.StreamURI(), gapStart, gapEnd, err)
 					break
 				}
-				zlog.Infof("[gh] filled: %s %d -> %d", ss.StreamURI(), noGapCommittedId, committedId)
+				zlog.Infof("[gh] filled: %s %d -> %d", ss.StreamURI(), gapStart, gapEnd)
 			}
 		}
 		select {
@@ -47,14 +47,14 @@ func (s *Server) gapHandler(ctx context.Context) {
 func (s *Server) gapHandlerForStream(
 	ctx context.Context,
 	ss storage.Stream,
-	noGapCommittedId int64,
-	committedId int64) error {
+	gapStart int64,
+	gapEnd int64) error {
 	err := s.readAndProcessEntries(
-		ctx, ss, noGapCommittedId, committedId, nil)
+		ctx, ss, gapStart, gapEnd, nil)
 	if err != nil {
 		return err
 	}
-	ss.UpdateNoGapCommittedId(committedId)
+	ss.UpdateGapStart(gapEnd)
 	return nil
 }
 

@@ -44,9 +44,11 @@ func TestStreamStorage(t *testing.T) {
 
 	ok := ss.PutEntry(entries[1], false)
 	require.True(t, ok)
-	noGap, committed, _ := ss.CommittedEntryIds()
-	require.EqualValues(t, 0, noGap)
+	committed, _ := ss.CommittedEntryId()
 	require.EqualValues(t, 0, committed)
+	gapStart, gapEnd := ss.GapRange()
+	require.EqualValues(t, 0, gapStart)
+	require.EqualValues(t, 0, gapEnd)
 
 	entriesR := streamReadAll(t, ss, 0)
 	require.EqualValues(t, 1, len(entriesR)) // entry1 shouldn't be visible yet.
@@ -57,9 +59,11 @@ func TestStreamStorage(t *testing.T) {
 
 	ok = ss.PutEntry(entries[3], true)
 	require.True(t, ok)
-	noGap, committed, _ = ss.CommittedEntryIds()
-	require.EqualValues(t, 0, noGap)
+	committed, _ = ss.CommittedEntryId()
 	require.EqualValues(t, 3, committed)
+	gapStart, gapEnd = ss.GapRange()
+	require.EqualValues(t, 0, gapStart)
+	require.EqualValues(t, 3, gapEnd)
 
 	entriesR = streamReadAll(t, ss, 0)
 	require.EqualValues(t, 2, len(entriesR)) // entry1 should have been removed because of Gap commit.

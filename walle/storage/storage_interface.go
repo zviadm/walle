@@ -30,16 +30,21 @@ type Storage interface {
 type Stream interface {
 	Metadata
 
-	CommittedEntryIds() (noGapCommittedId int64, committedId int64, notify <-chan struct{})
+	// Returns EntryId for maximum committed entry.
+	CommittedEntryId() (committedId int64, notify <-chan struct{})
+	// Returns EntryId for maximum entry that has been stored. May not be committed.
 	TailEntryId() (entryId int64, notify <-chan struct{})
+	// Returns range that covers all potentially missing entries: [startId...endId)
+	// If startId >= endId, there are no missing entries.
+	GapRange() (startId int64, endId int64)
 	// Returns last committed entry and all the following not-yet committed entries.
 	LastEntries() []*walleapi.Entry
 	// Returns cursor to read committed entries starting at entryId.
 	ReadFrom(entryId int64) Cursor
 
-	UpdateNoGapCommittedId(entryId int64)
 	CommitEntry(entryId int64, entryMd5 []byte) (success bool)
 	PutEntry(entry *walleapi.Entry, isCommitted bool) (success bool)
+	UpdateGapStart(entryId int64)
 }
 
 // Metadata is expected to be thread-safe.

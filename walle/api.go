@@ -301,7 +301,7 @@ func (s *Server) StreamEntries(
 	var committedId int64
 	for {
 		var notify <-chan struct{}
-		_, committedId, notify = ss.CommittedEntryIds()
+		committedId, notify = ss.CommittedEntryId()
 		if entryId < 0 {
 			entryId = committedId
 		}
