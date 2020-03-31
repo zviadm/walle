@@ -71,7 +71,7 @@ func (q *queue) Queue(r *Request) *ResultCtx {
 	copy(q.v[rIdx+1:], q.v[rIdx:])
 	res := newResult()
 	q.v[rIdx] = &queueItem{R: r, Res: res}
-	if rIdx == 0 {
+	if rIdx == 0 || len(q.v) > streamPipelineQ {
 		q.notify()
 	}
 	return res

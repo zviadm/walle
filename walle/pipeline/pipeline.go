@@ -122,6 +122,13 @@ func newStreamPipeline(
 func (p *streamPipeline) waitForReady(
 	ctx context.Context, maxId int64) (int64, error) {
 	for {
+		if p.q.Len() > streamPipelineQ {
+			zlog.Warningf(
+				"[sp] pipeline queue is overflowing %s: %d, maxId: %d",
+				p.ss.StreamURI(), p.q.Len(), maxId)
+			return maxId, nil
+		}
+
 		head, queueNotify := p.q.Peek()
 		if head == nil {
 			select {
@@ -145,8 +152,7 @@ func (p *streamPipeline) waitForReady(
 		case <-tailNotify:
 		case <-queueNotify:
 		case <-time.After(wallelib.LeaseMinimum / 4):
-			hasCommitted := p.q.PopTillCommitted()
-			if hasCommitted || p.q.Len() > streamPipelineQ {
+			if p.q.PopTillCommitted() {
 				return maxId, nil
 			}
 		}
