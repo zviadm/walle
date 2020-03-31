@@ -1,17 +1,17 @@
 package pipeline
 
 import (
-	"bytes"
 	"context"
 	"sync"
 	"time"
 
-	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/panic"
 	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/walle/wallelib"
 	"github.com/zviadm/zlog"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -31,7 +31,7 @@ type fetchFunc func(
 type Pipeline struct {
 	rootCtx             context.Context
 	flushSync           func()
-	flushQ              chan chan bool
+	flushQ              chan *ResultCtx
 	fetchCommittedEntry fetchFunc
 
 	mx sync.Mutex
@@ -45,7 +45,7 @@ func New(
 	r := &Pipeline{
 		rootCtx:             ctx,
 		flushSync:           flushSync,
-		flushQ:              make(chan chan bool, storageFlushQ),
+		flushQ:              make(chan *ResultCtx, storageFlushQ),
 		fetchCommittedEntry: fetchCommittedEntry,
 		p:                   make(map[string]*streamPipeline),
 	}
@@ -64,168 +64,62 @@ func (s *Pipeline) ForStream(ss storage.Stream) *streamPipeline {
 	return p
 }
 
-func (s *Pipeline) QueueFlush() <-chan bool {
-	c := make(chan bool, 1)
-	s.flushQ <- c
-	return c
+func (s *Pipeline) QueueFlush() *ResultCtx {
+	r := newResult()
+	s.flushQ <- r
+	return r
 }
 
 func (s *Pipeline) flusher(ctx context.Context) {
-	q := make([]chan bool, 0, storageFlushQ)
+	q := make([]*ResultCtx, 0, storageFlushQ)
 	for {
 		q = q[:0]
 		select {
 		case <-ctx.Done():
 			return
-		case c := <-s.flushQ:
-			q = append(q, c)
+		case r := <-s.flushQ:
+			q = append(q, r)
 		}
 	DrainLoop:
 		for {
 			select {
-			case c := <-s.flushQ:
-				q = append(q, c)
+			case r := <-s.flushQ:
+				q = append(q, r)
 			default:
 				break DrainLoop
 			}
 		}
 		s.flushSync()
-		for _, c := range q {
-			c <- true
+		for _, r := range q {
+			r.set(nil)
 		}
 	}
 }
 
 type streamPipeline struct {
 	ss                  storage.Stream
-	flushQ              chan<- chan bool
+	flushQ              chan<- *ResultCtx
 	fetchCommittedEntry fetchFunc
 
-	q *pipelineQueue
-}
-
-type pipelineReq struct {
-	R   *walle_pb.PutEntryInternalRequest
-	okC chan bool
-}
-
-type pipelineQueue struct {
-	mx      sync.Mutex
-	notifyC chan struct{}
-	v       []*pipelineReq
-}
-
-func newPipelineQueue() *pipelineQueue {
-	return &pipelineQueue{notifyC: make(chan struct{})}
-}
-
-func (q *pipelineQueue) Len() int {
-	q.mx.Lock()
-	defer q.mx.Unlock()
-	return len(q.v)
-}
-func (q *pipelineQueue) notify() {
-	close(q.notifyC)
-	q.notifyC = make(chan struct{})
-}
-func (q *pipelineQueue) Pop() *pipelineReq {
-	q.mx.Lock()
-	defer q.mx.Unlock()
-	r := q.v[0]
-	copy(q.v, q.v[1:])
-	q.v[len(q.v)-1] = nil
-	q.v = q.v[:len(q.v)-1]
-	q.notify()
-	return r
-}
-func (q *pipelineQueue) CleanTillCommitted() bool {
-	q.mx.Lock()
-	defer q.mx.Unlock()
-	return q.cleanTillCommitted()
-}
-func (q *pipelineQueue) cleanTillCommitted() bool {
-	// for idx := len(q.v) - 1; idx >= 0; idx-- {
-	for idx := 0; idx < len(q.v); idx++ {
-		req := q.v[idx]
-		if req.R.GetEntry().GetEntryId() > req.R.CommittedEntryId {
-			continue
-		}
-		for k := 0; k < idx; k++ {
-			q.v[k].okC <- false
-			q.v[k] = nil
-		}
-		q.v = q.v[idx:]
-		q.notify()
-		return true
-	}
-	return false
-}
-func (q *pipelineQueue) Peek() (*walle_pb.PutEntryInternalRequest, <-chan struct{}) {
-	q.mx.Lock()
-	defer q.mx.Unlock()
-	if len(q.v) == 0 {
-		return nil, q.notifyC
-	}
-	return q.v[0].R, q.notifyC
-}
-func (q *pipelineQueue) Push(r *walle_pb.PutEntryInternalRequest) <-chan bool {
-	q.mx.Lock()
-	defer q.mx.Unlock()
-	waitId := waitIdForRequest(r)
-	rIdx := 0
-	for idx := len(q.v) - 1; idx >= 0; idx-- {
-		req := q.v[idx]
-		if req.R.GetEntry().GetEntryId() == r.GetEntry().GetEntryId() &&
-			bytes.Compare(req.R.GetEntry().GetChecksumMd5(), r.GetEntry().GetChecksumMd5()) == 0 {
-			if r.CommittedEntryId > req.R.CommittedEntryId {
-				req.R.CommittedEntryId = r.CommittedEntryId
-				req.R.CommittedEntryMd5 = r.CommittedEntryMd5
-			}
-			return req.okC
-		}
-		reqWaitId := waitIdForRequest(req.R)
-		if reqWaitId > waitId ||
-			(reqWaitId == waitId && req.R.GetEntry().GetEntryId() > r.GetEntry().GetEntryId()) {
-			continue
-		}
-		rIdx = idx + 1
-		break
-	}
-	req := &pipelineReq{R: r, okC: make(chan bool, 1)}
-	q.v = append(q.v, nil)
-	copy(q.v[rIdx+1:], q.v[rIdx:])
-	q.v[rIdx] = req
-	if len(q.v) > streamPipelineQ {
-		zlog.Info(
-			"DEBUG: pipeline is overflowing ",
-			q.v[0].R.CommittedEntryId, " -- ", q.v[0].R.GetEntry().GetEntryId(), " -- ",
-			r.CommittedEntryId, " -- ", r.GetEntry().GetEntryId(), " -- ",
-			q.v[len(q.v)-1].R.CommittedEntryId, " -- ", q.v[len(q.v)-1].R.GetEntry().GetEntryId())
-		q.cleanTillCommitted()
-		q.notify()
-	}
-	if q.v[0] == req {
-		q.notify()
-	}
-	return req.okC
+	q *queue
 }
 
 func newStreamPipeline(
 	ctx context.Context,
 	ss storage.Stream,
-	flushQ chan<- chan bool,
+	flushQ chan<- *ResultCtx,
 	fetchCommittedEntry fetchFunc) *streamPipeline {
 	r := &streamPipeline{
 		ss:                  ss,
 		flushQ:              flushQ,
 		fetchCommittedEntry: fetchCommittedEntry,
-		q:                   newPipelineQueue(),
+		q:                   newQueue(),
 	}
 	go r.Process(ctx)
 	return r
 }
 
-func (p *streamPipeline) waitForId(
+func (p *streamPipeline) waitForReady(
 	ctx context.Context, maxId int64) (int64, error) {
 	for {
 		head, queueNotify := p.q.Peek()
@@ -237,13 +131,12 @@ func (p *streamPipeline) waitForId(
 			}
 			continue
 		}
-		waitId := waitIdForRequest(head)
-		if waitId <= maxId {
+		if head.IsReady(maxId) {
 			return maxId, nil
 		}
 		tailId, tailNotify := p.ss.TailEntryId()
 		maxId = tailId
-		if waitId <= tailId {
+		if head.IsReady(tailId) {
 			return maxId, nil
 		}
 		select {
@@ -252,7 +145,8 @@ func (p *streamPipeline) waitForId(
 		case <-tailNotify:
 		case <-queueNotify:
 		case <-time.After(wallelib.LeaseMinimum / 4):
-			if p.q.CleanTillCommitted() {
+			hasCommitted := p.q.PopTillCommitted()
+			if hasCommitted || p.q.Len() > streamPipelineQ {
 				return maxId, nil
 			}
 		}
@@ -283,45 +177,43 @@ func (p *streamPipeline) Process(ctx context.Context) {
 	var maxId int64
 	for ctx.Err() == nil {
 		var err error
-		maxId, err = p.waitForId(ctx, maxId)
+		maxId, err = p.waitForReady(ctx, maxId)
 		if err != nil {
 			return
 		}
 		req := p.q.Pop()
 		var ok bool
-		if req.R.GetEntry().GetEntryId() == 0 {
-			ok = p.ss.CommitEntry(req.R.CommittedEntryId, req.R.CommittedEntryMd5)
+		if req.R.Entry == nil {
+			ok = p.ss.CommitEntry(req.R.EntryId, req.R.EntryMd5)
 			if !ok {
-				ok = p.backfillEntry(ctx, req.R.CommittedEntryId, req.R.CommittedEntryMd5)
-			}
-			if ok && req.R.CommittedEntryId > maxId {
-				maxId = req.R.CommittedEntryId
+				ok = p.backfillEntry(ctx, req.R.EntryId, req.R.EntryMd5)
 			}
 		} else {
-			isCommitted := req.R.CommittedEntryId >= req.R.Entry.EntryId
-			ok = p.ss.PutEntry(req.R.Entry, isCommitted)
-			if ok && req.R.Entry.EntryId > maxId {
-				maxId = req.R.Entry.EntryId
-			}
+			ok = p.ss.PutEntry(req.R.Entry, req.R.Committed)
 		}
-		// zlog.Info(
-		// 	"DEBUG: pipeline ", p.ss.StreamURI(), "-- ",
-		// 	req.R.CommittedEntryId, " -- ", req.R.GetEntry().GetEntryId(), " -- ", maxId, " -- ", ok)
+		if ok && req.R.EntryId > maxId {
+			maxId = req.R.EntryId
+		}
 		if !ok {
-			req.okC <- false
+			req.Res.set(status.Errorf(codes.OutOfRange, "entryId: %d", req.R.EntryId))
 		} else {
-			p.flushQ <- req.okC
+			p.flushQ <- req.Res
 		}
 	}
 }
 
-func (p *streamPipeline) Queue(r *walle_pb.PutEntryInternalRequest) <-chan bool {
-	return p.q.Push(r)
+func (p *streamPipeline) QueueCommit(entryId int64, entryMd5 []byte) *ResultCtx {
+	return p.q.Queue(&Request{
+		EntryId:   entryId,
+		EntryMd5:  entryMd5,
+		Committed: true,
+	})
 }
-
-func waitIdForRequest(r *walle_pb.PutEntryInternalRequest) int64 {
-	if r.GetEntry().GetEntryId() > 0 {
-		return r.Entry.EntryId - 1
-	}
-	return r.CommittedEntryId
+func (p *streamPipeline) QueuePut(e *walleapi.Entry, isCommitted bool) *ResultCtx {
+	return p.q.Queue(&Request{
+		EntryId:   e.EntryId,
+		EntryMd5:  e.ChecksumMd5,
+		Committed: isCommitted,
+		Entry:     e,
+	})
 }

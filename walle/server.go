@@ -121,26 +121,24 @@ func (s *Server) PutEntryInternal(
 	ss.RenewLease(writerId)
 
 	p := s.pipeline.ForStream(ss)
-	var okC <-chan bool
+	var res *pipeline.ResultCtx
 	if req.Entry.EntryId == 0 || req.Entry.EntryId > req.CommittedEntryId {
 		if ss.CommitEntry(req.CommittedEntryId, req.CommittedEntryMd5) {
-			okC = s.pipeline.QueueFlush()
+			res = s.pipeline.QueueFlush()
 		} else {
-			okC = p.Queue(&walle_pb.PutEntryInternalRequest{
-				CommittedEntryId:  req.CommittedEntryId,
-				CommittedEntryMd5: req.CommittedEntryMd5,
-			})
+			res = p.QueueCommit(req.CommittedEntryId, req.CommittedEntryMd5)
 		}
 	}
 	if req.Entry.EntryId > 0 {
-		okC = p.Queue(req)
+		isCommitted := req.CommittedEntryId >= req.Entry.EntryId
+		res = p.QueuePut(req.Entry, isCommitted)
 	}
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	case ok := <-okC:
-		if !ok {
-			return nil, status.Errorf(codes.OutOfRange, "put entryId: %d, commitId: %d", req.Entry.EntryId, req.CommittedEntryId)
+	case <-res.Done():
+		if err := res.Err(); err != nil {
+			return nil, err
 		}
 		return &walle_pb.PutEntryInternalResponse{}, nil
 	}
