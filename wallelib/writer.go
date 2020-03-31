@@ -250,10 +250,10 @@ func (w *Writer) process(ctx context.Context, req *PutCtx) {
 			if toCommit.EntryId >= req.Entry.EntryId {
 				return true, false, nil
 			}
-			silenceErr := (req.Entry.EntryId != toCommit.EntryId+1)
 			cli, err := w.cli()
 			if err != nil {
-				return false, silenceErr, err
+				silentErr := (req.Entry.EntryId != toCommit.EntryId+1)
+				return false, silentErr, err
 			}
 			now := time.Now()
 			putCtx, cancel := context.WithTimeout(ctx, 10*time.Second) // TODO(zviad): Figure out this timeout.
@@ -265,8 +265,10 @@ func (w *Writer) process(ctx context.Context, req *PutCtx) {
 				CommittedEntryMd5: toCommit.ChecksumMd5,
 			})
 			if err != nil {
-				errStatus, _ := status.FromError(err)
-				return errStatus.Code() == codes.FailedPrecondition, silenceErr, err
+				errCode := status.Convert(err).Code()
+				_, _, _, toCommit := w.safeCommittedEntryId()
+				silentErr := (req.Entry.EntryId <= toCommit.EntryId+1)
+				return errCode == codes.FailedPrecondition, silentErr, err
 			}
 			w.updateCommittedEntryId(
 				now, toCommit.EntryId, toCommit.ChecksumMd5, req.Entry)
