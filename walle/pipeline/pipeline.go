@@ -122,10 +122,11 @@ func newStreamPipeline(
 func (p *streamPipeline) waitForReady(
 	ctx context.Context, maxId int64) (int64, error) {
 	for {
-		if p.q.Len() > streamPipelineQ {
+		if qLen := p.q.Len(); qLen > streamPipelineQ {
 			zlog.Warningf(
 				"[sp] pipeline queue is overflowing %s: %d, maxId: %d",
-				p.ss.StreamURI(), p.q.Len(), maxId)
+				p.ss.StreamURI(), qLen, maxId)
+			p.q.PopTillCommitted()
 			return maxId, nil
 		}
 

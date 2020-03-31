@@ -80,21 +80,25 @@ func (q *queue) Queue(r *Request) *ResultCtx {
 func (q *queue) PopTillCommitted() bool {
 	q.mx.Lock()
 	defer q.mx.Unlock()
-	return q.popTillCommitted()
-}
-func (q *queue) popTillCommitted() bool {
+	committedIdx := -1
 	for idx := 0; idx < len(q.v); idx++ {
 		req := q.v[idx]
-		if !req.R.Committed {
-			continue
+		if req.R.Committed {
+			committedIdx = idx
+			if req.R.Entry != nil {
+				break
+			}
 		}
-		for k := 0; k < idx; k++ {
-			q.v[k].Res.set(context.DeadlineExceeded)
-			q.v[k] = nil
-		}
-		q.v = q.v[idx:]
-		q.notify()
-		return true
 	}
-	return false
+	if committedIdx < 0 {
+		return false
+	}
+	for k := 0; k < committedIdx; k++ {
+		q.v[k].Res.set(context.DeadlineExceeded)
+		q.v[k] = nil
+	}
+	copy(q.v, q.v[committedIdx:])
+	q.v = q.v[:len(q.v)-committedIdx]
+	q.notify()
+	return true
 }
