@@ -70,3 +70,11 @@ func RunWalle(
 		strconv.Itoa(port))
 	return s
 }
+
+func ServerIdsSlice(servers map[string]*walleapi.ServerInfo) []string {
+	var serverIds []string
+	for serverId := range servers {
+		serverIds = append(serverIds, serverId)
+	}
+	return serverIds
+}

@@ -52,16 +52,11 @@ func TestTwoLevelTopology(t *testing.T) {
 
 	topology, err = topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: topologyT1URI})
 	require.NoError(t, err)
-	var serverIds []string
-	for serverId := range topology.Servers {
-		serverIds = append(serverIds, serverId)
-	}
-	require.EqualValues(t, nT1, len(serverIds))
 	for _, t1URI := range t1URIs {
 		_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
 			TopologyUri: topologyT1URI,
 			StreamUri:   t1URI,
-			ServerIds:   serverIds,
+			ServerIds:   itest.ServerIdsSlice(topology.Servers),
 		})
 		require.NoError(t, err)
 	}

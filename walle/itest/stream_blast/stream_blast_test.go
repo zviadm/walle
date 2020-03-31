@@ -39,14 +39,10 @@ func TestStreamBlast(t *testing.T) {
 
 	topology, err := topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
 	require.NoError(t, err)
-	var serverIds []string
-	for serverId := range topology.Servers {
-		serverIds = append(serverIds, serverId)
-	}
 	_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
 		TopologyUri: rootURI,
 		StreamUri:   blastURI,
-		ServerIds:   serverIds,
+		ServerIds:   itest.ServerIdsSlice(topology.Servers),
 	})
 	require.NoError(t, err)
 
@@ -56,7 +52,7 @@ func TestStreamBlast(t *testing.T) {
 	defer w.Close()
 
 	t0 := time.Now()
-	nBatch := 10000
+	nBatch := 20000
 	puts := make([]*wallelib.PutCtx, 0, nBatch)
 	putIdx := 0
 	for i := 0; i < nBatch; i++ {

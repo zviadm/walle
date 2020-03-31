@@ -252,7 +252,7 @@ func (w *Writer) process(ctx context.Context, req *PutCtx) {
 			}
 			cli, err := w.cli()
 			if err != nil {
-				silentErr := (req.Entry.EntryId != toCommit.EntryId+1)
+				silentErr := (req.Entry.EntryId > toCommit.EntryId+1)
 				return false, silentErr, err
 			}
 			now := time.Now()
@@ -265,9 +265,12 @@ func (w *Writer) process(ctx context.Context, req *PutCtx) {
 				CommittedEntryMd5: toCommit.ChecksumMd5,
 			})
 			if err != nil {
-				errCode := status.Convert(err).Code()
 				_, _, _, toCommit := w.safeCommittedEntryId()
-				silentErr := (req.Entry.EntryId <= toCommit.EntryId+1)
+				if req.Entry.EntryId <= toCommit.EntryId {
+					return true, false, nil
+				}
+				silentErr := (req.Entry.EntryId > toCommit.EntryId+1)
+				errCode := status.Convert(err).Code()
 				return errCode == codes.FailedPrecondition, silentErr, err
 			}
 			w.updateCommittedEntryId(

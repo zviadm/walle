@@ -2,6 +2,8 @@ package crashing_quorum
 
 import (
 	"context"
+	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -25,37 +27,26 @@ func TestCrashingQuorum(t *testing.T) {
 	s := make([]*servicelib.Service, 3)
 	s[0] = itest.RunWalle(t, ctx, rootURI, "", rootTopology, wDir, itest.WalleDefaultPort)
 	defer s[0].Kill(t)
-	s[1] = itest.RunWalle(t, ctx, rootURI, "", rootTopology, storage.TestTmpDir(), itest.WalleDefaultPort+1)
-	defer s[1].Kill(t)
-	s[2] = itest.RunWalle(t, ctx, rootURI, "", rootTopology, storage.TestTmpDir(), itest.WalleDefaultPort+2)
-	defer s[2].Kill(t)
 
 	rootD, err := wallelib.NewRootDiscovery(ctx, rootURI, rootTopology)
 	require.NoError(t, err)
 	cli := wallelib.NewClient(ctx, rootD)
 	topoMgr := topomgr.NewClient(cli)
 
-	topology, err := topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
-	require.NoError(t, err)
-	var serverIds = []string{rootTopology.Streams[rootURI].ServerIds[0]}
-	for serverId := range topology.Servers {
-		if serverId == serverIds[0] {
-			continue
-		}
-		serverIds = append(serverIds, serverId)
+	var serverIds []string
+	for i := 1; i <= 2; i++ {
+		s[i] = itest.RunWalle(t, ctx, rootURI, "", rootTopology, storage.TestTmpDir(), itest.WalleDefaultPort+i)
+		defer s[i].Kill(t)
+		topology, err := topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
+		require.NoError(t, err)
+		serverIds = itest.ServerIdsSlice(topology.Servers)
+		_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
+			TopologyUri: rootURI,
+			StreamUri:   rootURI,
+			ServerIds:   serverIds,
+		})
+		require.NoError(t, err)
 	}
-	_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
-		TopologyUri: rootURI,
-		StreamUri:   rootURI,
-		ServerIds:   serverIds[:2],
-	})
-	require.NoError(t, err)
-	_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
-		TopologyUri: rootURI,
-		StreamUri:   rootURI,
-		ServerIds:   serverIds[:3],
-	})
-	require.NoError(t, err)
 	_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
 		TopologyUri: rootURI,
 		StreamUri:   "/t1/blast",
@@ -64,9 +55,14 @@ func TestCrashingQuorum(t *testing.T) {
 	require.NoError(t, err)
 
 	defer servicelib.IptablesClearAll(t)
-	servicelib.IptablesBlockPort(t, itest.WalleDefaultPort+1)
-	s[1].Kill(t)
-	zlog.Info("TEST: killed s[1] process")
+	crashCtx, crashCancel := context.WithCancel(ctx)
+	crashWG := sync.WaitGroup{}
+	crashWG.Add(1)
+	go crashLoop(t, crashCtx, s, &crashWG)
+	defer func() {
+		crashCancel()
+		crashWG.Wait()
+	}()
 
 	w, e, err := wallelib.WaitAndClaim(
 		ctx, cli, "/t1/blast", "blastwriter:1001", time.Second)
@@ -75,64 +71,46 @@ func TestCrashingQuorum(t *testing.T) {
 	require.EqualValues(t, 0, e.EntryId)
 	zlog.Info("TEST: writer claimed for /t1/blast")
 
+	t0 := time.Now()
 	nBatch := 20000
 	puts := make([]*wallelib.PutCtx, 0, nBatch)
-	for i := 0; i < nBatch/3; i++ {
-		putCtx := w.PutEntry([]byte("testingoooo"))
+	putIdx := 0
+	for i := 0; i < nBatch; i++ {
+		putCtx := w.PutEntry([]byte("testingoooo " + strconv.Itoa(i)))
 		puts = append(puts, putCtx)
+
+		if i-putIdx > 1000 {
+			<-puts[putIdx].Done()
+			require.NoError(t, puts[putIdx].Err())
+			if puts[putIdx].Entry.EntryId%1000 == 0 {
+				zlog.Info("TEST: putEntry success ", putCtx.Entry.EntryId)
+			}
+			putIdx += 1
+		}
 	}
-
-	time.Sleep(time.Second)
-	servicelib.IptablesUnblockPort(t, itest.WalleDefaultPort+1)
-	s[1].Start(t, ctx)
-	zlog.Info("TEST: s[1] started")
-
-	batch2t0 := time.Now()
-	for i := 0; i < nBatch/3; i++ {
-		putCtx := w.PutEntry([]byte("testingoooo"))
-		puts = append(puts, putCtx)
+	for i := putIdx; i < len(puts); i++ {
+		<-puts[i].Done()
+		require.NoError(t, puts[i].Err())
 	}
+	zlog.Info("TEST: processed all entries: ", len(puts), " ", time.Now().Sub(t0))
+}
 
-	time.Sleep(5 * time.Second)
-	wState, _ := w.WriterState()
-	require.Equal(t, wallelib.Exclusive, wState)
+func crashLoop(t *testing.T, ctx context.Context, s []*servicelib.Service, wg *sync.WaitGroup) {
+	defer wg.Done()
+	for i := 0; ; i++ {
+		idx := i % len(s)
+		servicelib.IptablesBlockPort(t, itest.WalleDefaultPort+idx)
+		zlog.Infof("TEST: killing s[%d] process", idx)
+		s[idx].Kill(t)
 
-	servicelib.IptablesBlockPort(t, itest.WalleDefaultPort+2)
-	s[2].Kill(t)
-	zlog.Info("TEST: killed s[2] process")
-
-	for _, putCtx := range puts {
 		select {
 		case <-ctx.Done():
-			require.FailNow(t, "putEntry timedout, exiting!")
-		case <-putCtx.Done():
+			return
+		case <-time.After(2 * time.Second):
 		}
-		require.NoError(t, putCtx.Err())
-		if putCtx.Entry.EntryId%1000 == 0 {
-			zlog.Info("TEST: putEntry success ", putCtx.Entry.EntryId)
-		}
-	}
-	zlog.Info("TEST: processed all entries: ", len(puts), " ", time.Now().Sub(batch2t0))
 
-	puts = puts[:0]
-	servicelib.IptablesUnblockPort(t, itest.WalleDefaultPort+2)
-	s[2].Start(t, ctx)
-	zlog.Info("TEST: s[2] started")
-	batch3t0 := time.Now()
-	for i := 0; i < nBatch/3; i++ {
-		putCtx := w.PutEntry([]byte("testingoooo"))
-		puts = append(puts, putCtx)
+		servicelib.IptablesUnblockPort(t, itest.WalleDefaultPort+idx)
+		zlog.Infof("TEST: starting s[%d] process", idx)
+		s[idx].Start(t, context.Background())
 	}
-	for _, putCtx := range puts {
-		select {
-		case <-ctx.Done():
-			require.FailNow(t, "putEntry timedout, exiting!")
-		case <-putCtx.Done():
-		}
-		require.NoError(t, putCtx.Err())
-		if putCtx.Entry.EntryId%1000 == 0 {
-			zlog.Info("TEST: putEntry success ", putCtx.Entry.EntryId)
-		}
-	}
-	zlog.Info("TEST: processed all entries: ", len(puts), " ", time.Now().Sub(batch3t0))
 }
