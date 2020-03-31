@@ -243,7 +243,7 @@ func (w *Writer) heartbeater(ctx context.Context) {
 
 func (w *Writer) process(ctx context.Context, req *PutCtx) {
 	defer func() { <-w.inFlightQ }()
-	timeout := time.Second // TODO(zviad): should this come from a config?
+	timeout := 5 * time.Second // TODO(zviad): should this come from a config?
 	if w.writerLease > timeout {
 		timeout = w.writerLease
 	}
