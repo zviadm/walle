@@ -72,41 +72,42 @@ func (m *Manager) UpdateServerIds(
 	if err != nil {
 		return nil, err
 	}
-	streamVersion := p.topology.Streams[req.StreamUri].GetVersion()
-	serverIds := p.topology.Streams[req.StreamUri].GetServerIds()
-	changed, err := verifyAndDiffMembershipChange(p.topology, req.StreamUri, req.ServerIds)
+	topology := proto.Clone(p.topology).(*walleapi.Topology)
 	unlock()
+
+	changed, err := verifyAndDiffMembershipChange(topology, req.StreamUri, req.ServerIds)
 	if err != nil {
 		return nil, status.Error(codes.FailedPrecondition, err.Error())
 	}
 
 	// First make sure majority of current members are at the latest version.
-	if streamVersion > 0 && len(serverIds) > 0 {
-		if err := m.waitForStreamVersion(
-			ctx, req.StreamUri, streamVersion); err != nil {
-			return nil, err
-		}
+	if err := m.waitForStreamVersion(ctx, topology, req.StreamUri); err != nil {
+		return nil, err
 	}
 	if changed {
-		putCtx, streamVersion, err := m.updateServerIds(ctx, req, streamVersion)
+		putCtx, topology, err := m.updateServerIds(
+			ctx, req, topology.Streams[req.StreamUri].GetVersion())
 		if err := resolvePutCtx(ctx, putCtx, err); err != nil {
 			return nil, err
 		}
-		if len(req.ServerIds) > 0 {
-			if err := m.waitForStreamVersion(
-				ctx, req.StreamUri, streamVersion); err != nil {
-				return nil, err
-			}
+		if err := m.waitForStreamVersion(ctx, topology, req.StreamUri); err != nil {
+			return nil, err
 		}
 	}
 	return &topomgr.UpdateServerIdsResponse{}, nil
 }
 
 func (m *Manager) waitForStreamVersion(
-	ctx context.Context, streamURI string, streamVersion int64) error {
+	ctx context.Context, t *walleapi.Topology, streamURI string) error {
+	streamVersion := t.Streams[streamURI].GetVersion()
+	nServerIds := len(t.Streams[streamURI].GetServerIds())
+	if streamVersion == 0 || nServerIds == 0 {
+		return nil
+	}
+	c := wallelib.NewClient(ctx, &wallelib.StaticDiscovery{T: t})
 	return wallelib.KeepTryingWithBackoff(ctx, wallelib.LeaseMinimum, time.Second,
 		func(retryN uint) (bool, bool, error) {
-			streamC, err := m.c.ForStream(streamURI, -1)
+			streamC, err := c.ForStream(streamURI, -1)
 			if err != nil {
 				return true, false, err
 			}
@@ -126,14 +127,14 @@ func (m *Manager) waitForStreamVersion(
 func (m *Manager) updateServerIds(
 	ctx context.Context,
 	req *topomgr.UpdateServerIdsRequest,
-	streamVersion int64) (*wallelib.PutCtx, int64, error) {
+	streamVersion int64) (*wallelib.PutCtx, *walleapi.Topology, error) {
 	p, unlock, err := m.perTopoMX(req.TopologyUri)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
 	defer unlock()
 	if p.topology.Streams[req.StreamUri].GetVersion() != streamVersion {
-		return nil, 0, status.Errorf(codes.Unavailable, "conflict with concurrent topology update for: %s", req.StreamUri)
+		return nil, nil, status.Errorf(codes.Unavailable, "conflict with concurrent topology update for: %s", req.StreamUri)
 	}
 	p.topology.Version += 1
 	streamT := p.topology.Streams[req.StreamUri]
@@ -143,8 +144,9 @@ func (m *Manager) updateServerIds(
 	}
 	streamT.Version += 1
 	streamT.ServerIds = req.ServerIds
+	topology := proto.Clone(p.topology).(*walleapi.Topology)
 	putCtx := p.commitTopology()
-	return putCtx, streamT.Version, nil
+	return putCtx, topology, nil
 }
 
 func (m *Manager) perTopoMX(topologyURI string) (p *perTopoData, unlock func(), err error) {

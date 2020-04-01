@@ -25,6 +25,14 @@ type Discovery interface {
 	Topology() (*walleapi.Topology, <-chan struct{})
 }
 
+type StaticDiscovery struct {
+	T *walleapi.Topology
+}
+
+func (d *StaticDiscovery) Topology() (*walleapi.Topology, <-chan struct{}) {
+	return d.T, nil
+}
+
 func NewRootDiscovery(
 	ctx context.Context,
 	rootURI string,
