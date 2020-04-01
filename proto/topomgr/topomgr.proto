@@ -26,6 +26,4 @@ message UpdateServerIdsRequest {
 	repeated string server_ids = 3;
 }
 message UpdateServerIdsResponse {
-	int64 topology_version = 1;
-	int64 stream_version = 2;
 }

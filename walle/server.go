@@ -250,32 +250,35 @@ type requestHeader interface {
 	GetServerId() string
 	GetStreamUri() string
 	GetStreamVersion() int64
+	GetFromServerId() string
 }
 
 func (s *Server) processRequestHeader(req requestHeader) (ss storage.Stream, err error) {
-	if !s.checkServerId(req.GetServerId()) {
+	if req.GetServerId() != s.s.ServerId() {
 		return nil, status.Errorf(codes.NotFound, "invalid serverId: %s", req.GetServerId())
 	}
 	ss, ok := s.s.Stream(req.GetStreamUri())
 	if !ok {
 		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found locally", req.GetStreamUri())
 	}
-	if err := s.checkStreamVersion(ss, req.GetStreamVersion()); err != nil {
+	if err := s.checkStreamVersion(
+		ss, req.GetStreamVersion(), req.GetFromServerId()); err != nil {
 		return nil, err
 	}
 	return ss, nil
 }
 
-func (s *Server) checkServerId(serverId string) bool {
-	return serverId == s.s.ServerId()
-}
-
-func (s *Server) checkStreamVersion(ss storage.Metadata, reqStreamVersion int64) error {
-	version := ss.Topology().Version
-	if reqStreamVersion == version-1 || reqStreamVersion == version || reqStreamVersion == version+1 {
+func (s *Server) checkStreamVersion(
+	ss storage.Metadata, reqStreamVersion int64, fromServerId string) error {
+	ssTopology := ss.Topology()
+	if reqStreamVersion == ssTopology.Version ||
+		reqStreamVersion == ssTopology.Version+1 ||
+		(reqStreamVersion == ssTopology.Version-1 && storage.IsMember(ssTopology, fromServerId)) {
 		return nil
 	}
-	return errors.Errorf("stream[%s] incompatible version: %d vs %d", ss.StreamURI(), reqStreamVersion, version)
+	return errors.Errorf(
+		"stream[%s] incompatible version: %d vs %d (from: %s)",
+		ss.StreamURI(), reqStreamVersion, ssTopology.Version, hex.EncodeToString([]byte(fromServerId)))
 }
 
 // Checks writerId if it is still active for a given streamURI. If newer writerId is supplied, will try

@@ -91,13 +91,8 @@ func TestTmpDir() string {
 	return d
 }
 
-func isLocalStream(serverId string, t *walleapi.StreamTopology) bool {
+func IsMember(t *walleapi.StreamTopology, serverId string) bool {
 	for _, serverId := range t.ServerIds {
-		if serverId == serverId {
-			return true
-		}
-	}
-	for _, serverId := range t.PrevServerIds {
 		if serverId == serverId {
 			return true
 		}

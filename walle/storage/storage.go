@@ -120,7 +120,7 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 		r.streamT[streamURI] = topology
 	}
 	for streamURI, topology := range r.streamT {
-		if !isLocalStream(r.serverId, topology) {
+		if !IsMember(topology, r.serverId) {
 			continue
 		}
 		sess, err := c.OpenSession(nil)
@@ -197,7 +197,7 @@ func (m *storage) Update(
 			ss.setTopology(topology)
 		}
 	}()
-	isLocal := isLocalStream(m.serverId, topology)
+	isLocal := IsMember(topology, m.serverId)
 	var ok bool
 	ss, ok = m.Stream(streamURI)
 	if ok == isLocal {

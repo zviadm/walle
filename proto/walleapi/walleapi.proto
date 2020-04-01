@@ -69,14 +69,10 @@ message Topology {
 
 message StreamTopology {
 	// Monotonically increasing `version` for the stream members.
-	// StreamTopology at version `x` is compatible with topology at
-	// version `x-1` and at version `x+1`. This allows seamless transition
-	// between versions as long as majority of the members keep up.
+	// TODO(zviad): describe topology transition and its safety.
 	int64 version = 1;
 	// Current serverIds for the stream.
 	repeated string server_ids = 2;
-	// ServerIds from `version-1` for the stream.
-	repeated string prev_server_ids = 3;
 }
 
 message ServerInfo {

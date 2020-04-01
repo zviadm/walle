@@ -18,10 +18,11 @@ message NewWriterRequest {
 	string server_id = 1;
 	string stream_uri = 2;
 	int64 stream_version = 3;
+	string from_server_id = 4;
 
-	string writer_id = 4;
-	string writer_addr = 5;
-	int64 lease_ms = 6;
+	string writer_id = 5;
+	string writer_addr = 6;
+	int64 lease_ms = 7;
 }
 message NewWriterResponse {}
 
@@ -29,6 +30,7 @@ message WriterInfoRequest {
 	string server_id = 1;
 	string stream_uri = 2;
 	int64 stream_version = 3;
+	string from_server_id = 4;
 }
 message WriterInfoResponse {
 	string writer_id = 1;
@@ -42,10 +44,11 @@ message PutEntryInternalRequest {
 	string server_id = 1;
 	string stream_uri = 2;
 	int64 stream_version = 3;
+	string from_server_id = 4;
 
-	Entry entry = 4;
-	int64 committed_entry_id = 5;
-	bytes committed_entry_md5 = 6;
+	Entry entry = 5;
+	int64 committed_entry_id = 6;
+	bytes committed_entry_md5 = 7;
 }
 message PutEntryInternalResponse{}
 
@@ -53,6 +56,7 @@ message LastEntriesRequest {
 	string server_id = 1;
 	string stream_uri = 2;
 	int64 stream_version = 3;
+	string from_server_id = 4;
 }
 message LastEntriesResponse {
 	repeated Entry entries = 1;
@@ -62,7 +66,8 @@ message ReadEntriesRequest {
 	string server_id = 1;
 	string stream_uri = 2;
 	int64 stream_version = 3;
+	string from_server_id = 4;
 
-	int64 start_entry_id = 4;
-	int64 end_entry_id = 5;
+	int64 start_entry_id = 5;
+	int64 end_entry_id = 6;
 }
