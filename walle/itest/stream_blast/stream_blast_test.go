@@ -56,10 +56,8 @@ func TestStreamBlast(t *testing.T) {
 	w := make([]*wallelib.Writer, blastURIs)
 	for i := 0; i < blastURIs; i++ {
 		var err error
-		// use large lease timoeut, since there are too many active writers and servers all running
-		// in single docker container, with not all that much CPU.
 		w[i], _, err = wallelib.WaitAndClaim(
-			ctx, cli, blastURIPrefix+strconv.Itoa(i), "blastwriter:1001", 4*time.Second)
+			ctx, cli, blastURIPrefix+strconv.Itoa(i), "blastwriter:1001", time.Second)
 		require.NoError(t, err)
 		defer w[i].Close()
 	}
