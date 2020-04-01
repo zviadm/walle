@@ -11,18 +11,14 @@ import (
 // or due to on disk data corruption issues.
 type Storage interface {
 	ServerId() string
+	// Updates or sets new topology for given streamURI. Can return an error if
+	// local resoures are exhausted and storage can no longer handle adding more streams.
+	// This call is not thread safe. There must be only one thread that makes Update calls.
+	Update(streamURI string, topology *walleapi.StreamTopology) error
 	Streams(localOnly bool) []string
-	Stream(streamURI string, localOnly bool) (Stream, bool)
+	Stream(streamURI string) (Stream, bool)
 
-	// Creates new stream with initial topology. Can return an error if
-	// local resoures are exhausted and storage can no longer handle more streams.
-	NewStream(
-		streamURI string, topology *walleapi.StreamTopology) (Stream, error)
-	//RemoveStream(streamURI string)
-
-	// Forces Flushes
-	FlushSync()
-
+	FlushSync() // Forces Flush
 	Close()
 }
 
@@ -32,6 +28,8 @@ type Storage interface {
 // guarantee durability.
 type Stream interface {
 	Metadata
+	close()
+	IsClosed() bool
 
 	// Returns EntryId for maximum committed entry.
 	CommittedEntryId() (committedId int64, notify <-chan struct{})
@@ -41,9 +39,9 @@ type Stream interface {
 	// If startId >= endId, there are no missing entries.
 	GapRange() (startId int64, endId int64)
 	// Returns last committed entry and all the following not-yet committed entries.
-	LastEntries() []*walleapi.Entry
+	LastEntries() ([]*walleapi.Entry, error)
 	// Returns cursor to read committed entries starting at entryId.
-	ReadFrom(entryId int64) Cursor
+	ReadFrom(entryId int64) (Cursor, error)
 
 	CommitEntry(entryId int64, entryMd5 []byte) (success bool)
 	PutEntry(entry *walleapi.Entry, isCommitted bool) (success bool)
@@ -59,10 +57,8 @@ type Metadata interface {
 	UpdateWriter(writerId WriterId, writerAddr string, lease time.Duration) (success bool, remainingLease time.Duration)
 	RenewLease(writerId WriterId)
 
+	setTopology(topology *walleapi.StreamTopology)
 	Topology() *walleapi.StreamTopology
-	// Update call is expected to have an internal check to make sure toplogy version never decreases.
-	UpdateTopology(topology *walleapi.StreamTopology)
-	IsLocal() bool
 }
 
 // Cursor can be used to read entries from Stream. It is safe to call Close() on

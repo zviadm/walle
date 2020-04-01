@@ -26,7 +26,7 @@ func (s *Server) ClaimWriter(
 		return nil, status.Error(codes.FailedPrecondition, "writer_addr must be set")
 	}
 
-	ss, ok := s.s.Stream(req.GetStreamUri(), true)
+	ss, ok := s.s.Stream(req.GetStreamUri())
 	if !ok {
 		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found locally", req.GetStreamUri())
 	}
@@ -207,7 +207,7 @@ func (s *Server) commitMaxEntry(
 func (s *Server) WriterStatus(
 	ctx context.Context,
 	req *walleapi.WriterStatusRequest) (*walleapi.WriterStatusResponse, error) {
-	ss, ok := s.s.Stream(req.GetStreamUri(), true)
+	ss, ok := s.s.Stream(req.GetStreamUri())
 	if !ok {
 		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found locally", req.GetStreamUri())
 	}
@@ -270,7 +270,7 @@ func (s *Server) PutEntry(
 			codes.FailedPrecondition, "entry too large: %d > %d", len(req.Entry.Data), wallelib.MaxEntrySize)
 	}
 
-	ss, ok := s.s.Stream(req.GetStreamUri(), true)
+	ss, ok := s.s.Stream(req.GetStreamUri())
 	if !ok {
 		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found locally", req.GetStreamUri())
 	}
@@ -296,7 +296,7 @@ func (s *Server) PutEntry(
 func (s *Server) StreamEntries(
 	req *walleapi.StreamEntriesRequest,
 	stream walleapi.WalleApi_StreamEntriesServer) error {
-	ss, ok := s.s.Stream(req.GetStreamUri(), true)
+	ss, ok := s.s.Stream(req.GetStreamUri())
 	if !ok {
 		return status.Errorf(codes.NotFound, "streamURI: %s not found locally", req.GetStreamUri())
 	}

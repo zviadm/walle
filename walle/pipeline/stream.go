@@ -5,6 +5,7 @@ import (
 	"flag"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/panic"
 	"github.com/zviadm/walle/walle/storage"
@@ -40,9 +41,10 @@ func newStream(
 }
 
 func (p *stream) waitForReady(
-	ctx context.Context, maxId int64) (int64, error) {
+	ctx context.Context) (int64, error) {
 	waitStart := time.Now()
-	for {
+	maxId, tailNotify := p.ss.TailEntryId()
+	for ctx.Err() == nil && !p.ss.IsClosed() {
 		if p.q.IsOverflowing() {
 			zlog.Warningf(
 				"[sp] pipeline queue is overflowing %s: maxId: %d",
@@ -55,6 +57,7 @@ func (p *stream) waitForReady(
 			select {
 			case <-ctx.Done():
 				return 0, ctx.Err()
+			case <-tailNotify:
 			case <-queueNotify:
 			}
 			waitStart = time.Now()
@@ -63,9 +66,8 @@ func (p *stream) waitForReady(
 		if head.IsReady(maxId) {
 			return maxId, nil
 		}
-		tailId, tailNotify := p.ss.TailEntryId()
-		maxId = tailId
-		if head.IsReady(tailId) {
+		maxId, tailNotify = p.ss.TailEntryId()
+		if head.IsReady(maxId) {
 			return maxId, nil
 		}
 		timeout := waitStart.Add(p.timeoutAdjusted()).Sub(time.Now())
@@ -80,6 +82,7 @@ func (p *stream) waitForReady(
 			}
 		}
 	}
+	return 0, errors.Errorf("stream/pipeline is closed")
 }
 
 func (p *stream) timeoutAdjusted() time.Duration {
@@ -108,10 +111,8 @@ func (p *stream) backfillEntry(
 }
 
 func (p *stream) process(ctx context.Context) {
-	var maxId int64
-	for ctx.Err() == nil {
-		var err error
-		maxId, err = p.waitForReady(ctx, maxId)
+	for ctx.Err() == nil && !p.ss.IsClosed() {
+		maxId, err := p.waitForReady(ctx)
 		if err != nil {
 			return
 		}

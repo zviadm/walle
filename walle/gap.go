@@ -19,7 +19,7 @@ import (
 func (s *Server) gapHandler(ctx context.Context) {
 	for {
 		for _, streamURI := range s.s.Streams(true) {
-			ss, ok := s.s.Stream(streamURI, true)
+			ss, ok := s.s.Stream(streamURI)
 			if !ok {
 				continue
 			}
@@ -66,7 +66,10 @@ func (s *Server) readAndProcessEntries(
 	startId int64,
 	endId int64,
 	processEntry func(entry *walleapi.Entry) error) error {
-	cursor := ss.ReadFrom(startId)
+	cursor, err := ss.ReadFrom(startId)
+	if err != nil {
+		return err
+	}
 	defer cursor.Close()
 
 	entryId := startId

@@ -190,7 +190,7 @@ func waitForCommitConvergence(
 	streamURI string,
 	expectedCommitId int64) {
 	s, _ := m.Server(serverId)
-	ss, _ := s.s.Stream(streamURI, false)
+	ss, _ := s.s.Stream(streamURI)
 	for {
 		gapStart, gapEnd := ss.GapRange()
 		committed, _ := ss.CommittedEntryId()

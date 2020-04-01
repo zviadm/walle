@@ -18,9 +18,12 @@ type storage struct {
 	serverId string
 	c        *wt.Connection
 	flushS   *wt.Session
+	metaS    *wt.Session
+	metaW    *wt.Mutator
 
 	mx      sync.Mutex
-	streams map[string]Stream
+	streamT map[string]*walleapi.StreamTopology // exists for all streamURIs
+	streams map[string]Stream                   // exists only for local streams
 }
 
 var _ Storage = &storage{}
@@ -43,20 +46,20 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 	cfg := &wt.ConnectionConfig{
 		Create:     wt.Bool(opts.Create),
 		Log:        "enabled,compressor=snappy",
-		SessionMax: opts.MaxLocalStreams*2 + 1,
+		SessionMax: opts.MaxLocalStreams*2 + 2,
 	}
 	c, err := wt.Open(dbPath, cfg)
 	if err != nil {
 		return nil, err
 	}
-	s, err := c.OpenSession(nil)
+	metaS, err := c.OpenSession(nil)
 	panic.OnErr(err)
-	defer s.Close()
-	panic.OnErr(
-		s.Create(metadataDS, &wt.DataSourceConfig{BlockCompressor: "snappy"}))
-	metaR, err := s.Scan(metadataDS)
+	panic.OnErr(metaS.Create(metadataDS, &wt.DataSourceConfig{BlockCompressor: "snappy"}))
+	metaR, err := metaS.Scan(metadataDS)
 	panic.OnErr(err)
 	defer metaR.Close()
+	metaW, err := metaS.Mutate(metadataDS, nil)
+	panic.OnErr(err)
 	serverIdB, err := metaR.ReadUnsafeValue([]byte(glbServerId))
 	if err != nil {
 		if wt.ErrCode(err) != wt.ErrNotFound {
@@ -65,9 +68,6 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 		if !opts.Create {
 			return nil, errors.Errorf("serverId doesn't exist in the database: %s", dbPath)
 		}
-		metaW, err := s.Mutate(metadataDS, nil)
-		panic.OnErr(err)
-		defer metaW.Close()
 		if opts.ServerId != "" {
 			serverIdB = []byte(opts.ServerId)
 		} else {
@@ -86,6 +86,8 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 		serverId: string(serverIdB),
 		c:        c,
 		flushS:   flushS,
+		metaS:    metaS,
+		metaW:    metaW,
 		streams:  make(map[string]Stream),
 	}
 	if opts.ServerId != "" && opts.ServerId != r.serverId {
@@ -94,7 +96,7 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 	}
 	zlog.Infof("storage: %s", hex.EncodeToString(serverIdB))
 
-	streamURIs := make(map[string]struct{})
+	r.streamT = make(map[string]*walleapi.StreamTopology)
 	panic.OnErr(metaR.Reset())
 	for {
 		if err := metaR.Next(); err != nil {
@@ -103,21 +105,31 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 			}
 			break
 		}
-		metaKey, err := metaR.UnsafeKey()
+		metaKeyB, err := metaR.UnsafeKey()
 		panic.OnErr(err)
-		if metaKey[0] != '/' {
+		metaKey := string(metaKeyB)
+		if !strings.HasSuffix(metaKey, sfxTopology) {
 			continue
 		}
-		streamURI := strings.Split(string(metaKey), ":")[0]
-		streamURIs[streamURI] = struct{}{}
+		v, err := metaR.UnsafeValue()
+		panic.OnErr(err)
+		topology := &walleapi.StreamTopology{}
+		panic.OnErr(topology.Unmarshal(v))
+
+		streamURI := strings.Split(metaKey, ":")[0]
+		r.streamT[streamURI] = topology
 	}
-	for streamURI := range streamURIs {
+	for streamURI, topology := range r.streamT {
+		if !isLocalStream(r.serverId, topology) {
+			continue
+		}
 		sess, err := c.OpenSession(nil)
 		panic.OnErr(err)
 		sessRO, err := c.OpenSession(nil)
 		panic.OnErr(err)
 		r.streams[streamURI] = openStreamStorage(r.serverId, streamURI, sess, sessRO)
-		zlog.Infof("stream: %s (isLocal? %t)", streamURI, r.streams[streamURI].IsLocal())
+		r.streams[streamURI].setTopology(topology)
+		zlog.Infof("stream (local): %s", streamURI)
 	}
 	return r, nil
 }
@@ -141,9 +153,10 @@ func (m *storage) FlushSync() {
 func (m *storage) Streams(localOnly bool) []string {
 	m.mx.Lock()
 	defer m.mx.Unlock()
-	r := make([]string, 0, len(m.streams))
-	for streamURI, s := range m.streams {
-		if localOnly && !s.IsLocal() {
+	r := make([]string, 0, len(m.streamT))
+	for streamURI := range m.streamT {
+		_, ok := m.streams[streamURI]
+		if localOnly && !ok {
 			continue
 		}
 		r = append(r, streamURI)
@@ -151,33 +164,65 @@ func (m *storage) Streams(localOnly bool) []string {
 	return r
 }
 
-func (m *storage) Stream(streamURI string, localOnly bool) (Stream, bool) {
+func (m *storage) Stream(streamURI string) (Stream, bool) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	r, ok := m.streams[streamURI]
-	if ok && localOnly && !r.IsLocal() {
-		return nil, false
-	}
 	return r, ok
 }
 
-func (m *storage) NewStream(
-	streamURI string, t *walleapi.StreamTopology) (Stream, error) {
-	m.mx.Lock()
-	defer m.mx.Unlock()
-	if _, ok := m.streams[streamURI]; ok {
-		return nil, errors.Errorf("ERR_FATAL; stream %s already exists!", streamURI)
+func (m *storage) Update(
+	streamURI string, topology *walleapi.StreamTopology) error {
+	if m.streamT[streamURI].GetVersion() >= topology.Version {
+		return nil
 	}
+
+	var ss Stream = nil
+	topologyB, err := topology.Marshal()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			return
+		}
+		panic.OnErr(m.metaW.Insert([]byte(streamURI+sfxTopology), topologyB))
+		m.mx.Lock()
+		defer m.mx.Unlock()
+		m.streamT[streamURI] = topology
+		if ss == nil {
+			delete(m.streams, streamURI)
+		} else {
+			m.streams[streamURI] = ss
+			ss.setTopology(topology)
+		}
+	}()
+	isLocal := isLocalStream(m.serverId, topology)
+	var ok bool
+	ss, ok = m.Stream(streamURI)
+	if ok == isLocal {
+		return nil
+	} else if !isLocal {
+		ss.close()
+		ss = nil
+		return nil
+	} else {
+		var err error
+		ss, err = m.makeLocalStream(streamURI)
+		return err
+	}
+}
+
+func (m *storage) makeLocalStream(streamURI string) (Stream, error) {
 	sess, err := m.c.OpenSession(nil)
 	if err != nil {
 		return nil, err
 	}
 	sessRO, err := m.c.OpenSession(nil)
 	if err != nil {
-		sess.Close() // close successfully opened session.
+		panic.OnErr(sess.Close()) // close successfully opened session.
 		return nil, err
 	}
-	s := createStreamStorage(m.serverId, streamURI, t, sess, sessRO)
-	m.streams[streamURI] = s
+	s := createStreamStorage(m.serverId, streamURI, sess, sessRO)
 	return s, nil
 }

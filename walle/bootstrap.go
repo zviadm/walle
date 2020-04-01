@@ -22,7 +22,7 @@ func BootstrapRoot(s storage.Storage, rootURI string, rootFile string, rootInfo 
 	if err := wallelib.TopologyToFile(rootPb, rootFile); err != nil {
 		return err
 	}
-	ss, err := s.NewStream(rootURI, rootPb.Streams[rootURI])
+	err := s.Update(rootURI, rootPb.Streams[rootURI])
 	if err != nil {
 		return err
 	}
@@ -39,6 +39,7 @@ func BootstrapRoot(s storage.Storage, rootURI string, rootFile string, rootInfo 
 	if err != nil {
 		return err
 	}
+	ss, _ := s.Stream(rootURI)
 	if !ss.PutEntry(entry, true) {
 		return errors.Errorf("couldn't initialize rootURI with initial entry: %s -- %+v", rootURI, entry)
 	}

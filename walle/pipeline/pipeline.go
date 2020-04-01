@@ -28,7 +28,7 @@ type Pipeline struct {
 	fetchCommittedEntry fetchFunc
 
 	mx sync.Mutex
-	p  map[string]*stream
+	p  map[storage.Stream]*stream
 }
 
 func New(
@@ -40,7 +40,7 @@ func New(
 		flushSync:           flushSync,
 		flushQ:              make(chan *ResultCtx, storageFlushQ),
 		fetchCommittedEntry: fetchCommittedEntry,
-		p:                   make(map[string]*stream),
+		p:                   make(map[storage.Stream]*stream),
 	}
 	go r.flusher(ctx)
 	return r
@@ -49,10 +49,10 @@ func New(
 func (s *Pipeline) ForStream(ss storage.Stream) *stream {
 	s.mx.Lock()
 	defer s.mx.Unlock()
-	p, ok := s.p[ss.StreamURI()]
+	p, ok := s.p[ss]
 	if !ok {
 		p = newStream(s.rootCtx, ss, s.flushQ, s.fetchCommittedEntry)
-		s.p[ss.StreamURI()] = p
+		s.p[ss] = p
 	}
 	return p
 }

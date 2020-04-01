@@ -50,9 +50,9 @@ func NewServer(
 
 	// Renew all writer leases at startup.
 	for _, streamURI := range s.Streams(true) {
-		ss, ok := s.Stream(streamURI, true)
+		ss, ok := s.Stream(streamURI)
 		if !ok {
-			continue
+			continue // can race with topology watcher.
 		}
 		writerId, _, _, _ := ss.WriterInfo()
 		ss.RenewLease(writerId)
@@ -149,7 +149,7 @@ func (s *Server) fetchCommittedEntry(
 	streamURI string,
 	committedEntryId int64,
 	committedEntryMd5 []byte) (*walleapi.Entry, error) {
-	ss, ok := s.s.Stream(streamURI, true)
+	ss, ok := s.s.Stream(streamURI)
 	if !ok {
 		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found locally", streamURI)
 	}
@@ -209,7 +209,10 @@ func (s *Server) LastEntries(
 	if err != nil {
 		return nil, err
 	}
-	entries := ss.LastEntries()
+	entries, err := ss.LastEntries()
+	if err != nil {
+		return nil, err
+	}
 	return &walle_pb.LastEntriesResponse{Entries: entries}, nil
 }
 
@@ -220,7 +223,10 @@ func (s *Server) ReadEntries(
 		return err
 	}
 	entryId := req.StartEntryId
-	cursor := ss.ReadFrom(entryId)
+	cursor, err := ss.ReadFrom(entryId)
+	if err != nil {
+		return err
+	}
 	defer cursor.Close()
 	for entryId < req.EndEntryId {
 		entry, ok := cursor.Next()
@@ -250,7 +256,7 @@ func (s *Server) processRequestHeader(req requestHeader) (ss storage.Stream, err
 	if !s.checkServerId(req.GetServerId()) {
 		return nil, status.Errorf(codes.NotFound, "invalid serverId: %s", req.GetServerId())
 	}
-	ss, ok := s.s.Stream(req.GetStreamUri(), true)
+	ss, ok := s.s.Stream(req.GetStreamUri())
 	if !ok {
 		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found locally", req.GetStreamUri())
 	}

@@ -16,7 +16,7 @@ func TestStorageOpen(t *testing.T) {
 	dbPath := TestTmpDir()
 	s, err := Init(dbPath, InitOpts{Create: true})
 	require.NoError(t, err)
-	_, err = s.NewStream("/s/1", &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
+	err = s.Update("/s/1", &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
 	require.NoError(t, err)
 	s.Close()
 
@@ -30,8 +30,10 @@ func TestStreamStorage(t *testing.T) {
 	s, err := Init(TestTmpDir(), InitOpts{Create: true})
 	require.NoError(t, err)
 	defer s.Close()
-	ss, err := s.NewStream("/s/1", &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
+	err = s.Update("/s/1", &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
 	require.NoError(t, err)
+	ss, ok := s.Stream("/s/1")
+	require.True(t, ok)
 
 	var entries []*walleapi.Entry
 	entries = append(entries, Entry0)
@@ -45,7 +47,7 @@ func TestStreamStorage(t *testing.T) {
 		entries = append(entries, entry)
 	}
 
-	ok := ss.PutEntry(entries[1], false)
+	ok = ss.PutEntry(entries[1], false)
 	require.True(t, ok)
 	committed, _ := ss.CommittedEntryId()
 	require.EqualValues(t, 0, committed)
@@ -80,7 +82,8 @@ func TestStreamStorage(t *testing.T) {
 	entriesR = streamReadAll(t, ss, 10)
 	require.EqualValues(t, 0, len(entriesR))
 
-	c0 := ss.ReadFrom(1)
+	c0, err := ss.ReadFrom(1)
+	require.NoError(t, err)
 	ok = ss.PutEntry(entries[5], true)
 	require.True(t, ok)
 	entry, ok := c0.Next()
@@ -88,8 +91,10 @@ func TestStreamStorage(t *testing.T) {
 	require.EqualValues(t, 3, entry.EntryId)
 	c0.Close()
 
-	c0 = ss.ReadFrom(1)
-	c1 := ss.ReadFrom(5)
+	c0, err = ss.ReadFrom(1)
+	require.NoError(t, err)
+	c1, err := ss.ReadFrom(5)
+	require.NoError(t, err)
 	entry, ok = c1.Next()
 	require.True(t, ok)
 	require.EqualValues(t, 5, entry.EntryId)
@@ -105,8 +110,10 @@ func TestStreamStorageRaces(t *testing.T) {
 	s, err := Init(TestTmpDir(), InitOpts{Create: true})
 	require.NoError(t, err)
 	defer s.Close()
-	ss, err := s.NewStream("/s/1", &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
+	err = s.Update("/s/1", &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
 	require.NoError(t, err)
+	ss, ok := s.Stream("/s/1")
+	require.True(t, ok)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	errC := make(chan error, 1)
@@ -141,8 +148,9 @@ func TestStreamStorageRaces(t *testing.T) {
 }
 
 func streamReadAll(t *testing.T, ss Stream, entryId int64) []*walleapi.Entry {
-	cursor := ss.ReadFrom(entryId)
+	cursor, err := ss.ReadFrom(entryId)
 	defer cursor.Close()
+	require.NoError(t, err)
 	var r []*walleapi.Entry
 	for {
 		v, ok := cursor.Next()
@@ -161,14 +169,14 @@ func TestStreamLimits(t *testing.T) {
 	require.NoError(t, err)
 	defer s.Close()
 	longURI := "/" + strings.Repeat("a", streamURIMaxLen-1)
-	ss, err := s.NewStream(longURI, &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
+	err = s.Update(longURI, &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
 	require.NoError(t, err)
-	ss2, _ := s.Stream(longURI, true)
-	require.Equal(t, ss, ss2)
+	_, ok := s.Stream(longURI)
+	require.True(t, ok)
 
 	hasErr := false
 	for i := 0; i < 20; i++ {
-		_, err := s.NewStream("/t"+strconv.Itoa(i), &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
+		err := s.Update("/t"+strconv.Itoa(i), &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
 		if err != nil {
 			hasErr = true
 			break

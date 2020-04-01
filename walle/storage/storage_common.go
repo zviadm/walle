@@ -35,7 +35,7 @@ const (
 	metadataDS = "table:metadata"
 	// Global metadata keys
 	glbServerId = ".server_id"
-	glbTopology = ".topology"
+	// glbTopology = ".topology"
 
 	// Per streamURI key suffixes
 	sfxTopology      = ":topology"
@@ -89,4 +89,18 @@ func TestTmpDir() string {
 	d, err := ioutil.TempDir("", "tt-*")
 	panic.OnErr(err)
 	return d
+}
+
+func isLocalStream(serverId string, t *walleapi.StreamTopology) bool {
+	for _, serverId := range t.ServerIds {
+		if serverId == serverId {
+			return true
+		}
+	}
+	for _, serverId := range t.PrevServerIds {
+		if serverId == serverId {
+			return true
+		}
+	}
+	return false
 }

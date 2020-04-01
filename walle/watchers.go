@@ -39,23 +39,16 @@ func (s *Server) watchTopology(ctx context.Context, d wallelib.Discovery, topoMg
 }
 func (s *Server) updateTopology(t *walleapi.Topology, topoMgr *topomgr.Manager) {
 	for streamURI, streamT := range t.Streams {
-		ss, ok := s.s.Stream(streamURI, false)
-		if ok {
-			ss.UpdateTopology(streamT)
-		} else {
-			var err error
-			ss, err = s.s.NewStream(streamURI, streamT)
-			if err != nil {
-				zlog.Errorf("ERR_FATAL; err creating new stream: %s %s", streamURI, err)
-				continue
-			}
-			zlog.Infof("[tw] created: %s %+s", streamURI, streamT)
+		err := s.s.Update(streamURI, streamT)
+		if err != nil {
+			zlog.Errorf("ERR_FATAL; err updating topology: %s %s", streamURI, err)
+			continue
 		}
-
 		if topoMgr == nil || !strings.HasPrefix(streamURI, "/topology/") {
 			continue
 		}
-		if ss.IsLocal() {
+		_, ok := s.s.Stream(streamURI)
+		if ok {
 			topoMgr.Manage(streamURI)
 		} else {
 			topoMgr.StopManaging(streamURI)
@@ -77,9 +70,9 @@ func (s *Server) writerInfoWatcher(ctx context.Context) {
 		}
 		streamURIs := s.s.Streams(true)
 		for _, streamURI := range streamURIs {
-			ss, ok := s.s.Stream(streamURI, true)
+			ss, ok := s.s.Stream(streamURI)
 			if !ok {
-				continue
+				continue // can race with topology watcher.
 			}
 			_, writerAddr, _, remainingLease := ss.WriterInfo()
 			timeoutToResolve := writerTimeoutToResolve
