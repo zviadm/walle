@@ -91,17 +91,16 @@ func (s *Server) writerInfoWatcher(ctx context.Context) {
 				continue
 			}
 			writerAddr = writerInternalAddrPrefix + hex.EncodeToString([]byte(s.s.ServerId()))
-			resp, err := s.ClaimWriter(ctx,
-				&walleapi.ClaimWriterRequest{StreamUri: streamURI, WriterAddr: writerAddr})
-			if err != nil {
+			zlog.Infof(
+				"[ww] resolving stream %s (prev: %s, %dms) ",
+				streamURI, wInfo.WriterAddr, wInfo.RemainingLeaseMs)
+			if _, err = s.ClaimWriter(ctx,
+				&walleapi.ClaimWriterRequest{StreamUri: streamURI, WriterAddr: writerAddr}); err != nil {
 				zlog.Warningf(
 					"[ww] err resolving %s, (prev: %s, %dms) -- %s",
 					streamURI, wInfo.WriterAddr, wInfo.RemainingLeaseMs, err)
 				continue
 			}
-			zlog.Infof(
-				"[ww] resolved stream %s @entry: %d, (prev: %s, %dms) ",
-				streamURI, resp.LastEntry.EntryId, wInfo.WriterAddr, wInfo.RemainingLeaseMs)
 		}
 	}
 }

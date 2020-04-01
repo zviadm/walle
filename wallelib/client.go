@@ -8,7 +8,9 @@ import (
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/status"
 
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
@@ -33,7 +35,7 @@ type client struct {
 	rrIdx     map[string]int              // streamURI -> round-robin index
 }
 
-var ErrConnUnavailable = errors.New("connection in TransientFailure")
+var ErrConnUnavailable = status.Error(codes.Unavailable, "connection in TransientFailure")
 
 func NewClient(ctx context.Context, d Discovery) *client {
 	c := &client{

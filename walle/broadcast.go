@@ -2,9 +2,11 @@ package walle
 
 import (
 	"context"
+	"encoding/hex"
 	"sort"
 	"sync"
 
+	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/walle/storage"
 	"google.golang.org/grpc/codes"
@@ -94,7 +96,7 @@ func (s *Server) broadcastRequest(
 			return nil, ctx.Err()
 		case err := <-errsC:
 			if err.Err != nil {
-				errs = append(errs, err.Err)
+				errs = append(errs, errors.Wrap(err.Err, hex.EncodeToString([]byte(err.ServerId))))
 				errCode := status.Convert(err.Err).Code()
 				if errCode == codes.FailedPrecondition || errCodeFinal != codes.FailedPrecondition {
 					errCodeFinal = errCode

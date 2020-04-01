@@ -63,8 +63,11 @@ func TestCrashingQuorum(t *testing.T) {
 		crashWG.Wait()
 	}()
 
+	// Because of constant crashing, it is possible to lose the lease if it is smaller
+	// than ReconnectDelay. Goal of this is test is to make sure PutEntry calls succeed less
+	// worry is about lease maintenance.
 	w, e, err := wallelib.WaitAndClaim(
-		ctx, cli, "/t1/blast", "blastwriter:1001", time.Second)
+		ctx, cli, "/t1/blast", "blastwriter:1001", wallelib.ReconnectDelay)
 	require.NoError(t, err)
 	defer w.Close()
 	require.EqualValues(t, 0, e.EntryId)
@@ -73,7 +76,7 @@ func TestCrashingQuorum(t *testing.T) {
 	for i := 0; i < 6; i++ {
 		zlog.Info("TEST: CRASH ITERATION --- ", i)
 		crashC <- 100 * time.Millisecond
-		itest.PutBatch(t, 2000, 1000, w)
+		itest.PutBatch(t, 2000, 10, w)
 		crashC <- 0
 		<-crashC
 	}

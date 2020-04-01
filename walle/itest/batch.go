@@ -65,7 +65,7 @@ func resolvePutCtx(
 		select {
 		case <-putCtx.Done():
 		case <-time.After(timeout):
-			t.Fatalf("putCtx blocked for too long: %d", putCtx.Entry.EntryId)
+			t.Fatalf("putCtx blocked for too long: %d - %s", putCtx.Entry.EntryId, time.Now().Sub(putT0))
 		}
 	}
 	latency := time.Now().Sub(putT0)

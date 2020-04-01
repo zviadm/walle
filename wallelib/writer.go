@@ -219,7 +219,6 @@ func (w *Writer) heartbeater(ctx context.Context) {
 				})
 				if err != nil {
 					errCode := status.Convert(err).Code()
-					zlog.Info("DEBUG: heartbeater err ", w.streamURI, " ", w.cliIdx, " ", err)
 					return errCode == codes.FailedPrecondition, false, err
 				}
 				w.updateCommittedEntryId(now, toCommit.EntryId, toCommit.ChecksumMd5, toCommit)
