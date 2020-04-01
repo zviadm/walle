@@ -95,7 +95,7 @@ func main() {
 	if err != nil {
 		zlog.Fatal(err)
 	}
-	rootD, err := wallelib.NewRootDiscovery(ctx, *rootURI, rootTopology)
+	rootD, err := wallelib.NewRootDiscovery(ctx, rootTopology)
 	if err != nil {
 		zlog.Fatal(err)
 	}

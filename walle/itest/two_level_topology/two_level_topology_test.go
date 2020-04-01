@@ -20,17 +20,16 @@ func TestTwoLevelTopology(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	wDir := storage.TestTmpDir()
-	rootURI := "/topology/itest"
-	topologyT1URI := "/topology/t1"
+	rootURI := topomgr.Prefix + "itest"
+	topologyT1URI := topomgr.Prefix + "t1"
 	t1URIs := []string{"/t1/0", "/t1/1", "/t1/2", "/t1/3"}
 
-	rootTopology := itest.BootstrapDeployment(t, ctx, rootURI, wDir, itest.WalleDefaultPort)
-	s := itest.RunWalle(t, ctx, rootURI, "", rootTopology, wDir, itest.WalleDefaultPort)
+	rootPb := itest.BootstrapDeployment(t, ctx, rootURI, wDir, itest.WalleDefaultPort)
+	s := itest.RunWalle(t, ctx, rootURI, "", rootPb, wDir, itest.WalleDefaultPort)
 	defer s.Stop(t)
 
-	rootD, err := wallelib.NewRootDiscovery(ctx, rootURI, rootTopology)
+	cli, err := wallelib.NewClientFromRootPb(ctx, rootPb, "")
 	require.NoError(t, err)
-	cli := wallelib.NewClient(ctx, rootD)
 	topoMgr := topomgr.NewClient(cli)
 
 	topology, err := topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
@@ -42,11 +41,11 @@ func TestTwoLevelTopology(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Start regular WALLE servers serving in `/topology/t1`.
+	// Start regular WALLE servers serving in `t1` cluster.
 	nT1 := 3
 	for i := 1; i <= nT1; i++ {
 		sT1 := itest.RunWalle(
-			t, ctx, rootURI, topologyT1URI, rootTopology, storage.TestTmpDir(), itest.WalleDefaultPort+i)
+			t, ctx, rootURI, topologyT1URI, rootPb, storage.TestTmpDir(), itest.WalleDefaultPort+i)
 		defer sT1.Kill(t)
 	}
 

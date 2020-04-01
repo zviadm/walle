@@ -22,7 +22,7 @@ func TestStreamBlast(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	wDir := storage.TestTmpDir()
-	rootURI := "/topology/itest"
+	rootURI := topomgr.Prefix + "itest"
 
 	rootTopology := itest.BootstrapDeployment(t, ctx, rootURI, wDir, itest.WalleDefaultPort)
 	s := make([]*servicelib.Service, 3)
@@ -34,7 +34,7 @@ func TestStreamBlast(t *testing.T) {
 		defer s[i].Kill(t)
 	}
 
-	rootD, err := wallelib.NewRootDiscovery(ctx, rootURI, rootTopology)
+	rootD, err := wallelib.NewRootDiscovery(ctx, rootTopology)
 	require.NoError(t, err)
 	cli := wallelib.NewClient(ctx, rootD)
 	topoMgr := topomgr.NewClient(cli)

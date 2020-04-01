@@ -48,6 +48,26 @@ func NewClient(ctx context.Context, d Discovery) *client {
 	return c
 }
 
+func NewClientFromRootPb(
+	ctx context.Context,
+	rootPb *walleapi.Topology,
+	topologyURI string) (*client, error) {
+	rootD, err := NewRootDiscovery(ctx, rootPb)
+	if err != nil {
+		return nil, err
+	}
+	rootC := NewClient(ctx, rootD)
+	if topologyURI == "" || topologyURI == rootPb.RootUri {
+		return rootC, nil
+	}
+	d, err := NewDiscovery(ctx, rootC, topologyURI, nil)
+	if err != nil {
+		return nil, err
+	}
+	c := NewClient(ctx, d)
+	return c, nil
+}
+
 func (c *client) watcher(ctx context.Context, notify <-chan struct{}) {
 	var topology *walleapi.Topology
 	for {

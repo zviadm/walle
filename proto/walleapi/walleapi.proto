@@ -59,12 +59,14 @@ message StreamEntriesRequest {
 }
 
 message Topology {
+	// root_uri is only set for root topology that is created during bootstrap.
+	string root_uri = 1;
 	// Matches EntryId of the stream it gets written to.
-	int64 version = 1;
+	int64 version = 2;
 	// Maps streamURI -> StreamTopology
-	map<string, StreamTopology> streams = 2;
+	map<string, StreamTopology> streams = 3;
 	// Maps ServerID -> ServerInfo
-	map<string, ServerInfo> servers = 3;
+	map<string, ServerInfo> servers = 4;
 }
 
 message StreamTopology {

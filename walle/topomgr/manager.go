@@ -16,6 +16,10 @@ var flagManagerLease = flag.Duration(
 	"Lease duration for internal topology manager. Default should be fine in most circumstances, "+
 		"unless root cluster is deployed across really high latency network.")
 
+const (
+	Prefix = "/topology/"
+)
+
 type Manager struct {
 	c    wallelib.Client
 	addr string

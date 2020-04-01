@@ -8,17 +8,17 @@
 //
 // Example:
 //
-// /topology/<deployment name> - contains topology/discovery information about all other topologies:
+// /topology/<deployment name> - contains topology & discovery information about all other topologies:
 //		/topology/database/user
 //		/topology/database/example
 //		...
-// /topology/database/user - contains topology/discovery information about all the
+// /topology/database/user - contains topology & discovery information about all the
 // streams assciated with the "user" database:
 //		/database/user/partition1
 //		/database/user/partition2
 //		/database/user/partition3
 //		...
-// /topology/database/example - contains topology/discovery information about all the
+// /topology/database/example - contains topology & discovery information about all the
 // streams assciated with the "example" database:
 //		/database/example/partition1
 //		/database/example/partition2

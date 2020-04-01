@@ -10,6 +10,7 @@ import (
 func BootstrapRoot(s storage.Storage, rootURI string, rootFile string, rootInfo *walleapi.ServerInfo) error {
 	var entryId int64 = 1
 	rootPb := &walleapi.Topology{
+		RootUri: rootURI,
 		Version: entryId,
 		Streams: map[string]*walleapi.StreamTopology{
 			rootURI: &walleapi.StreamTopology{

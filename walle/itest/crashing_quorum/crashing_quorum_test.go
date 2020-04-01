@@ -19,7 +19,7 @@ import (
 func TestCrashingQuorum(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	rootURI := "/topology/itest"
+	rootURI := topomgr.Prefix + "itest"
 	wDir := storage.TestTmpDir()
 
 	rootTopology := itest.BootstrapDeployment(t, ctx, rootURI, wDir, itest.WalleDefaultPort)
@@ -27,7 +27,7 @@ func TestCrashingQuorum(t *testing.T) {
 	s[0] = itest.RunWalle(t, ctx, rootURI, "", rootTopology, wDir, itest.WalleDefaultPort)
 	defer s[0].Kill(t)
 
-	rootD, err := wallelib.NewRootDiscovery(ctx, rootURI, rootTopology)
+	rootD, err := wallelib.NewRootDiscovery(ctx, rootTopology)
 	require.NoError(t, err)
 	cli := wallelib.NewClient(ctx, rootD)
 	topoMgr := topomgr.NewClient(cli)

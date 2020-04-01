@@ -44,7 +44,7 @@ func (s *Server) updateTopology(t *walleapi.Topology, topoMgr *topomgr.Manager) 
 			zlog.Errorf("ERR_FATAL; err updating topology: %s %s", streamURI, err)
 			continue
 		}
-		if topoMgr == nil || !strings.HasPrefix(streamURI, "/topology/") {
+		if topoMgr == nil || !strings.HasPrefix(streamURI, topomgr.Prefix) {
 			continue
 		}
 		_, ok := s.s.Stream(streamURI)

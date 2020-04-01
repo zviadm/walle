@@ -35,12 +35,11 @@ func (d *StaticDiscovery) Topology() (*walleapi.Topology, <-chan struct{}) {
 
 func NewRootDiscovery(
 	ctx context.Context,
-	rootURI string,
-	rootTopology *walleapi.Topology) (Discovery, error) {
-	if rootTopology.GetVersion() == 0 {
-		return nil, errors.Errorf("must provide valid root topology: %+v", rootTopology)
+	rootPb *walleapi.Topology) (Discovery, error) {
+	if rootPb.GetVersion() == 0 {
+		return nil, errors.Errorf("must provide valid root topology: %+v", rootPb)
 	}
-	d := newDiscovery(nil, rootURI, rootTopology)
+	d := newDiscovery(nil, rootPb.RootUri, rootPb)
 	d.root = NewClient(ctx, d)
 	go d.watcher(ctx)
 	return d, nil
