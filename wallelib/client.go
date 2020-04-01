@@ -124,13 +124,14 @@ func (c *client) ForStream(streamURI string, idx int) (walleapi.WalleApiClient, 
 		return nil, errors.Errorf("streamURI: %s, not found in topology", streamURI)
 	}
 	n := len(preferredIds)/2 + 1 // only rotate through preferred majority.
-	if idx == -1 {
-		idx = c.rrIdx[streamURI]
-		c.rrIdx[streamURI] += 1
+	offset := idx
+	if idx < 0 {
+		offset = c.rrIdx[streamURI]
 		n = len(preferredIds)
+		c.rrIdx[streamURI] += 1
 	}
 	for i := 0; i < n; i++ {
-		serverId := preferredIds[(idx+i)%n]
+		serverId := preferredIds[(offset+i)%n]
 		conn, err := c.unsafeServerConn(serverId)
 		if err != nil {
 			continue
@@ -140,7 +141,16 @@ func (c *client) ForStream(streamURI string, idx int) (walleapi.WalleApiClient, 
 		}
 		return walleapi.NewWalleApiClient(conn), nil
 	}
-	return nil, ErrConnUnavailable
+	if idx < 0 {
+		return nil, ErrConnUnavailable
+	}
+	serverId := preferredIds[idx%n]
+	conn, err := c.unsafeServerConn(serverId)
+	if err != nil {
+		return nil, err
+	}
+	conn.ResetConnectBackoff() // Better to try something than nothing...
+	return walleapi.NewWalleApiClient(conn), nil
 }
 
 func (c *client) ForServer(serverId string) (walle_pb.WalleClient, error) {
@@ -172,7 +182,7 @@ func (c *client) unsafeServerConn(serverId string) (*grpc.ClientConn, error) {
 					// TODO(zviad): Might need to make this configurable for cluster
 					// configurations with really large leases, long connection timeouts.
 					BaseDelay:  LeaseMinimum / 6, // Base delay has to be < Lease/4
-					MaxDelay:   5 * time.Second,
+					MaxDelay:   30 * time.Second,
 					Multiplier: 1.6,
 					Jitter:     0.2,
 				},
