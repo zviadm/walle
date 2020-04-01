@@ -2,6 +2,7 @@ package stream_blast
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 
@@ -22,7 +23,6 @@ func TestStreamBlast(t *testing.T) {
 	defer cancel()
 	wDir := storage.TestTmpDir()
 	rootURI := "/topology/itest"
-	blastURI := "/t1/blast"
 
 	rootTopology := itest.BootstrapDeployment(t, ctx, rootURI, wDir, itest.WalleDefaultPort)
 	s := make([]*servicelib.Service, 3)
@@ -39,30 +39,42 @@ func TestStreamBlast(t *testing.T) {
 	cli := wallelib.NewClient(ctx, rootD)
 	topoMgr := topomgr.NewClient(cli)
 
+	blastURIPrefix := "/blast/"
+	blastURIs := 10
 	topology, err := topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
 	require.NoError(t, err)
-	_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
-		TopologyUri: rootURI,
-		StreamUri:   blastURI,
-		ServerIds:   itest.ServerIdsSlice(topology.Servers),
-	})
+	serverIds := itest.ServerIdsSlice(topology.Servers)
+	for i := 0; i < blastURIs; i++ {
+		_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
+			TopologyUri: rootURI,
+			StreamUri:   blastURIPrefix + strconv.Itoa(i),
+			ServerIds:   serverIds,
+		})
+	}
 	require.NoError(t, err)
 
-	w, _, err := wallelib.WaitAndClaim(
-		ctx, cli, blastURI, "blastwriter:1001", time.Second)
-	require.NoError(t, err)
-	defer w.Close()
-
+	w := make([]*wallelib.Writer, blastURIs)
+	for i := 0; i < blastURIs; i++ {
+		var err error
+		// use large lease timoeut, since there are too many active writers and servers all running
+		// in single docker container, with not all that much CPU.
+		w[i], _, err = wallelib.WaitAndClaim(
+			ctx, cli, blastURIPrefix+strconv.Itoa(i), "blastwriter:1001", 10*time.Second)
+		require.NoError(t, err)
+		defer w[i].Close()
+	}
 	// Test with full quorum.
-	itest.PutBatch(t, w, 3000, 10)
-	itest.PutBatch(t, w, 3000, 100)
-	itest.PutBatch(t, w, 3000, 1000)
+	itest.PutBatch(t, 3000, 10, w[0])
+	itest.PutBatch(t, 3000, 100, w[0])
+	itest.PutBatch(t, 3000, 1000, w[0])
+	itest.PutBatch(t, 3000, 1000, w...)
 
 	// Test with one node down.
 	defer servicelib.IptablesClearAll(t)
 	servicelib.IptablesBlockPort(t, itest.WalleDefaultPort+2)
 	s[2].Kill(t)
-	itest.PutBatch(t, w, 3000, 10)
-	itest.PutBatch(t, w, 3000, 100)
-	itest.PutBatch(t, w, 3000, 1000)
+	itest.PutBatch(t, 3000, 10, w[0])
+	itest.PutBatch(t, 3000, 100, w[0])
+	itest.PutBatch(t, 3000, 1000, w[0])
+	itest.PutBatch(t, 3000, 1000, w...)
 }

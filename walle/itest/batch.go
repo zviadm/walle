@@ -11,14 +11,14 @@ import (
 	"github.com/zviadm/zlog"
 )
 
-func PutBatch(t *testing.T, w *wallelib.Writer, nBatch int, maxInFlight int) {
+func PutBatch(t *testing.T, nBatch int, maxInFlight int, ws ...*wallelib.Writer) {
 	t0 := time.Now()
 	puts := make([]*wallelib.PutCtx, 0, nBatch)
 	putT0 := make([]time.Time, 0, nBatch)
 	putIdx := 0
 	latencies := make([]time.Duration, 0, nBatch)
 	for i := 0; i < nBatch; i++ {
-		putCtx := w.PutEntry([]byte("testingoooo " + strconv.Itoa(i)))
+		putCtx := ws[i%len(ws)].PutEntry([]byte("testingoooo " + strconv.Itoa(i)))
 		puts = append(puts, putCtx)
 		putT0 = append(putT0, time.Now())
 
@@ -35,7 +35,7 @@ func PutBatch(t *testing.T, w *wallelib.Writer, nBatch int, maxInFlight int) {
 	sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
 	zlog.Info(
 		"TEST: processed all entries: ",
-		len(puts), " inflight: ", maxInFlight, " ",
+		len(puts), " writers: ", len(ws), " inflight: ", maxInFlight, " ",
 		" p95: ", latencies[len(latencies)*95/100],
 		" p99: ", latencies[len(latencies)*99/100],
 		" p999: ", latencies[len(latencies)*999/1000],
