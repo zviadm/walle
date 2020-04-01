@@ -60,7 +60,12 @@ func resolvePutCtx(
 			return false, 0
 		}
 	} else {
-		<-putCtx.Done()
+		timeout := wallelib.ReconnectDelay + 5*time.Second // reconnect delay + put entry timeout
+		select {
+		case <-putCtx.Done():
+		case <-time.After(putT0.Add(timeout).Sub(time.Now())):
+			t.Fatalf("timedout waiting on putCtx, entryId: %d", putCtx.Entry.EntryId)
+		}
 	}
 	latency := time.Now().Sub(putT0)
 	require.NoError(t, putCtx.Err())
