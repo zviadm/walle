@@ -26,9 +26,9 @@ type storage struct {
 var _ Storage = &storage{}
 
 type InitOpts struct {
-	Create     bool   // create database if it doesn't exist.
-	ServerId   string // use provided serverId. only needed in testing.
-	MaxStreams int    // maximum number of streams supported.
+	Create          bool   // create database if it doesn't exist.
+	ServerId        string // use provided serverId. only needed in testing.
+	MaxLocalStreams int    // maximum number of local streams supported.
 }
 
 func Init(dbPath string, opts InitOpts) (Storage, error) {
@@ -37,13 +37,13 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 			return nil, err
 		}
 	}
-	if opts.MaxStreams == 0 {
-		opts.MaxStreams = 100
+	if opts.MaxLocalStreams == 0 {
+		opts.MaxLocalStreams = 100
 	}
 	cfg := &wt.ConnectionConfig{
 		Create:     wt.Bool(opts.Create),
 		Log:        "enabled,compressor=snappy",
-		SessionMax: opts.MaxStreams*2 + 1,
+		SessionMax: opts.MaxLocalStreams*2 + 1,
 	}
 	c, err := wt.Open(dbPath, cfg)
 	if err != nil {

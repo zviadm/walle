@@ -157,7 +157,7 @@ func streamReadAll(t *testing.T, ss Stream, entryId int64) []*walleapi.Entry {
 }
 
 func TestStreamLimits(t *testing.T) {
-	s, err := Init(TestTmpDir(), InitOpts{Create: true, MaxStreams: 1})
+	s, err := Init(TestTmpDir(), InitOpts{Create: true, MaxLocalStreams: 1})
 	require.NoError(t, err)
 	defer s.Close()
 	longURI := "/" + strings.Repeat("a", streamURIMaxLen-1)
