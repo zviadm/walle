@@ -48,6 +48,8 @@ func (s *Server) ClaimWriter(
 		return nil, err
 	}
 
+	// Following code only operates on serverIds that successfully completed NewWriter call. This makes
+	// it safe to do operations serially, since those servers are supposed to be alive and responsive.
 	var entries map[string][]*walleapi.Entry
 	for {
 		entries = make(map[string][]*walleapi.Entry, len(serverIds))
