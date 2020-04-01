@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"os"
 	"sync"
-	"time"
 
 	"github.com/pkg/errors"
 	"github.com/zviadm/walle/proto/walleapi"
@@ -51,10 +50,10 @@ func NewDiscovery(
 	topologyURI string,
 	topology *walleapi.Topology) (Discovery, error) {
 	if topology.GetVersion() == 0 {
-		retryCtx, cancel := context.WithTimeout(ctx, 5*time.Second) // TODO(zviad): Configure timeout?
+		retryCtx, cancel := context.WithTimeout(ctx, 2*watchTimeout) // retry at least 2x.
 		defer cancel()
 		err := KeepTryingWithBackoff(
-			retryCtx, time.Second, time.Second,
+			retryCtx, connectTimeout, watchTimeout,
 			func(retryN uint) (bool, bool, error) {
 				cli, err := root.ForStream(topologyURI, -1)
 				if err != nil {
@@ -92,7 +91,7 @@ func (d *discovery) watcher(ctx context.Context) {
 	topology := d.topology
 	for {
 		err := KeepTryingWithBackoff(
-			ctx, LeaseMinimum, time.Second,
+			ctx, connectTimeout, watchTimeout,
 			func(retryN uint) (bool, bool, error) {
 				cli, err := d.root.ForStream(d.topologyURI, -1)
 				if err != nil {
@@ -133,8 +132,7 @@ func streamUpdates(
 	cli walleapi.WalleApiClient,
 	topologyURI string,
 	fromEntryId int64) (*walleapi.Topology, error) {
-	// TODO(zviad): timeout must come from config.
-	streamCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	streamCtx, cancel := context.WithTimeout(ctx, watchTimeout)
 	defer cancel()
 	r, err := cli.StreamEntries(streamCtx, &walleapi.StreamEntriesRequest{
 		StreamUri:   topologyURI,

@@ -288,7 +288,8 @@ func (s *Server) StreamEntries(
 			break
 		}
 		_, writerAddr, _, remainingLease := ss.WriterInfo()
-		if remainingLease < 0 && !strings.HasPrefix(writerAddr, writerInternalAddrPrefix) {
+		if remainingLease < 0 && writerAddr != "" &&
+			!strings.HasPrefix(writerAddr, writerInternalAddrPrefix) {
 			return status.Errorf(codes.Unavailable,
 				"writer: %s lease expired for streamURI: %s", writerAddr, req.StreamUri)
 		}

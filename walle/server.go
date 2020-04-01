@@ -55,7 +55,7 @@ func NewServer(
 			continue // can race with topology watcher.
 		}
 		writerId, _, _, _ := ss.WriterInfo()
-		ss.RenewLease(writerId)
+		ss.RenewLease(writerId, wallelib.ReconnectDelay)
 	}
 	return r
 }
@@ -72,21 +72,10 @@ func (s *Server) NewWriter(
 	if !ok {
 		return nil, status.Errorf(codes.FailedPrecondition, "there is already another new writer")
 	}
-
 	// Need to wait `remainingLease` duration before returning. However, we also need to make sure new
 	// lease doesn't expire since writer client can't heartbeat until this call succeeds.
-	sleepTill := time.Now().Add(remainingLease)
-	iterSleep := time.Duration(req.LeaseMs) * time.Millisecond / 10
-	if iterSleep > 0 {
-		iterN := int(remainingLease / iterSleep)
-		for idx := 0; idx < iterN; idx++ {
-			time.Sleep(iterSleep)
-			ss.RenewLease(reqWriterId)
-		}
-	}
-	finalSleep := sleepTill.Sub(time.Now())
-	time.Sleep(finalSleep)
-	ss.RenewLease(reqWriterId)
+	ss.RenewLease(reqWriterId, remainingLease)
+	time.Sleep(remainingLease)
 	return &walle_pb.NewWriterResponse{}, nil
 }
 
@@ -118,7 +107,7 @@ func (s *Server) PutEntryInternal(
 	if err := s.checkAndUpdateWriterId(ctx, ss, writerId); err != nil {
 		return nil, err
 	}
-	ss.RenewLease(writerId)
+	ss.RenewLease(writerId, 0)
 
 	p := s.pipeline.ForStream(ss)
 	var res *pipeline.ResultCtx
@@ -237,8 +226,6 @@ func (s *Server) ReadEntries(
 				entryId, entry.GetEntryId(), req.StartEntryId, req.EndEntryId)
 		}
 		entryId += 1
-		// TODO(zviad): Can `send` block? in that case we might have to treat cursor
-		// differently.
 		err := stream.Send(entry)
 		if err != nil {
 			return err

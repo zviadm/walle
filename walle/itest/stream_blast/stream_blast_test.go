@@ -40,7 +40,7 @@ func TestStreamBlast(t *testing.T) {
 	topoMgr := topomgr.NewClient(cli)
 
 	blastURIPrefix := "/blast/"
-	blastURIs := 10
+	blastURIs := 4
 	topology, err := topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
 	require.NoError(t, err)
 	serverIds := itest.ServerIdsSlice(topology.Servers)
@@ -59,22 +59,22 @@ func TestStreamBlast(t *testing.T) {
 		// use large lease timoeut, since there are too many active writers and servers all running
 		// in single docker container, with not all that much CPU.
 		w[i], _, err = wallelib.WaitAndClaim(
-			ctx, cli, blastURIPrefix+strconv.Itoa(i), "blastwriter:1001", 5*time.Second)
+			ctx, cli, blastURIPrefix+strconv.Itoa(i), "blastwriter:1001", 4*time.Second)
 		require.NoError(t, err)
 		defer w[i].Close()
 	}
 	// Test with full quorum.
-	itest.PutBatch(t, 3000, 10, 5*time.Second, w[0])
-	itest.PutBatch(t, 3000, 100, 5*time.Second, w[0])
-	itest.PutBatch(t, 3000, 1000, 5*time.Second, w[0])
-	itest.PutBatch(t, 3000, 1000, 10*time.Second, w...)
+	itest.PutBatch(t, 3000, 10, w[0])
+	itest.PutBatch(t, 3000, 100, w[0])
+	itest.PutBatch(t, 3000, 1000, w[0])
+	itest.PutBatch(t, 3000, 1000, w...)
 
 	// Test with one node down.
 	defer servicelib.IptablesClearAll(t)
 	servicelib.IptablesBlockPort(t, itest.WalleDefaultPort+2)
 	s[2].Kill(t)
-	itest.PutBatch(t, 3000, 10, 5*time.Second, w[0])
-	itest.PutBatch(t, 3000, 100, 5*time.Second, w[0])
-	itest.PutBatch(t, 3000, 1000, 5*time.Second, w[0])
-	itest.PutBatch(t, 3000, 1000, 10*time.Second, w...)
+	itest.PutBatch(t, 3000, 10, w[0])
+	itest.PutBatch(t, 3000, 100, w[0])
+	itest.PutBatch(t, 3000, 1000, w[0])
+	itest.PutBatch(t, 3000, 1000, w...)
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"math/rand"
 	"sync"
-	"time"
 
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
@@ -141,16 +140,7 @@ func (c *client) ForStream(streamURI string, idx int) (walleapi.WalleApiClient, 
 		}
 		return walleapi.NewWalleApiClient(conn), nil
 	}
-	if idx < 0 {
-		return nil, ErrConnUnavailable
-	}
-	serverId := preferredIds[idx%n]
-	conn, err := c.unsafeServerConn(serverId)
-	if err != nil {
-		return nil, err
-	}
-	conn.ResetConnectBackoff() // Better to try something than nothing...
-	return walleapi.NewWalleApiClient(conn), nil
+	return nil, ErrConnUnavailable
 }
 
 func (c *client) ForServer(serverId string) (walle_pb.WalleClient, error) {
@@ -179,10 +169,10 @@ func (c *client) unsafeServerConn(serverId string) (*grpc.ClientConn, error) {
 			grpc.WithInsecure(), // TODO(zviad): Decide what to do about security...
 			grpc.WithConnectParams(grpc.ConnectParams{
 				Backoff: backoff.Config{
-					// TODO(zviad): Might need to make this configurable for cluster
-					// configurations with really large leases, long connection timeouts.
-					BaseDelay:  LeaseMinimum / 6, // Base delay has to be < Lease/4
-					MaxDelay:   30 * time.Second,
+					BaseDelay: connectTimeout,
+					// WALLE is a critical low-latency service, thus it is better to err on the side
+					// of retrying to connect too often, rather than backoff for too long.
+					MaxDelay:   ReconnectDelay,
 					Multiplier: 1.6,
 					Jitter:     0.2,
 				},

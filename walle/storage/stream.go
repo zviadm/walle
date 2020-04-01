@@ -193,12 +193,14 @@ func (m *streamStorage) UpdateWriter(
 func (m *streamStorage) unsafeRemainingLease() time.Duration {
 	return m.renewedLease.Add(m.writerLease).Sub(time.Now())
 }
-func (m *streamStorage) RenewLease(writerId WriterId) {
+func (m *streamStorage) RenewLease(
+	writerId WriterId, extraBuffer time.Duration) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
-	if writerId == m.writerId {
-		m.renewedLease = time.Now()
+	if writerId != m.writerId {
+		return
 	}
+	m.renewedLease = time.Now().Add(extraBuffer)
 }
 
 func (m *streamStorage) LastEntries() ([]*walleapi.Entry, error) {

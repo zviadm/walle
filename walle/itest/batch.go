@@ -15,12 +15,12 @@ func PutBatch(
 	t *testing.T,
 	nBatch int,
 	maxInFlight int,
-	putTimeout time.Duration,
 	ws ...*wallelib.Writer) {
 	t0 := time.Now()
 	puts := make([]*wallelib.PutCtx, 0, nBatch)
 	putT0 := make([]time.Time, 0, nBatch)
 	putIdx := 0
+	putTimeout := wallelib.ReconnectDelay + 5*time.Second // reconnect + putEntry timeout
 	latencies := make([]time.Duration, 0, nBatch)
 	for i := 0; i < nBatch; i++ {
 		putCtx := ws[i%len(ws)].PutEntry([]byte("testingoooo " + strconv.Itoa(i)))

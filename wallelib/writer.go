@@ -18,14 +18,11 @@ const (
 
 	shortBeat       = 5 * time.Millisecond
 	maxInFlightPuts = 128
-)
 
-type WriterState string
-
-const (
-	Closed       WriterState = "closed"
-	Disconnected WriterState = "disconnected" // TODO(zviad): better name for this state
-	Exclusive    WriterState = "exclusive"
+	connectTimeout  = time.Second
+	ReconnectDelay  = 5 * time.Second
+	putEntryTimeout = 5 * time.Second
+	watchTimeout    = 5 * time.Second
 )
 
 // Writer is not thread safe. PutEntry calls must be issued serially.
@@ -174,13 +171,13 @@ func (w *Writer) clearCli() {
 	w.cliMX.Lock()
 	defer w.cliMX.Unlock()
 	w.cachedCli = nil
+	w.cliIdx += 1
 }
 func (w *Writer) cli() (walleapi.WalleApiClient, error) {
 	w.cliMX.Lock()
 	defer w.cliMX.Unlock()
 	var err error
 	if w.cachedCli == nil {
-		w.cliIdx += 1
 		w.cachedCli, err = w.c.ForStream(w.streamURI, w.cliIdx)
 	}
 	return w.cachedCli, err
@@ -221,8 +218,9 @@ func (w *Writer) heartbeater(ctx context.Context) {
 					CommittedEntryMd5: toCommit.ChecksumMd5,
 				})
 				if err != nil {
-					errStatus, _ := status.FromError(err)
-					return errStatus.Code() == codes.FailedPrecondition, false, err
+					errCode := status.Convert(err).Code()
+					zlog.Info("DEBUG: heartbeater err ", w.streamURI, " ", w.cliIdx, " ", err)
+					return errCode == codes.FailedPrecondition, false, err
 				}
 				w.updateCommittedEntryId(now, toCommit.EntryId, toCommit.ChecksumMd5, toCommit)
 				return true, false, nil
@@ -236,7 +234,7 @@ func (w *Writer) heartbeater(ctx context.Context) {
 
 func (w *Writer) process(ctx context.Context, req *PutCtx) {
 	defer func() { <-w.inFlightQ }()
-	timeout := 5 * time.Second // TODO(zviad): should this come from a config?
+	timeout := putEntryTimeout
 	if w.writerLease > timeout {
 		timeout = w.writerLease
 	}

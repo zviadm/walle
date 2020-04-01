@@ -73,7 +73,7 @@ func TestCrashingQuorum(t *testing.T) {
 	for i := 0; i < 6; i++ {
 		zlog.Info("TEST: CRASH ITERATION --- ", i)
 		crashC <- 100 * time.Millisecond
-		itest.PutBatch(t, 2000, 1000, 10*time.Second, w)
+		itest.PutBatch(t, 2000, 1000, w)
 		crashC <- 0
 		<-crashC
 	}
