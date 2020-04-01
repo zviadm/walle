@@ -74,8 +74,10 @@ func (s *Server) NewWriter(
 	}
 	// Need to wait `remainingLease` duration before returning. However, we also need to make sure new
 	// lease doesn't expire since writer client can't heartbeat until this call succeeds.
-	ss.RenewLease(reqWriterId, remainingLease)
-	time.Sleep(remainingLease)
+	if remainingLease > 0 {
+		ss.RenewLease(reqWriterId, remainingLease)
+		time.Sleep(remainingLease)
+	}
 	return &walle_pb.NewWriterResponse{}, nil
 }
 

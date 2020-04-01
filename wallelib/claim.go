@@ -17,7 +17,7 @@ func ClaimWriter(
 	streamURI string,
 	writerAddr string,
 	writerLease time.Duration) (*Writer, *walleapi.Entry, error) {
-	cli, err := c.ForStream(streamURI, -1)
+	cli, err := c.ForStream(streamURI)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -71,7 +71,7 @@ func WaitAndClaim(
 	writerLease time.Duration) (w *Writer, e *walleapi.Entry, err error) {
 	err = KeepTryingWithBackoff(ctx, writerLease/2, writerLease/2,
 		func(retryN uint) (bool, bool, error) {
-			s, err := c.ForStream(streamURI, -1)
+			s, err := c.ForStream(streamURI)
 			if err != nil {
 				return false, false, err
 			}

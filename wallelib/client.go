@@ -18,11 +18,7 @@ import (
 
 type Client interface {
 	// Returns gRPC client to talk to specific streamURI within a cluster.
-	// If `idx` is set to -1, simple round robin load balancing is used.
-	// Otherwise if `idx >= 0`, it is used as a hint to get specific stable
-	// connection to a preferred node. This is only needed for high
-	// performance for PutEntry calls.
-	ForStream(streamURI string, idx int) (walleapi.WalleApiClient, error)
+	ForStream(streamURI string) (walleapi.WalleApiClient, error)
 }
 
 type client struct {
@@ -117,30 +113,38 @@ func (c *client) update(topology *walleapi.Topology) {
 	}
 }
 
-func (c *client) ForStream(streamURI string, idx int) (walleapi.WalleApiClient, error) {
+func (c *client) ForStream(streamURI string) (walleapi.WalleApiClient, error) {
 	c.mx.Lock()
 	defer c.mx.Unlock()
 	preferredIds, ok := c.preferred[streamURI]
 	if !ok {
 		return nil, errors.Errorf("streamURI: %s, not found in topology", streamURI)
 	}
-	n := len(preferredIds)/2 + 1 // only rotate through preferred majority.
-	offset := idx
-	if idx < 0 {
-		offset = c.rrIdx[streamURI]
-		n = len(preferredIds)
-		c.rrIdx[streamURI] += 1
-	}
-	for i := 0; i < n; i++ {
-		serverId := preferredIds[(offset+i)%n]
-		conn, err := c.unsafeServerConn(serverId)
-		if err != nil {
-			continue
+	offset := c.rrIdx[streamURI]
+	c.rrIdx[streamURI] += 1
+	majorityN := len(preferredIds)/2 + 1
+	minorityN := len(preferredIds) - majorityN
+	for tryN := 0; tryN < 2; tryN++ {
+		for i := 0; i < len(preferredIds); i++ {
+			var idx int
+			if i < majorityN {
+				idx = (offset + i) % majorityN
+			} else {
+				idx = majorityN + (offset+i)%minorityN
+			}
+			serverId := preferredIds[idx]
+			conn, err := c.unsafeServerConn(serverId)
+			if err != nil {
+				continue
+			}
+			connState := conn.GetState()
+			notReady := connState != connectivity.Ready && connState != connectivity.Idle
+			if (tryN == 0 && notReady) ||
+				(tryN == 1 && notReady && connState != connectivity.Connecting) {
+				continue
+			}
+			return walleapi.NewWalleApiClient(conn), nil
 		}
-		if conn.GetState() == connectivity.TransientFailure {
-			continue
-		}
-		return walleapi.NewWalleApiClient(conn), nil
 	}
 	return nil, ErrConnUnavailable
 }

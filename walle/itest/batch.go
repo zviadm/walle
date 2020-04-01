@@ -15,26 +15,25 @@ func PutBatch(
 	t *testing.T,
 	nBatch int,
 	maxInFlight int,
-	ws ...*wallelib.Writer) {
+	ws ...*wallelib.Writer) time.Duration {
 	t0 := time.Now()
 	puts := make([]*wallelib.PutCtx, 0, nBatch)
 	putT0 := make([]time.Time, 0, nBatch)
 	putIdx := 0
-	putTimeout := wallelib.ReconnectDelay + 5*time.Second // reconnect + putEntry timeout
 	latencies := make([]time.Duration, 0, nBatch)
 	for i := 0; i < nBatch; i++ {
 		putCtx := ws[i%len(ws)].PutEntry([]byte("testingoooo " + strconv.Itoa(i)))
 		puts = append(puts, putCtx)
 		putT0 = append(putT0, time.Now())
 
-		ok, l := resolvePutCtx(t, puts[putIdx], putT0[putIdx], putTimeout, i-putIdx > maxInFlight)
+		ok, l := resolvePutCtx(t, puts[putIdx], putT0[putIdx], i-putIdx > maxInFlight)
 		if ok {
 			latencies = append(latencies, l)
 			putIdx += 1
 		}
 	}
 	for i := putIdx; i < len(puts); i++ {
-		_, l := resolvePutCtx(t, puts[i], putT0[putIdx], putTimeout, true)
+		_, l := resolvePutCtx(t, puts[i], putT0[putIdx], true)
 		latencies = append(latencies, l)
 	}
 	sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
@@ -46,13 +45,13 @@ func PutBatch(
 		" p999: ", latencies[len(latencies)*999/1000],
 		" total: ", time.Now().Sub(t0),
 	)
+	return latencies[len(latencies)-1]
 }
 
 func resolvePutCtx(
 	t *testing.T,
 	putCtx *wallelib.PutCtx,
 	putT0 time.Time,
-	putTimeout time.Duration,
 	block bool) (bool, time.Duration) {
 	if !block {
 		select {
@@ -61,12 +60,7 @@ func resolvePutCtx(
 			return false, 0
 		}
 	} else {
-		timeout := putT0.Add(putTimeout).Sub(time.Now())
-		select {
-		case <-putCtx.Done():
-		case <-time.After(timeout):
-			t.Fatalf("putCtx blocked for too long: %d - %s", putCtx.Entry.EntryId, time.Now().Sub(putT0))
-		}
+		<-putCtx.Done()
 	}
 	latency := time.Now().Sub(putT0)
 	require.NoError(t, putCtx.Err())

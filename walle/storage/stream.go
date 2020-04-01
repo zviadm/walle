@@ -200,6 +200,7 @@ func (m *streamStorage) RenewLease(
 	if writerId != m.writerId {
 		return
 	}
+	panic.OnNotOk(extraBuffer >= 0, "extra buffer must be >=0: %s", extraBuffer)
 	m.renewedLease = time.Now().Add(extraBuffer)
 }
 

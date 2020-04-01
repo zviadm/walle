@@ -167,20 +167,8 @@ func (w *Writer) processor(ctx context.Context) {
 	}
 }
 
-func (w *Writer) clearCli() {
-	w.cliMX.Lock()
-	defer w.cliMX.Unlock()
-	w.cachedCli = nil
-	w.cliIdx += 1
-}
 func (w *Writer) cli() (walleapi.WalleApiClient, error) {
-	w.cliMX.Lock()
-	defer w.cliMX.Unlock()
-	var err error
-	if w.cachedCli == nil {
-		w.cachedCli, err = w.c.ForStream(w.streamURI, w.cliIdx)
-	}
-	return w.cachedCli, err
+	return w.c.ForStream(w.streamURI)
 }
 
 // Heartbeater makes requests to the server if there are no active PutEntry calls happening.
@@ -202,9 +190,6 @@ func (w *Writer) heartbeater(ctx context.Context) {
 		err := KeepTryingWithBackoff(
 			ctx, w.longBeat, w.writerLease/4,
 			func(retryN uint) (bool, bool, error) {
-				if retryN >= 1 {
-					w.clearCli()
-				}
 				cli, err := w.cli()
 				if err != nil {
 					return false, false, err

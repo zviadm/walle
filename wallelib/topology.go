@@ -9,6 +9,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/zlog"
 )
 
 type discovery struct {
@@ -55,7 +56,7 @@ func NewDiscovery(
 		err := KeepTryingWithBackoff(
 			retryCtx, connectTimeout, watchTimeout,
 			func(retryN uint) (bool, bool, error) {
-				cli, err := root.ForStream(topologyURI, -1)
+				cli, err := root.ForStream(topologyURI)
 				if err != nil {
 					return false, false, err
 				}
@@ -93,7 +94,7 @@ func (d *discovery) watcher(ctx context.Context) {
 		err := KeepTryingWithBackoff(
 			ctx, connectTimeout, watchTimeout,
 			func(retryN uint) (bool, bool, error) {
-				cli, err := d.root.ForStream(d.topologyURI, -1)
+				cli, err := d.root.ForStream(d.topologyURI)
 				if err != nil {
 					return false, false, err
 				}
@@ -116,6 +117,12 @@ func (d *discovery) watcher(ctx context.Context) {
 func (d *discovery) updateTopology(topology *walleapi.Topology) {
 	d.mx.Lock()
 	defer d.mx.Unlock()
+	if d.topology.GetVersion() > 0 && topology.Version <= d.topology.GetVersion() {
+		zlog.Errorf(
+			"ERR_FATAL; topology version must always increase: %d <= %d",
+			topology.Version, d.topology.Version)
+		return
+	}
 	d.topology = topology
 	close(d.notify)
 	d.notify = make(chan struct{})

@@ -34,7 +34,7 @@ func (t *client) connectAndDo(
 		func(retryN uint) (bool, bool, error) {
 			ctx, cancel := context.WithTimeout(ctx, callTimeout)
 			defer cancel()
-			cli, err := t.c.ForStream(topologyURI, -1)
+			cli, err := t.c.ForStream(topologyURI)
 			if err != nil {
 				return false, false, err
 			}

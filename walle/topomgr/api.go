@@ -107,7 +107,7 @@ func (m *Manager) waitForStreamVersion(
 	c := wallelib.NewClient(ctx, &wallelib.StaticDiscovery{T: t})
 	return wallelib.KeepTryingWithBackoff(ctx, wallelib.LeaseMinimum, time.Second,
 		func(retryN uint) (bool, bool, error) {
-			streamC, err := c.ForStream(streamURI, -1)
+			streamC, err := c.ForStream(streamURI)
 			if err != nil {
 				return true, false, err
 			}

@@ -235,7 +235,7 @@ type mockApiClient struct {
 	m *mockSystem
 }
 
-func (m *mockApiClient) ForStream(streamURI string, idx int) (walleapi.WalleApiClient, error) {
+func (m *mockApiClient) ForStream(streamURI string) (walleapi.WalleApiClient, error) {
 	return m, nil
 }
 
