@@ -10,6 +10,7 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/zviadm/walle/proto/topomgr"
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/walle/wallelib"
 	"github.com/zviadm/zlog"
 	"google.golang.org/grpc/codes"
@@ -64,6 +65,10 @@ func (m *Manager) FetchTopology(
 func (m *Manager) UpdateServerIds(
 	ctx context.Context,
 	req *topomgr.UpdateServerIdsRequest) (*topomgr.UpdateServerIdsResponse, error) {
+	if err := storage.IsValidStreamURI(req.StreamUri); err != nil {
+		return nil, err
+	}
+
 	p, unlock, err := m.perTopoMX(req.TopologyUri)
 	if err != nil {
 		return nil, err

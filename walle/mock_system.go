@@ -44,9 +44,9 @@ func newMockSystem(
 	mClient := &mockClient{mApiClient, mSystem}
 
 	for serverId := range topology.Servers {
-		m, err := storage.InitWithServerId(
+		m, err := storage.Init(
 			path.Join(storagePath, hex.EncodeToString([]byte(serverId))+".walledb"),
-			true, serverId)
+			storage.InitOpts{Create: true, ServerId: serverId})
 		panic.OnErr(err)
 		mSystem.servers[serverId] = NewServer(ctx, m, mClient, mSystem, nil)
 	}

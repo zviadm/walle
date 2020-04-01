@@ -25,20 +25,25 @@ type storage struct {
 
 var _ Storage = &storage{}
 
-func Init(dbPath string, createIfNotExists bool) (Storage, error) {
-	return InitWithServerId(dbPath, createIfNotExists, "")
+type InitOpts struct {
+	Create     bool   // create database if it doesn't exist.
+	ServerId   string // use provided serverId. only needed in testing.
+	MaxStreams int    // maximum number of streams supported.
 }
 
-func InitWithServerId(dbPath string, createIfNotExists bool, serverId string) (Storage, error) {
-	if createIfNotExists {
+func Init(dbPath string, opts InitOpts) (Storage, error) {
+	if opts.Create {
 		if err := os.MkdirAll(dbPath, 0755); err != nil {
 			return nil, err
 		}
 	}
+	if opts.MaxStreams == 0 {
+		opts.MaxStreams = 100
+	}
 	cfg := &wt.ConnectionConfig{
-		Create: wt.Bool(createIfNotExists),
-		Log:    "enabled,compressor=snappy",
-		//TransactionSync: "enabled",
+		Create:     wt.Bool(opts.Create),
+		Log:        "enabled,compressor=snappy",
+		SessionMax: opts.MaxStreams*2 + 1,
 	}
 	c, err := wt.Open(dbPath, cfg)
 	if err != nil {
@@ -57,14 +62,14 @@ func InitWithServerId(dbPath string, createIfNotExists bool, serverId string) (S
 		if wt.ErrCode(err) != wt.ErrNotFound {
 			panic.OnErr(err)
 		}
-		if !createIfNotExists {
+		if !opts.Create {
 			return nil, errors.Errorf("serverId doesn't exist in the database: %s", dbPath)
 		}
 		metaW, err := s.Mutate(metadataDS, nil)
 		panic.OnErr(err)
 		defer metaW.Close()
-		if serverId != "" {
-			serverIdB = []byte(serverId)
+		if opts.ServerId != "" {
+			serverIdB = []byte(opts.ServerId)
 		} else {
 			serverIdB = make([]byte, serverIdLen)
 			rand.Read(serverIdB)
@@ -83,8 +88,9 @@ func InitWithServerId(dbPath string, createIfNotExists bool, serverId string) (S
 		flushS:   flushS,
 		streams:  make(map[string]Stream),
 	}
-	if serverId != "" && serverId != r.serverId {
-		return nil, errors.Errorf("storage already has different serverId: %s vs %s", r.serverId, serverId)
+	if opts.ServerId != "" && opts.ServerId != r.serverId {
+		return nil, errors.Errorf(
+			"storage already has different serverId: %s vs %s", r.serverId, opts.ServerId)
 	}
 	zlog.Infof("storage: %s", hex.EncodeToString(serverIdB))
 
@@ -155,16 +161,23 @@ func (m *storage) Stream(streamURI string, localOnly bool) (Stream, bool) {
 	return r, ok
 }
 
-func (m *storage) NewStream(streamURI string, t *walleapi.StreamTopology) Stream {
+func (m *storage) NewStream(
+	streamURI string, t *walleapi.StreamTopology) (Stream, error) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
-	_, ok := m.streams[streamURI]
-	panic.OnNotOk(!ok, "stream %s already exists!", streamURI)
+	if _, ok := m.streams[streamURI]; ok {
+		return nil, errors.Errorf("ERR_FATAL; stream %s already exists!", streamURI)
+	}
 	sess, err := m.c.OpenSession(nil)
-	panic.OnErr(err)
+	if err != nil {
+		return nil, err
+	}
 	sessRO, err := m.c.OpenSession(nil)
-	panic.OnErr(err)
+	if err != nil {
+		sess.Close() // close successfully opened session.
+		return nil, err
+	}
 	s := createStreamStorage(m.serverId, streamURI, t, sess, sessRO)
 	m.streams[streamURI] = s
-	return s
+	return s, nil
 }

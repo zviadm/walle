@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -13,22 +14,24 @@ import (
 
 func TestStorageOpen(t *testing.T) {
 	dbPath := TestTmpDir()
-	s, err := Init(dbPath, true)
+	s, err := Init(dbPath, InitOpts{Create: true})
 	require.NoError(t, err)
-	s.NewStream("/s/1", &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
+	_, err = s.NewStream("/s/1", &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
+	require.NoError(t, err)
 	s.Close()
 
-	s, err = Init(dbPath, false)
+	s, err = Init(dbPath, InitOpts{Create: false})
 	require.NoError(t, err)
 	defer s.Close()
 	require.EqualValues(t, s.Streams(false), []string{"/s/1"})
 }
 
 func TestStreamStorage(t *testing.T) {
-	s, err := Init(TestTmpDir(), true)
+	s, err := Init(TestTmpDir(), InitOpts{Create: true})
 	require.NoError(t, err)
 	defer s.Close()
-	ss := s.NewStream("/s/1", &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
+	ss, err := s.NewStream("/s/1", &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
+	require.NoError(t, err)
 
 	var entries []*walleapi.Entry
 	entries = append(entries, Entry0)
@@ -99,10 +102,11 @@ func TestStreamStorage(t *testing.T) {
 }
 
 func TestStreamStorageRaces(t *testing.T) {
-	s, err := Init(TestTmpDir(), true)
+	s, err := Init(TestTmpDir(), InitOpts{Create: true})
 	require.NoError(t, err)
 	defer s.Close()
-	ss := s.NewStream("/s/1", &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
+	ss, err := s.NewStream("/s/1", &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	errC := make(chan error, 1)
@@ -150,4 +154,25 @@ func streamReadAll(t *testing.T, ss Stream, entryId int64) []*walleapi.Entry {
 		r = append(r, v)
 	}
 	return r
+}
+
+func TestStreamLimits(t *testing.T) {
+	s, err := Init(TestTmpDir(), InitOpts{Create: true, MaxStreams: 1})
+	require.NoError(t, err)
+	defer s.Close()
+	longURI := "/" + strings.Repeat("a", streamURIMaxLen-1)
+	ss, err := s.NewStream(longURI, &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
+	require.NoError(t, err)
+	ss2, _ := s.Stream(longURI, true)
+	require.Equal(t, ss, ss2)
+
+	hasErr := false
+	for i := 0; i < 20; i++ {
+		_, err := s.NewStream("/t"+strconv.Itoa(i), &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
+		if err != nil {
+			hasErr = true
+			break
+		}
+	}
+	require.True(t, hasErr, "MaxStreams limit must have kicked in at some point!")
 }

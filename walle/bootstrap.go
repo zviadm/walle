@@ -22,7 +22,10 @@ func BootstrapRoot(s storage.Storage, rootURI string, rootFile string, rootInfo 
 	if err := wallelib.TopologyToFile(rootPb, rootFile); err != nil {
 		return err
 	}
-	ss := s.NewStream(rootURI, rootPb.Streams[rootURI])
+	ss, err := s.NewStream(rootURI, rootPb.Streams[rootURI])
+	if err != nil {
+		return err
+	}
 	entryData, err := rootPb.Marshal()
 	if err != nil {
 		return err

@@ -49,7 +49,7 @@ func createStreamStorage(
 	topology *walleapi.StreamTopology,
 	sess *wt.Session,
 	sessRO *wt.Session) Stream {
-	panic.OnErr(isValidStreamURI(streamURI))
+	panic.OnErr(IsValidStreamURI(streamURI))
 	panic.OnErr(sess.Create(streamDS(streamURI), &wt.DataSourceConfig{BlockCompressor: "snappy"}))
 
 	panic.OnErr(sess.TxBegin(&wt.TxConfig{Sync: wt.True}))

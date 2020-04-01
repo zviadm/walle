@@ -14,7 +14,10 @@ type Storage interface {
 	Streams(localOnly bool) []string
 	Stream(streamURI string, localOnly bool) (Stream, bool)
 
-	NewStream(streamURI string, topology *walleapi.StreamTopology) Stream
+	// Creates new stream with initial topology. Can return an error if
+	// local resoures are exhausted and storage can no longer handle more streams.
+	NewStream(
+		streamURI string, topology *walleapi.StreamTopology) (Stream, error)
 	//RemoveStream(streamURI string)
 
 	// Forces Flushes

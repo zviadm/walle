@@ -43,8 +43,13 @@ func (s *Server) updateTopology(t *walleapi.Topology, topoMgr *topomgr.Manager) 
 		if ok {
 			ss.UpdateTopology(streamT)
 		} else {
-			zlog.Infof("[tw] creating with topology: %s %+s", streamURI, streamT)
-			ss = s.s.NewStream(streamURI, streamT)
+			var err error
+			ss, err = s.s.NewStream(streamURI, streamT)
+			if err != nil {
+				zlog.Errorf("ERR_FATAL; err creating new stream: %s %s", streamURI, err)
+				continue
+			}
+			zlog.Infof("[tw] created: %s %+s", streamURI, streamT)
 		}
 
 		if topoMgr == nil || !strings.HasPrefix(streamURI, "/topology/") {

@@ -48,6 +48,8 @@ const (
 
 	writerIdLen = 16
 	serverIdLen = 16
+
+	streamURIMaxLen = 100
 )
 
 var (
@@ -73,10 +75,9 @@ func streamDS(streamURI string) string {
 
 var reStreamURI = regexp.MustCompile("/[a-z0-9_/]+")
 
-func isValidStreamURI(streamURI string) error {
-	if len(streamURI) > 100 {
-		return errors.Errorf("streamURI must be at most 100 bytes: %s", streamURI)
-
+func IsValidStreamURI(streamURI string) error {
+	if len(streamURI) > streamURIMaxLen {
+		return errors.Errorf("streamURI must be at most %d bytes: %s", streamURIMaxLen, streamURI)
 	}
 	if !reStreamURI.MatchString(streamURI) {
 		return errors.Errorf("invlaid streamURI: %s", streamURI)

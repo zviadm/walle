@@ -5,10 +5,9 @@ import (
 	"github.com/zviadm/walle/proto/walleapi"
 )
 
-func verifyServerIds(servers map[string]*walleapi.ServerInfo, serverIds []string) error {
-	return nil
-}
-
+// Verifies if it is safe to change streamURI memebers to new set of
+// serverIds. Returns true if there actually is any change at all, returns
+// an error if change is not safe or valid.
 func verifyAndDiffMembershipChange(
 	t *walleapi.Topology, streamURI string, serverIds []string) (bool, error) {
 	for _, serverId := range serverIds {
