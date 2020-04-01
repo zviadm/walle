@@ -13,8 +13,7 @@ import (
 )
 
 func main() {
-	clusterName := flag.String(
-		"c", "", "Cluster to operate on.")
+	clusterName := flag.String("c", "", "Cluster to operate on.")
 	flag.Parse()
 	if len(flag.Args()) != 0 {
 		flag.Usage()

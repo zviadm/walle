@@ -39,9 +39,9 @@ type Writer struct {
 	writerId    string
 	longBeat    time.Duration
 
-	cliMX        sync.Mutex
-	cachedCli    walleapi.WalleApiClient
-	cachedCliIdx int
+	cliMX     sync.Mutex
+	cliIdx    int // Used for sticky load balancing of the Client
+	cachedCli walleapi.WalleApiClient
 
 	lastEntry    *walleapi.Entry
 	reqQ         chan *PutCtx
@@ -131,18 +131,20 @@ func (w *Writer) cancelWithErr(err error) {
 	w.Close()
 }
 
-// Returns True, if at the time of the IsWriter call, this writer is still guaranteed
-// to be the only exclusive writer.
-func (w *Writer) WriterState() (state WriterState, closeNotify <-chan struct{}) {
+// Returns channel that will get closed when Writer itself becomes closed.
+// Writer will automatically close if it determines that it is no longer the
+// exclusive writer and no further PutEntry calls can succeed.
+func (w *Writer) Done() <-chan struct{} {
+	return w.rootCtx.Done()
+}
+
+// Returns True, if at the time of the IsExclusive() call, it is guaranteed that
+// there was no other writer that could have written any entries. Note that
+// Writer can be closed, but still exclusive for some time period, due to how leasing works.
+func (w *Writer) IsExclusive() bool {
 	w.committedEntryMx.Lock()
 	defer w.committedEntryMx.Unlock()
-	if w.rootCtx.Err() != nil {
-		return Closed, w.rootCtx.Done()
-	}
-	if w.commitTime.Add(w.writerLease).Before(time.Now()) {
-		return Disconnected, w.rootCtx.Done()
-	}
-	return Exclusive, w.rootCtx.Done()
+	return w.commitTime.Add(w.writerLease * 3 / 4).After(time.Now())
 }
 
 // Returns last entry that was successfully put in the stream.
@@ -168,31 +170,20 @@ func (w *Writer) processor(ctx context.Context) {
 	}
 }
 
-func (w *Writer) cli() (walleapi.WalleApiClient, error) {
-	w.cliMX.Lock()
-	defer w.cliMX.Unlock()
-	if w.cachedCli != nil {
-		return w.cachedCli, nil
-	}
-	nServers := 3 // TODO: get this from BaseClient somehow.
-	for i := 0; i < nServers; i++ {
-		w.cachedCliIdx += 1 % (nServers/2 + 1)
-		cli, err := w.c.ForStream(w.streamURI, w.cachedCliIdx)
-		if err != nil {
-			if err == ErrConnUnavailable {
-				continue
-			}
-			return nil, err
-		}
-		w.cachedCli = cli
-		return w.cachedCli, nil
-	}
-	return nil, ErrConnUnavailable
-}
 func (w *Writer) clearCli() {
 	w.cliMX.Lock()
 	defer w.cliMX.Unlock()
 	w.cachedCli = nil
+}
+func (w *Writer) cli() (walleapi.WalleApiClient, error) {
+	w.cliMX.Lock()
+	defer w.cliMX.Unlock()
+	var err error
+	if w.cachedCli == nil {
+		w.cliIdx += 1
+		w.cachedCli, err = w.c.ForStream(w.streamURI, w.cliIdx)
+	}
+	return w.cachedCli, err
 }
 
 // Heartbeater makes requests to the server if there are no active PutEntry calls happening.

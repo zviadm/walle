@@ -18,7 +18,7 @@ is quite a lot simpler to implement compared to Paxos or Raft. And from performa
 be confirmed with only 1 network round trip. Concept of "read lease", does add additional constraints for reads
 of the current state to be correct. Leases only work if "time delta" of few seconds can be measured consistently
 between separate nodes. So, for example, if one host measures "time passed" to be 'X' seconds (where 'X' is generally pretty
-small <10), another node in that time period, must measure time passed to be also '~X' seconds with ~10 millisecond accuracy.
+small <10), another node in that time period, must measure time passed to be also within +/-25% of 'X' seconds.
 In practice, this requirement is easily satisfied, since cpu clocks don't drift apart that widely in short time periods.
 However, it is hypothetically possible for this requirement to be violated, if nodes are run in specilized virtual environments,
 where time delta doesn't come directly from the monotonic clock of the host system. In any case, all systems that use

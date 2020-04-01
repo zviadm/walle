@@ -11,7 +11,12 @@ import (
 	"github.com/zviadm/zlog"
 )
 
-func PutBatch(t *testing.T, nBatch int, maxInFlight int, ws ...*wallelib.Writer) {
+func PutBatch(
+	t *testing.T,
+	nBatch int,
+	maxInFlight int,
+	putTimeout time.Duration,
+	ws ...*wallelib.Writer) {
 	t0 := time.Now()
 	puts := make([]*wallelib.PutCtx, 0, nBatch)
 	putT0 := make([]time.Time, 0, nBatch)
@@ -22,14 +27,14 @@ func PutBatch(t *testing.T, nBatch int, maxInFlight int, ws ...*wallelib.Writer)
 		puts = append(puts, putCtx)
 		putT0 = append(putT0, time.Now())
 
-		ok, l := resolvePutCtx(t, puts[putIdx], putT0[putIdx], i-putIdx > maxInFlight)
+		ok, l := resolvePutCtx(t, puts[putIdx], putT0[putIdx], putTimeout, i-putIdx > maxInFlight)
 		if ok {
 			latencies = append(latencies, l)
 			putIdx += 1
 		}
 	}
 	for i := putIdx; i < len(puts); i++ {
-		_, l := resolvePutCtx(t, puts[i], putT0[putIdx], true)
+		_, l := resolvePutCtx(t, puts[i], putT0[putIdx], putTimeout, true)
 		latencies = append(latencies, l)
 	}
 	sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
@@ -43,7 +48,12 @@ func PutBatch(t *testing.T, nBatch int, maxInFlight int, ws ...*wallelib.Writer)
 	)
 }
 
-func resolvePutCtx(t *testing.T, putCtx *wallelib.PutCtx, putT0 time.Time, block bool) (bool, time.Duration) {
+func resolvePutCtx(
+	t *testing.T,
+	putCtx *wallelib.PutCtx,
+	putT0 time.Time,
+	putTimeout time.Duration,
+	block bool) (bool, time.Duration) {
 	if !block {
 		select {
 		case <-putCtx.Done():
@@ -51,7 +61,7 @@ func resolvePutCtx(t *testing.T, putCtx *wallelib.PutCtx, putT0 time.Time, block
 			return false, 0
 		}
 	} else {
-		timeout := putT0.Add(5 * time.Second).Sub(time.Now())
+		timeout := putT0.Add(putTimeout).Sub(time.Now())
 		select {
 		case <-putCtx.Done():
 		case <-time.After(timeout):

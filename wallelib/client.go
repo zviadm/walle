@@ -16,6 +16,11 @@ import (
 )
 
 type Client interface {
+	// Returns gRPC client to talk to specific streamURI within a cluster.
+	// If `idx` is set to -1, simple round robin load balancing is used.
+	// Otherwise if `idx >= 0`, it is used as a hint to get specific stable
+	// connection to a preferred node. This is only needed for high
+	// performance for PutEntry calls.
 	ForStream(streamURI string, idx int) (walleapi.WalleApiClient, error)
 }
 
@@ -27,11 +32,6 @@ type client struct {
 	conns     map[string]*grpc.ClientConn // serverId -> conn
 	preferred map[string][]string         // streamURI -> []serverId
 	rrIdx     map[string]int              // streamURI -> round-robin index
-}
-
-type connHealth struct {
-	ErrN     int64
-	DownNano int64
 }
 
 var ErrConnUnavailable = errors.New("connection in TransientFailure")
@@ -88,8 +88,7 @@ func (c *client) update(topology *walleapi.Topology) {
 		preferredIds := make([]string, len(streamT.ServerIds))
 		copy(preferredIds, streamT.ServerIds)
 
-		// TODO(zviad): actually sort by preference, instead of randomizing
-		// the order.
+		// TODO(zviad): actually sort by preference, instead of randomizing the order.
 		rand.Shuffle(len(preferredIds), func(i, j int) {
 			preferredIds[i], preferredIds[j] = preferredIds[j], preferredIds[i]
 		})
@@ -103,8 +102,8 @@ func (c *client) update(topology *walleapi.Topology) {
 	// Close and clear out all connections to serverIds that are no longer registered in topology.
 	for serverId, conn := range c.conns {
 		_, ok := topology.Servers[serverId]
-		// TODO(zviad): we should also close connections that now have incorrect targets, if
-		// server address has changed.
+		// TODO(zviad): we should also close connections that may now have incorrect
+		// targets, if server address has changed.
 		if !ok {
 			conn.Close()
 			delete(c.conns, serverId)
@@ -124,14 +123,14 @@ func (c *client) ForStream(streamURI string, idx int) (walleapi.WalleApiClient, 
 	if !ok {
 		return nil, errors.Errorf("streamURI: %s, not found in topology", streamURI)
 	}
-	tryN := 1
+	n := len(preferredIds)/2 + 1 // only rotate through preferred majority.
 	if idx == -1 {
 		idx = c.rrIdx[streamURI]
 		c.rrIdx[streamURI] += 1
-		tryN = len(preferredIds)
+		n = len(preferredIds)
 	}
-	for i := 0; i < tryN; i++ {
-		serverId := preferredIds[(idx+i)%len(preferredIds)]
+	for i := 0; i < n; i++ {
+		serverId := preferredIds[(idx+i)%n]
 		conn, err := c.unsafeServerConn(serverId)
 		if err != nil {
 			continue
@@ -170,7 +169,7 @@ func (c *client) unsafeServerConn(serverId string) (*grpc.ClientConn, error) {
 			grpc.WithInsecure(), // TODO(zviad): Decide what to do about security...
 			grpc.WithConnectParams(grpc.ConnectParams{
 				Backoff: backoff.Config{
-					// TODO(zviad): Make this configurable, for clients that might
+					// TODO(zviad): Might need to make this configurable for clients that might
 					// have very large lease minimums.
 					BaseDelay:  LeaseMinimum / 6, // Base delay has to be < Lease/4
 					MaxDelay:   30 * time.Second,

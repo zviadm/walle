@@ -31,6 +31,9 @@ func BootstrapDeployment(
 	rootURI string,
 	storageDir string,
 	port int) *walleapi.Topology {
+	if testing.Short() {
+		t.SkipNow()
+	}
 	// Bootstrap WALLE `itest` deployment.
 	sBootstrap := servicelib.RunGoService(
 		t, ctx, WallePkg, []string{

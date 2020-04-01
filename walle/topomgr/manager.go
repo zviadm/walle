@@ -97,16 +97,13 @@ func (m *Manager) manageLoop(
 		m.perTopo[topologyURI].topology = topology
 		m.mx.Unlock()
 		for {
-			state, notify := w.WriterState()
-			if state == wallelib.Closed {
-				zlog.Warningf("[tm] claim lost unexpectedly: %s", topologyURI)
-				break
-			}
 			select {
 			case <-ctx.Done():
 				return
-			case <-notify:
+			case <-w.Done():
+				zlog.Warningf("[tm] claim lost unexpectedly: %s", topologyURI)
 			}
+			break
 		}
 	}
 }

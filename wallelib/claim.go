@@ -5,7 +5,6 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/zviadm/walle/proto/walleapi"
 )
 
@@ -32,7 +31,8 @@ func claimWriter(
 	streamURI string,
 	writerAddr string,
 	writerLease time.Duration) (*Writer, *walleapi.Entry, error) {
-	// TODO(zviad): if previous writer has much larger lease, this will timeout.
+	// TODO(zviad): if previous writer has much larger lease
+	// and is still active, this can timeout.
 	ctx, cancel := context.WithTimeout(ctx, writerLease*3)
 	defer cancel()
 	resp, err := cli.ClaimWriter(
@@ -42,7 +42,7 @@ func claimWriter(
 			LeaseMs:    writerLease.Nanoseconds() / time.Millisecond.Nanoseconds(),
 		})
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "")
+		return nil, nil, err
 	}
 	commitTime := time.Now()
 	_, err = cli.PutEntry(ctx, &walleapi.PutEntryRequest{
@@ -52,7 +52,7 @@ func claimWriter(
 		CommittedEntryMd5: resp.LastEntry.ChecksumMd5,
 	})
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "")
+		return nil, nil, err
 	}
 	w := newWriter(
 		c, streamURI,
@@ -61,7 +61,7 @@ func claimWriter(
 	return w, resp.LastEntry, nil
 }
 
-// WaitAndClaim only attempts to claim, once current writer is no longer actively heartbeating.
+// WaitAndClaim only attempts to claim once current writer is no longer actively heartbeating.
 // WaitAndClaim will continue to wait and attempt claims until it is successful or `ctx` expires.
 func WaitAndClaim(
 	ctx context.Context,

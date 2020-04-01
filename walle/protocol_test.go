@@ -69,17 +69,14 @@ func TestProtocolClaimWriter(t *testing.T) {
 	require.EqualValues(t, e3.Entry.EntryId, 3, "e3: %+v", e3)
 	<-e3.Done()
 	require.NoError(t, e3.Err())
-	state, _ := w.WriterState()
-	require.Equal(t, wallelib.Exclusive, state)
+	require.True(t, w.IsExclusive())
 
 	// Make sure clean writer transition works.
 	w2, _, err := wallelib.ClaimWriter(ctx, c, "/mock/1", "testhost:1002", wallelib.LeaseMinimum)
 	require.NoError(t, err)
 	defer w2.Close()
-	state, _ = w.WriterState()
-	require.NotEqual(t, wallelib.Exclusive, state)
-	state2, _ := w2.WriterState()
-	require.Equal(t, wallelib.Exclusive, state2)
+	require.False(t, w.IsExclusive())
+	require.True(t, w2.IsExclusive())
 
 	w2.Close()
 	time.Sleep(wallelib.LeaseMinimum*2 + writerTimeoutToResolve)

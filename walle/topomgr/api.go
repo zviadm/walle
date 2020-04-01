@@ -160,10 +160,9 @@ func (m *Manager) perTopoMX(topologyURI string) (p *perTopoData, unlock func(), 
 	if !ok || p.writer == nil {
 		return nil, nil, status.Errorf(codes.Unavailable, "not serving: %s", topologyURI)
 	}
-	writerState, _ := p.writer.WriterState()
-	if writerState != wallelib.Exclusive {
+	if !p.writer.IsExclusive() {
 		return nil, nil, status.Errorf(codes.Unavailable,
-			"writer no longer exclusive: %s - %s", topologyURI, writerState)
+			"writer no longer exclusive: %s", topologyURI)
 	}
 	return p, m.mx.Unlock, err
 }
