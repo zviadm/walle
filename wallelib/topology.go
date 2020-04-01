@@ -13,7 +13,7 @@ import (
 )
 
 type discovery struct {
-	root        BasicClient
+	root        Client
 	topologyURI string
 
 	mx       sync.Mutex
@@ -40,7 +40,7 @@ func NewRootDiscovery(
 
 func NewDiscovery(
 	ctx context.Context,
-	root BasicClient,
+	root Client,
 	topologyURI string,
 	topology *walleapi.Topology) (Discovery, error) {
 	if topology.GetVersion() == 0 {
@@ -69,7 +69,7 @@ func NewDiscovery(
 }
 
 func newDiscovery(
-	root BasicClient,
+	root Client,
 	topologyURI string,
 	topology *walleapi.Topology) *discovery {
 	return &discovery{

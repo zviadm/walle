@@ -14,7 +14,7 @@ import (
 // as long as the `writerLease` duration of the current active writer.
 func ClaimWriter(
 	ctx context.Context,
-	c BasicClient,
+	c Client,
 	streamURI string,
 	writerAddr string,
 	writerLease time.Duration) (*Writer, *walleapi.Entry, error) {
@@ -27,7 +27,7 @@ func ClaimWriter(
 
 func claimWriter(
 	ctx context.Context,
-	c BasicClient,
+	c Client,
 	cli walleapi.WalleApiClient,
 	streamURI string,
 	writerAddr string,
@@ -65,7 +65,7 @@ func claimWriter(
 // WaitAndClaim will continue to wait and attempt claims until it is successful or `ctx` expires.
 func WaitAndClaim(
 	ctx context.Context,
-	c BasicClient,
+	c Client,
 	streamURI string,
 	writerAddr string,
 	writerLease time.Duration) (w *Writer, e *walleapi.Entry, err error) {

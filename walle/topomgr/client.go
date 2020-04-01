@@ -15,10 +15,10 @@ import (
 )
 
 type client struct {
-	c wallelib.BasicClient
+	c wallelib.Client
 }
 
-func NewClient(c wallelib.BasicClient) topomgr.TopoManagerClient {
+func NewClient(c wallelib.Client) topomgr.TopoManagerClient {
 	return &client{c}
 }
 

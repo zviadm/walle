@@ -17,7 +17,7 @@ var flagManagerLease = flag.Duration(
 		"unless root cluster is deployed across really high latency network.")
 
 type Manager struct {
-	c    wallelib.BasicClient
+	c    wallelib.Client
 	addr string
 
 	mx      sync.Mutex
@@ -32,7 +32,7 @@ type perTopoData struct {
 	putCtx     *wallelib.PutCtx
 }
 
-func NewManager(c wallelib.BasicClient, addr string) *Manager {
+func NewManager(c wallelib.Client, addr string) *Manager {
 	return &Manager{
 		c:       c,
 		addr:    addr,

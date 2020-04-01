@@ -172,7 +172,7 @@ func watchTopologyAndSave(ctx context.Context, d wallelib.Discovery, f string) {
 
 func registerServerInfo(
 	ctx context.Context,
-	root wallelib.BasicClient,
+	root wallelib.Client,
 	topologyURI string,
 	topologyD wallelib.Discovery,
 	serverId string,

@@ -32,7 +32,7 @@ const (
 // Writer retries PutEntry calls internally indefinitely, until an unrecoverable error happens.
 // Once an error happens, writer is completely closed and can no longer be used to write any new entries.
 type Writer struct {
-	c           BasicClient
+	c           Client
 	streamURI   string
 	writerLease time.Duration
 	writerAddr  string
@@ -81,7 +81,7 @@ func (p *PutCtx) set(err error) {
 }
 
 func newWriter(
-	c BasicClient,
+	c Client,
 	streamURI string,
 	writerLease time.Duration,
 	writerAddr string,

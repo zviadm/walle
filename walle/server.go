@@ -27,7 +27,7 @@ type Server struct {
 }
 
 type Client interface {
-	wallelib.BasicClient
+	wallelib.Client
 	ForServer(serverId string) (walle_pb.WalleClient, error)
 }
 

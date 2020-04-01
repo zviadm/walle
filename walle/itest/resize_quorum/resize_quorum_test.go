@@ -89,7 +89,7 @@ func shrinkTopology(
 	ctx context.Context,
 	s *servicelib.Service,
 	topoMgr topomgr_pb.TopoManagerClient,
-	cli wallelib.BasicClient,
+	cli wallelib.Client,
 	rootURI string) {
 	topology, err := topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
 	require.NoError(t, err)

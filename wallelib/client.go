@@ -15,7 +15,7 @@ import (
 	"github.com/zviadm/walle/proto/walleapi"
 )
 
-type BasicClient interface {
+type Client interface {
 	ForStream(streamURI string, idx int) (walleapi.WalleApiClient, error)
 }
 

@@ -73,6 +73,7 @@ func (m *Manager) UpdateServerIds(
 		return nil, err
 	}
 	streamVersion := p.topology.Streams[req.StreamUri].GetVersion()
+	serverIds := p.topology.Streams[req.StreamUri].GetServerIds()
 	changed, err := verifyAndDiffMembershipChange(p.topology, req.StreamUri, req.ServerIds)
 	unlock()
 	if err != nil {
@@ -80,7 +81,7 @@ func (m *Manager) UpdateServerIds(
 	}
 
 	// First make sure majority of current members are at the latest version.
-	if streamVersion > 0 {
+	if streamVersion > 0 && len(serverIds) > 0 {
 		if err := m.waitForStreamVersion(
 			ctx, req.StreamUri, streamVersion); err != nil {
 			return nil, err
@@ -91,9 +92,11 @@ func (m *Manager) UpdateServerIds(
 		if err := resolvePutCtx(ctx, putCtx, err); err != nil {
 			return nil, err
 		}
-		if err := m.waitForStreamVersion(
-			ctx, req.StreamUri, streamVersion); err != nil {
-			return nil, err
+		if len(req.ServerIds) > 0 {
+			if err := m.waitForStreamVersion(
+				ctx, req.StreamUri, streamVersion); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return &topomgr.UpdateServerIdsResponse{}, nil
