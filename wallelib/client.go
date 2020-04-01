@@ -169,10 +169,10 @@ func (c *client) unsafeServerConn(serverId string) (*grpc.ClientConn, error) {
 			grpc.WithInsecure(), // TODO(zviad): Decide what to do about security...
 			grpc.WithConnectParams(grpc.ConnectParams{
 				Backoff: backoff.Config{
-					// TODO(zviad): Might need to make this configurable for clients that might
-					// have very large lease minimums.
+					// TODO(zviad): Might need to make this configurable for cluster
+					// configurations with really large leases, long connection timeouts.
 					BaseDelay:  LeaseMinimum / 6, // Base delay has to be < Lease/4
-					MaxDelay:   30 * time.Second,
+					MaxDelay:   5 * time.Second,
 					Multiplier: 1.6,
 					Jitter:     0.2,
 				},
