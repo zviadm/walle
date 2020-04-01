@@ -136,6 +136,7 @@ Main:
 			ServerId:      serverId,
 			StreamUri:     ss.StreamURI(),
 			StreamVersion: ssTopology.Version,
+			FromServerId:  s.s.ServerId(),
 			StartEntryId:  startId,
 			EndEntryId:    endId,
 		})

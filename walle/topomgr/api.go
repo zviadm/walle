@@ -72,7 +72,7 @@ func (m *Manager) UpdateServerIds(
 	if err != nil {
 		return nil, err
 	}
-	requiredStreamVersion := p.topology.Streams[req.StreamUri].GetVersion()
+	streamVersion := p.topology.Streams[req.StreamUri].GetVersion()
 	changed, err := verifyAndDiffMembershipChange(p.topology, req.StreamUri, req.ServerIds)
 	unlock()
 	if err != nil {
@@ -80,15 +80,19 @@ func (m *Manager) UpdateServerIds(
 	}
 
 	// First make sure majority of current members are at the latest version.
-	if requiredStreamVersion > 0 {
+	if streamVersion > 0 {
 		if err := m.waitForStreamVersion(
-			ctx, req.StreamUri, requiredStreamVersion); err != nil {
+			ctx, req.StreamUri, streamVersion); err != nil {
 			return nil, err
 		}
 	}
 	if changed {
-		putCtx, err := m.updateServerIds(ctx, req, requiredStreamVersion)
+		putCtx, streamVersion, err := m.updateServerIds(ctx, req, streamVersion)
 		if err := resolvePutCtx(ctx, putCtx, err); err != nil {
+			return nil, err
+		}
+		if err := m.waitForStreamVersion(
+			ctx, req.StreamUri, streamVersion); err != nil {
 			return nil, err
 		}
 	}
@@ -119,25 +123,25 @@ func (m *Manager) waitForStreamVersion(
 func (m *Manager) updateServerIds(
 	ctx context.Context,
 	req *topomgr.UpdateServerIdsRequest,
-	requiredStreamVersion int64) (*wallelib.PutCtx, error) {
+	streamVersion int64) (*wallelib.PutCtx, int64, error) {
 	p, unlock, err := m.perTopoMX(req.TopologyUri)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer unlock()
-	if requiredStreamVersion > 0 && p.topology.Streams[req.StreamUri].Version != requiredStreamVersion {
-		return nil, status.Errorf(codes.Unavailable, "conflict with concurrent topology update for: %s", req.StreamUri)
+	if p.topology.Streams[req.StreamUri].GetVersion() != streamVersion {
+		return nil, 0, status.Errorf(codes.Unavailable, "conflict with concurrent topology update for: %s", req.StreamUri)
 	}
 	p.topology.Version += 1
 	streamT := p.topology.Streams[req.StreamUri]
-	if requiredStreamVersion == 0 {
+	if streamVersion == 0 {
 		streamT = &walleapi.StreamTopology{}
 		p.topology.Streams[req.StreamUri] = streamT
 	}
 	streamT.Version += 1
 	streamT.ServerIds = req.ServerIds
 	putCtx := p.commitTopology()
-	return putCtx, nil
+	return putCtx, streamT.Version, nil
 }
 
 func (m *Manager) perTopoMX(topologyURI string) (p *perTopoData, unlock func(), err error) {

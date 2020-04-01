@@ -38,6 +38,7 @@ func (s *Server) ClaimWriter(
 				ServerId:      serverId,
 				StreamUri:     req.StreamUri,
 				StreamVersion: ssTopology.Version,
+				FromServerId:  s.s.ServerId(),
 				WriterId:      writerId.Encode(),
 				WriterAddr:    req.WriterAddr,
 				LeaseMs:       req.LeaseMs,
@@ -62,6 +63,7 @@ func (s *Server) ClaimWriter(
 				ServerId:      serverId,
 				StreamUri:     req.StreamUri,
 				StreamVersion: ssTopology.Version,
+				FromServerId:  s.s.ServerId(),
 			})
 			if err != nil {
 				return nil, err
@@ -111,6 +113,7 @@ func (s *Server) ClaimWriter(
 		ServerId:      maxWriterServerId,
 		StreamUri:     req.StreamUri,
 		StreamVersion: ssTopology.Version,
+		FromServerId:  s.s.ServerId(),
 		Entry:         maxEntry,
 	})
 	if err != nil {
@@ -139,6 +142,7 @@ func (s *Server) ClaimWriter(
 				ServerId:      serverId,
 				StreamUri:     req.StreamUri,
 				StreamVersion: ssTopology.Version,
+				FromServerId:  s.s.ServerId(),
 				Entry:         entry,
 			})
 			if err != nil {
@@ -155,6 +159,7 @@ func (s *Server) ClaimWriter(
 			ServerId:          serverId,
 			StreamUri:         req.StreamUri,
 			StreamVersion:     ssTopology.Version,
+			FromServerId:      s.s.ServerId(),
 			Entry:             maxEntry,
 			CommittedEntryId:  maxEntry.EntryId,
 			CommittedEntryMd5: maxEntry.ChecksumMd5,
@@ -192,6 +197,7 @@ func (s *Server) commitMaxEntry(
 				ServerId:          serverId,
 				StreamUri:         streamURI,
 				StreamVersion:     streamVersion,
+				FromServerId:      s.s.ServerId(),
 				Entry:             maxEntry,
 				CommittedEntryId:  maxEntry.EntryId,
 				CommittedEntryMd5: maxEntry.ChecksumMd5,
@@ -236,6 +242,7 @@ func (s *Server) broadcastWriterInfo(
 				ServerId:      serverId,
 				StreamUri:     ss.StreamURI(),
 				StreamVersion: ssTopology.Version,
+				FromServerId:  s.s.ServerId(),
 			})
 			respMx.Lock()
 			defer respMx.Unlock()
@@ -281,6 +288,7 @@ func (s *Server) PutEntry(
 				ServerId:          serverId,
 				StreamUri:         req.StreamUri,
 				StreamVersion:     ssTopology.Version,
+				FromServerId:      s.s.ServerId(),
 				Entry:             req.Entry,
 				CommittedEntryId:  req.CommittedEntryId,
 				CommittedEntryMd5: req.CommittedEntryMd5,

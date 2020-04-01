@@ -175,6 +175,7 @@ func (s *Server) fetchCommittedEntry(
 				ServerId:      serverId,
 				StreamUri:     ss.StreamURI(),
 				StreamVersion: ssTopology.Version,
+				FromServerId:  s.s.ServerId(),
 				StartEntryId:  committedEntryId,
 				EndEntryId:    committedEntryId + 1,
 			})
@@ -255,7 +256,12 @@ type requestHeader interface {
 
 func (s *Server) processRequestHeader(req requestHeader) (ss storage.Stream, err error) {
 	if req.GetServerId() != s.s.ServerId() {
-		return nil, status.Errorf(codes.NotFound, "invalid serverId: %s", req.GetServerId())
+		return nil, status.Errorf(
+			codes.NotFound, "invalid server_id: %s", hex.EncodeToString([]byte(req.GetServerId())))
+	}
+	if req.GetFromServerId() == "" {
+		return nil, status.Errorf(
+			codes.NotFound, "invalid from_server_id: %s", hex.EncodeToString([]byte(req.GetFromServerId())))
 	}
 	ss, ok := s.s.Stream(req.GetStreamUri())
 	if !ok {
@@ -276,8 +282,8 @@ func (s *Server) checkStreamVersion(
 		(reqStreamVersion == ssTopology.Version-1 && storage.IsMember(ssTopology, fromServerId)) {
 		return nil
 	}
-	return errors.Errorf(
-		"stream[%s] incompatible version: %d vs %d (from: %s)",
+	return status.Errorf(
+		codes.NotFound, "stream[%s] incompatible version: %d vs %d (from: %s)",
 		ss.StreamURI(), reqStreamVersion, ssTopology.Version, hex.EncodeToString([]byte(fromServerId)))
 }
 
