@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"sync"
+	"time"
 
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/wallelib"
@@ -11,7 +12,7 @@ import (
 )
 
 var flagManagerLease = flag.Duration(
-	"walle.topomgr_lease", wallelib.LeaseMinimum,
+	"walle.topomgr_lease", time.Second,
 	"Lease duration for internal topology manager. Default should be fine in most circumstances, "+
 		"unless root cluster is deployed across really high latency network.")
 
