@@ -55,7 +55,7 @@ func RunWalle(
 	t *testing.T,
 	ctx context.Context,
 	rootPb *walleapi.Topology,
-	topologyURI string,
+	clusterURI string,
 	storageDir string,
 	port int) *servicelib.Service {
 	err := wallelib.TopologyToFile(rootPb, path.Join(storageDir, "root.pb"))
@@ -63,7 +63,7 @@ func RunWalle(
 	s := servicelib.RunGoService(
 		t, ctx, WallePkg, []string{
 			"-walle.root_uri", rootPb.RootUri,
-			"-walle.topology_uri", topologyURI,
+			"-walle.cluster_uri", clusterURI,
 			"-walle.storage_dir", storageDir,
 			"-walle.port", strconv.Itoa(port),
 			// use higher lease in integration testing since bunch of servers run

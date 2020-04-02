@@ -40,19 +40,19 @@ func expandTopology(
 	rootURI string,
 	port int) *servicelib.Service {
 
-	rootPb, err := topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
+	rootPb, err := topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{ClusterUri: rootURI})
 	require.NoError(t, err)
 	s := itest.RunWalle(t, ctx, rootPb, "", storage.TestTmpDir(), port)
 
-	rootPb, err = topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
+	rootPb, err = topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{ClusterUri: rootURI})
 	require.NoError(t, err)
 	serverId := serverIdsDiff(t, rootPb.Servers, rootPb.Streams[rootURI].ServerIds)
 	serverIds := append(rootPb.Streams[rootURI].ServerIds, serverId)
 	zlog.Info("TEST: --- expanding to: ", serverAddrs(rootPb.Servers, serverIds))
 	_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
-		TopologyUri: rootURI,
-		StreamUri:   rootURI,
-		ServerIds:   serverIds,
+		ClusterUri: rootURI,
+		StreamUri:  rootURI,
+		ServerIds:  serverIds,
 	})
 	require.NoError(t, err)
 	return s
@@ -80,15 +80,15 @@ func shrinkTopology(
 	s *servicelib.Service,
 	topoMgr topomgr_pb.TopoManagerClient,
 	rootURI string) {
-	rootPb, err := topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
+	rootPb, err := topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{ClusterUri: rootURI})
 	require.NoError(t, err)
 
 	serverIds := rootPb.Streams[rootURI].ServerIds[1:]
 	zlog.Info("TEST: --- shrinking to: ", serverAddrs(rootPb.Servers, serverIds))
 	_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
-		TopologyUri: rootURI,
-		StreamUri:   rootURI,
-		ServerIds:   serverIds,
+		ClusterUri: rootURI,
+		StreamUri:  rootURI,
+		ServerIds:  serverIds,
 	})
 	require.NoError(t, err)
 	s.Stop(t) // Make sure graceful stop is working.

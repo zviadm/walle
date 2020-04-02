@@ -49,16 +49,16 @@ func NewClient(ctx context.Context, d Discovery) *client {
 func NewClientFromRootPb(
 	ctx context.Context,
 	rootPb *walleapi.Topology,
-	topologyURI string) (*client, error) {
+	clusterURI string) (*client, error) {
 	rootD, err := NewRootDiscovery(ctx, rootPb)
 	if err != nil {
 		return nil, err
 	}
 	rootC := NewClient(ctx, rootD)
-	if topologyURI == "" || topologyURI == rootPb.RootUri {
+	if clusterURI == "" || clusterURI == rootPb.RootUri {
 		return rootC, nil
 	}
-	d, err := NewDiscovery(ctx, rootC, topologyURI, nil)
+	d, err := NewDiscovery(ctx, rootC, clusterURI, nil)
 	if err != nil {
 		return nil, err
 	}

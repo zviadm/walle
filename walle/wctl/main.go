@@ -24,13 +24,13 @@ func main() {
 	rootPb, err := wallelib.RootPbFromEnv()
 	exitOnErr(err)
 	ctx := context.Background()
-	topologyURI := topomgr.Prefix + *clusterName
-	c, err := wallelib.NewClientFromRootPb(ctx, rootPb, topologyURI)
+	clusterURI := topomgr.Prefix + *clusterName
+	c, err := wallelib.NewClientFromRootPb(ctx, rootPb, clusterURI)
 	exitOnErr(err)
 	topoMgr := topomgr.NewClient(c)
 	switch cmd {
 	case "show":
-		t, err := topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: topologyURI})
+		t, err := topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{ClusterUri: clusterURI})
 		exitOnErr(err)
 		fmt.Println(t)
 	default:

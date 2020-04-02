@@ -12,16 +12,16 @@ service TopoManager {
 }
 
 message FetchTopologyRequest {
-	string topology_uri = 1;
+	string cluster_uri = 1;
 }
 
 message UpdateServerInfoRequest {
-	string topology_uri = 1;
+	string cluster_uri = 1;
 	string server_id = 2;
 	ServerInfo server_info = 3;
 }
 message UpdateServerIdsRequest {
-	string topology_uri = 1;
+	string cluster_uri = 1;
 	string stream_uri = 2;
 	repeated string server_ids = 3;
 }

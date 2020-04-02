@@ -44,7 +44,7 @@ func SetupRootNodes(
 	require.NoError(t, err)
 	topoMgr := topomgr.NewClient(rootCli)
 	topology, err := topoMgr.FetchTopology(
-		ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
+		ctx, &topomgr_pb.FetchTopologyRequest{ClusterUri: rootURI})
 	require.NoError(t, err)
 	serverIds := ServerIdsSlice(topology.Servers)
 	require.Len(t, serverIds, rootN)
@@ -58,14 +58,14 @@ func SetupRootNodes(
 	}
 	for i := 1; i < rootN; i++ {
 		_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
-			TopologyUri: rootURI,
-			StreamUri:   rootURI,
-			ServerIds:   serverIds[:i+1]})
+			ClusterUri: rootURI,
+			StreamUri:  rootURI,
+			ServerIds:  serverIds[:i+1]})
 		require.NoError(t, err)
 	}
 	if rootN > 1 {
 		rootPb, err = topoMgr.FetchTopology(
-			ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
+			ctx, &topomgr_pb.FetchTopologyRequest{ClusterUri: rootURI})
 		require.NoError(t, err)
 	}
 	return s, rootPb, rootCli
@@ -97,7 +97,7 @@ func SetupClusterNodes(
 	wg.Wait()
 	topoMgr := topomgr.NewClient(rootCli)
 	clusterPb, err := topoMgr.FetchTopology(
-		ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: clusterURI})
+		ctx, &topomgr_pb.FetchTopologyRequest{ClusterUri: clusterURI})
 	require.NoError(t, err)
 	return s, ServerIdsSlice(clusterPb.Servers)
 }
@@ -111,8 +111,8 @@ func CreateStream(
 	serverIds []string) {
 	topoMgr := topomgr.NewClient(root)
 	_, err := topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
-		TopologyUri: clusterURI,
-		StreamUri:   streamURI,
-		ServerIds:   serverIds})
+		ClusterUri: clusterURI,
+		StreamUri:  streamURI,
+		ServerIds:  serverIds})
 	require.NoError(t, err)
 }

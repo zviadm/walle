@@ -25,12 +25,12 @@ func (m *Manager) UpdateServerInfo(
 	}
 	zlog.Infof(
 		"[tm] updated server: %s : %s -> %s",
-		req.TopologyUri, hex.EncodeToString([]byte(req.ServerId)), req.ServerInfo)
+		req.ClusterUri, hex.EncodeToString([]byte(req.ServerId)), req.ServerInfo)
 	return &empty.Empty{}, nil
 }
 
 func (m *Manager) updateServerInfo(req *topomgr.UpdateServerInfoRequest) (*wallelib.PutCtx, error) {
-	p, unlock, err := m.perTopoMX(req.TopologyUri)
+	p, unlock, err := m.perTopoMX(req.ClusterUri)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func (m *Manager) updateServerInfo(req *topomgr.UpdateServerInfoRequest) (*walle
 func (m *Manager) FetchTopology(
 	ctx context.Context,
 	req *topomgr.FetchTopologyRequest) (*walleapi.Topology, error) {
-	p, unlock, err := m.perTopoMX(req.TopologyUri)
+	p, unlock, err := m.perTopoMX(req.ClusterUri)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +68,7 @@ func (m *Manager) UpdateServerIds(
 		return nil, err
 	}
 
-	p, unlock, err := m.perTopoMX(req.TopologyUri)
+	p, unlock, err := m.perTopoMX(req.ClusterUri)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +128,7 @@ func (m *Manager) updateServerIds(
 	ctx context.Context,
 	req *topomgr.UpdateServerIdsRequest,
 	streamVersion int64) (*wallelib.PutCtx, *walleapi.Topology, error) {
-	p, unlock, err := m.perTopoMX(req.TopologyUri)
+	p, unlock, err := m.perTopoMX(req.ClusterUri)
 	if err != nil {
 		return nil, nil, err
 	}

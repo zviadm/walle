@@ -6,11 +6,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	topomgr_pb "github.com/zviadm/walle/proto/topomgr"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/tt/servicelib"
 	"github.com/zviadm/walle/walle/itest"
-	"github.com/zviadm/walle/walle/topomgr"
 	"github.com/zviadm/walle/wallelib"
 	"github.com/zviadm/zlog"
 	"google.golang.org/grpc/codes"
@@ -21,17 +19,12 @@ func TestRpcSizeLimits(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	defer servicelib.KillAll(t)
-	_, rootPb, cli := itest.SetupRootNodes(t, ctx, 3)
+	_, rootPb, rootCli := itest.SetupRootNodes(t, ctx, 3)
 
-	topoMgr := topomgr.NewClient(cli)
 	streamURI := "/t1/size_limits"
-	_, err := topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
-		TopologyUri: rootPb.RootUri,
-		StreamUri:   streamURI,
-		ServerIds:   rootPb.Streams[rootPb.RootUri].ServerIds,
-	})
-	require.NoError(t, err)
-
+	itest.CreateStream(
+		t, ctx, rootCli, rootPb.RootUri, streamURI,
+		rootPb.Streams[rootPb.RootUri].ServerIds)
 	w, err := wallelib.WaitAndClaim(
 		ctx, cli, streamURI, "blastwriter:1001", time.Second)
 	require.NoError(t, err)

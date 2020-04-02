@@ -12,8 +12,8 @@ import (
 )
 
 type discovery struct {
-	root        Client
-	topologyURI string
+	root       Client
+	clusterURI string
 
 	mx       sync.Mutex
 	topology *walleapi.Topology
@@ -47,7 +47,7 @@ func NewRootDiscovery(
 func NewDiscovery(
 	ctx context.Context,
 	root Client,
-	topologyURI string,
+	clusterURI string,
 	topology *walleapi.Topology) (Discovery, error) {
 	if topology.GetVersion() == 0 {
 		retryCtx, cancel := context.WithTimeout(ctx, 2*watchTimeout) // retry at least 2x.
@@ -55,11 +55,11 @@ func NewDiscovery(
 		err := KeepTryingWithBackoff(
 			retryCtx, connectTimeout, watchTimeout,
 			func(retryN uint) (bool, bool, error) {
-				cli, err := root.ForStream(topologyURI)
+				cli, err := root.ForStream(clusterURI)
 				if err != nil {
 					return false, false, err
 				}
-				topology, err = streamUpdates(retryCtx, cli, topologyURI, -1)
+				topology, err = streamUpdates(retryCtx, cli, clusterURI, -1)
 				if err != nil {
 					return false, false, err
 				}
@@ -69,18 +69,18 @@ func NewDiscovery(
 			return nil, err
 		}
 	}
-	d := newDiscovery(root, topologyURI, topology)
+	d := newDiscovery(root, clusterURI, topology)
 	go d.watcher(ctx)
 	return d, nil
 }
 
 func newDiscovery(
 	root Client,
-	topologyURI string,
+	clusterURI string,
 	topology *walleapi.Topology) *discovery {
 	return &discovery{
-		root:        root,
-		topologyURI: topologyURI,
+		root:       root,
+		clusterURI: clusterURI,
 
 		topology: topology,
 		notify:   make(chan struct{}),
@@ -93,11 +93,11 @@ func (d *discovery) watcher(ctx context.Context) {
 		err := KeepTryingWithBackoff(
 			ctx, connectTimeout, watchTimeout,
 			func(retryN uint) (bool, bool, error) {
-				cli, err := d.root.ForStream(d.topologyURI)
+				cli, err := d.root.ForStream(d.clusterURI)
 				if err != nil {
 					return false, false, err
 				}
-				topology, err = streamUpdates(ctx, cli, d.topologyURI, d.topology.Version+1)
+				topology, err = streamUpdates(ctx, cli, d.clusterURI, d.topology.Version+1)
 				if err != nil {
 					if err == io.EOF {
 						return true, false, nil
@@ -130,12 +130,12 @@ func (d *discovery) Topology() (*walleapi.Topology, <-chan struct{}) {
 func streamUpdates(
 	ctx context.Context,
 	cli walleapi.WalleApiClient,
-	topologyURI string,
+	clusterURI string,
 	fromEntryId int64) (*walleapi.Topology, error) {
 	streamCtx, cancel := context.WithTimeout(ctx, watchTimeout)
 	defer cancel()
 	r, err := cli.StreamEntries(streamCtx, &walleapi.StreamEntriesRequest{
-		StreamUri:   topologyURI,
+		StreamUri:   clusterURI,
 		FromEntryId: fromEntryId,
 	})
 	if err != nil {

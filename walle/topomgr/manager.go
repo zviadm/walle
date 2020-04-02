@@ -17,7 +17,7 @@ var flagManagerLease = flag.Duration(
 		"unless root cluster is deployed across really high latency network.")
 
 const (
-	Prefix = "/topology/"
+	Prefix = "/cluster/"
 )
 
 type Manager struct {

@@ -7,10 +7,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	topomgr_pb "github.com/zviadm/walle/proto/topomgr"
 	"github.com/zviadm/walle/tt/servicelib"
 	"github.com/zviadm/walle/walle/itest"
-	"github.com/zviadm/walle/walle/topomgr"
 	"github.com/zviadm/walle/wallelib"
 	"github.com/zviadm/zlog"
 )
@@ -23,13 +21,10 @@ func TestCrashingQuorum(t *testing.T) {
 
 	s, rootPb, cli := itest.SetupRootNodes(t, ctx, 3)
 
-	topoMgr := topomgr.NewClient(cli)
-	_, err := topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
-		TopologyUri: rootPb.RootUri,
-		StreamUri:   "/t1/blast",
-		ServerIds:   rootPb.Streams[rootPb.RootUri].ServerIds,
-	})
-	require.NoError(t, err)
+	streamURI := "/t1/crashing"
+	itest.CreateStream(
+		t, ctx, rootCli, rootPb.RootUri, streamURI,
+		rootPb.Streams[rootPb.RootUri].ServerIds)
 
 	crashWG := sync.WaitGroup{}
 	crashWG.Add(1)
@@ -41,11 +36,11 @@ func TestCrashingQuorum(t *testing.T) {
 	}()
 
 	w, err := wallelib.WaitAndClaim(
-		ctx, cli, "/t1/blast", "blastwriter:1001", time.Second)
+		ctx, cli, streamURI, "blastwriter:1001", time.Second)
 	require.NoError(t, err)
 	defer w.Close()
 	require.EqualValues(t, 0, w.Committed().EntryId)
-	zlog.Info("TEST: writer claimed for /t1/blast")
+	zlog.Info("TEST: writer claimed for ", streamURI)
 
 	for i := 0; i < 4; i++ {
 		zlog.Info("TEST: CRASH ITERATION --- ", i)

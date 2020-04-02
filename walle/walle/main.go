@@ -37,8 +37,8 @@ func main() {
 		"walle.bootstrap_only", false,
 		"Bootstrap new deployment. Will exit once new bootstrapped storage is created. "+
 			"Should be started again without -walle.bootstrap_only flag if it exits successfully.")
-	var topologyURI = flag.String("walle.topology_uri", "",
-		"Topology URI for this server. If not set, value from -walle.root_uri will be used.")
+	var clusterURI = flag.String("walle.cluster_uri", "",
+		"Cluster URI for this server. If not set, value from -walle.root_uri will be used.")
 
 	flag.Parse()
 	ctx, cancelAll := context.WithCancel(context.Background())
@@ -103,14 +103,14 @@ func main() {
 	go watchTopologyAndSave(ctx, rootD, rootFile)
 	var d wallelib.Discovery
 	var c walle.Client
-	if *topologyURI == "" || *topologyURI == *rootURI {
-		*topologyURI = *rootURI
+	if *clusterURI == "" || *clusterURI == *rootURI {
+		*clusterURI = *rootURI
 		d = rootD
 		c = rootCli
 	} else {
-		zlog.Infof("initializing topology discovery: %s...", *topologyURI)
+		zlog.Infof("initializing discovery: %s...", *clusterURI)
 		topology, _ := wallelib.TopologyFromFile(topoFile) // ok to ignore errors.
-		d, err = wallelib.NewDiscovery(ctx, rootCli, *topologyURI, topology)
+		d, err = wallelib.NewDiscovery(ctx, rootCli, *clusterURI, topology)
 		if err != nil {
 			zlog.Fatal(err)
 		}
@@ -119,14 +119,14 @@ func main() {
 	}
 	err = registerServerInfo(
 		ctx,
-		rootCli, *topologyURI, d,
+		rootCli, *clusterURI, d,
 		ss.ServerId(), serverInfo)
 	if err != nil {
 		zlog.Fatal(err)
 	}
 
 	var topoMgr *topomgr.Manager
-	if *rootURI == *topologyURI {
+	if *rootURI == *clusterURI {
 		topoMgr = topomgr.NewManager(rootCli, serverInfo.Address)
 	}
 	ws := walle.NewServer(ctx, ss, c, d, topoMgr)
@@ -173,7 +173,7 @@ func watchTopologyAndSave(ctx context.Context, d wallelib.Discovery, f string) {
 func registerServerInfo(
 	ctx context.Context,
 	root wallelib.Client,
-	topologyURI string,
+	clusterURI string,
 	topologyD wallelib.Discovery,
 	serverId string,
 	serverInfo *walleapi.ServerInfo) error {
@@ -187,9 +187,9 @@ func registerServerInfo(
 	zlog.Infof("updating serverInfo: %s -> %s ...", existingServerInfo, serverInfo)
 	topoMgr := topomgr.NewClient(root)
 	_, err := topoMgr.UpdateServerInfo(ctx, &topomgr_pb.UpdateServerInfoRequest{
-		TopologyUri: topologyURI,
-		ServerId:    serverId,
-		ServerInfo:  serverInfo,
+		ClusterUri: clusterURI,
+		ServerId:   serverId,
+		ServerInfo: serverInfo,
 	})
 	return err
 }
