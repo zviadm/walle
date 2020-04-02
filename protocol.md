@@ -14,21 +14,22 @@ about this concept in "master leases" section.
 
 There aren't well known standardized versions of "master leases" extension for any of the popular consensus
 protocols. Thus a lot of open source systems that implement either Paxos or Raft, tend to have their own flavors
-to extend the core protocol to support the leasing concept. Of course such an extension, is major modification
+to extend the core protocol to support the leasing concept. Of course such an extension is a major modification
 of the original protocol and it can no longer really be classified as a "standard algorithm".
 
-WALLE uses custom consensus protocol that supports "read lease" concept by design. Because of that, overall protocol
-is simpler to implement compared to Paxos or Raft. And from performance perspective, it allows writes to
-be confirmed with only 1 network round trip. Concept of "read lease", does add additional constraints for reads
-of the current state to be correct. Leases only work if "time delta" of few seconds can be measured consistently
-between separate nodes. So, for example, if one host measures "time passed" to be 'X' seconds (where 'X' is generally pretty
-small <10), another node in that time period, must measure time passed to be also within +/-25% of 'X' seconds.
-In practice, this requirement is easily satisfied, since cpu clocks don't drift apart that widely in short time periods.
-However, it is hypothetically possible for this requirement to be violated, if nodes are run in specilized virtual environments
-where time delta doesn't come directly from the monotonic clock of the host system. In any case, all systems that use
-any kind of time based lease concept, have this same requirement too, and this is a better tradeoff of correctness
-and performance for system like WALLE. (Note that this additional requirement is only for reads, writes would still remain
-correct and exclusive even with fully messed up clocks).
+WALLE uses custom consensus protocol that supports "read lease" concept by design not as a tacked on extension to
+an existing protocol. Because of that, overall protocol is simpler to implement compared to Paxos or Raft. And
+from performance perspective, it allows writes to be confirmed with only 1 network round trip.
+
+Concept of "read lease", does add additional constraints for reads of the current state to be correct. Leases only
+work if "time delta" of few seconds can be measured consistently between separate nodes. So, for example, if one host
+measures "time passed" to be 'X' seconds (where 'X' is generally pretty small <10), another node in that time period,
+must measure time passed to be also within +/-25% of 'X' seconds. In practice, this requirement is easily satisfied, since cpu
+clocks don't drift apart that widely in short time periods. However, it is hypothetically possible for this requirement to
+be violated, if nodes are run in specilized virtual environments where time delta doesn't come directly from the
+monotonic clock of the host system. In any case, all systems that use any kind of time based lease concept, have this
+same requirement too, and this is a better tradeoff of correctness and performance for system like WALLE. (Note that
+this additional requirement is only for reads, writes would still remain correct and exclusive even with fully messed up clocks).
 
 ## Gap handling
 

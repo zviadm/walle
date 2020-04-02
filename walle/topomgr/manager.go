@@ -30,6 +30,14 @@ type Manager struct {
 	clusters map[string]*clusterData
 }
 
+type clusterData struct {
+	cancel     context.CancelFunc
+	notifyDone <-chan struct{}
+	writer     *wallelib.Writer
+	topology   *walleapi.Topology // immutable
+	putCtx     *wallelib.PutCtx   // putCtx of last putEntry call
+}
+
 func NewManager(c wallelib.Client, addr string) *Manager {
 	return &Manager{
 		c:        c,
@@ -138,22 +146,19 @@ func (m *Manager) clusterMX(clusterURI string) (c *clusterData, unlock func(), e
 	return c, m.mx.Unlock, err
 }
 
-type clusterData struct {
-	cancel     context.CancelFunc
-	notifyDone <-chan struct{}
-	writer     *wallelib.Writer
-	topology   *walleapi.Topology
-	putCtx     *wallelib.PutCtx
-}
-
-func (c *clusterData) commitTopology() *wallelib.PutCtx {
-	topologyB, err := c.topology.Marshal()
+func (c *clusterData) commitTopology(t *walleapi.Topology) (*wallelib.PutCtx, error) {
+	topologyB, err := t.Marshal()
 	if err != nil {
-		panic(err) // this must never happen, crashing is the only sane solution.
+		return nil, err
+	}
+	if len(topologyB) > wallelib.MaxEntrySize {
+		return nil, status.Errorf(
+			codes.FailedPrecondition, "topology is too large: %d > %d bytes", len(topologyB), wallelib.MaxEntrySize)
 	}
 	putCtx := c.writer.PutEntry(topologyB)
+	c.topology = t
 	c.putCtx = putCtx
-	return putCtx
+	return putCtx, nil
 }
 
 func resolvePutCtx(ctx context.Context, putCtx *wallelib.PutCtx, err error) error {

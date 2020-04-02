@@ -39,9 +39,10 @@ func (m *Manager) updateServerInfo(req *topomgr.UpdateServerInfoRequest) (*walle
 	if proto.Equal(c.topology.Servers[req.ServerId], req.ServerInfo) {
 		return c.putCtx, nil
 	}
-	c.topology.Version += 1
-	c.topology.Servers[req.ServerId] = req.ServerInfo
-	return c.commitTopology(), nil
+	topology := proto.Clone(c.topology).(*walleapi.Topology)
+	topology.Version += 1
+	topology.Servers[req.ServerId] = req.ServerInfo
+	return c.commitTopology(topology)
 }
 
 func (m *Manager) FetchTopology(
@@ -52,7 +53,7 @@ func (m *Manager) FetchTopology(
 		return nil, err
 	}
 	putCtx := c.putCtx
-	topology := proto.Clone(c.topology).(*walleapi.Topology)
+	topology := c.topology
 	unlock()
 
 	if err := resolvePutCtx(ctx, putCtx, nil); err != nil {
@@ -72,7 +73,7 @@ func (m *Manager) UpdateServerIds(
 	if err != nil {
 		return nil, err
 	}
-	topology := proto.Clone(c.topology).(*walleapi.Topology)
+	topology := c.topology
 	unlock()
 
 	changed, err := verifyAndDiffMembershipChange(topology, req.StreamUri, req.ServerIds)
@@ -136,15 +137,15 @@ func (m *Manager) updateServerIds(
 	if c.topology.Streams[req.StreamUri].GetVersion() != streamVersion {
 		return nil, nil, status.Errorf(codes.Unavailable, "conflict with concurrent topology update for: %s", req.StreamUri)
 	}
-	c.topology.Version += 1
-	streamT := c.topology.Streams[req.StreamUri]
+	topology := proto.Clone(c.topology).(*walleapi.Topology)
+	topology.Version += 1
+	streamT := topology.Streams[req.StreamUri]
 	if streamVersion == 0 {
 		streamT = &walleapi.StreamTopology{}
-		c.topology.Streams[req.StreamUri] = streamT
+		topology.Streams[req.StreamUri] = streamT
 	}
 	streamT.Version += 1
 	streamT.ServerIds = req.ServerIds
-	topology := proto.Clone(c.topology).(*walleapi.Topology)
-	putCtx := c.commitTopology()
-	return putCtx, topology, nil
+	putCtx, err := c.commitTopology(topology)
+	return putCtx, topology, err
 }
