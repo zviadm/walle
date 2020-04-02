@@ -9,7 +9,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/zviadm/walle/proto/walleapi"
-	"github.com/zviadm/zlog"
 )
 
 type discovery struct {
@@ -117,14 +116,6 @@ func (d *discovery) watcher(ctx context.Context) {
 func (d *discovery) updateTopology(topology *walleapi.Topology) {
 	d.mx.Lock()
 	defer d.mx.Unlock()
-	if d.topology.GetVersion() > 0 && topology.Version <= d.topology.GetVersion() {
-		zlog.Errorf(
-			"ERR_FATAL; topology version must always increase: %d <= %d",
-			topology.Version, d.topology.Version)
-		return
-	}
-	zlog.Info(
-		"DEBUG: wallelib.topology ", d.topologyURI, " ", d.topology.Version, " -> ", topology.Version)
 	d.topology = topology
 	close(d.notify)
 	d.notify = make(chan struct{})

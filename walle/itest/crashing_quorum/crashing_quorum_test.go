@@ -70,10 +70,10 @@ func TestCrashingQuorum(t *testing.T) {
 	require.EqualValues(t, 0, e.EntryId)
 	zlog.Info("TEST: writer claimed for /t1/blast")
 
-	for i := 0; i < 6; i++ {
+	for i := 0; i < 4; i++ {
 		zlog.Info("TEST: CRASH ITERATION --- ", i)
 		crashC <- 100 * time.Millisecond
-		itest.PutBatch(t, 1000, 10, w)
+		itest.PutBatch(t, 1000, 100, w)
 		crashC <- 0
 		<-crashC
 	}

@@ -72,11 +72,20 @@ func (c *client) watcher(ctx context.Context, notify <-chan struct{}) {
 		select {
 		case <-notify:
 		case <-ctx.Done():
-			c.update(&walleapi.Topology{})
+			c.close()
 			return
 		}
 		topology, notify = c.d.Topology()
 		c.update(topology)
+	}
+}
+
+func (c *client) close() {
+	c.mx.Lock()
+	defer c.mx.Unlock()
+	for serverId, conn := range c.conns {
+		conn.Close()
+		delete(c.conns, serverId)
 	}
 }
 

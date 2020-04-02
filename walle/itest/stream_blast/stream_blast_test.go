@@ -62,17 +62,17 @@ func TestStreamBlast(t *testing.T) {
 		defer w[i].Close()
 	}
 	// Test with full quorum.
-	itest.PutBatch(t, 3000, 10, w[0])
-	itest.PutBatch(t, 3000, 100, w[0])
-	itest.PutBatch(t, 3000, 1000, w[0])
-	itest.PutBatch(t, 3000, 1000, w...)
+	itest.PutBatch(t, 2000, 10, w[0])
+	itest.PutBatch(t, 2000, 100, w[0])
+	itest.PutBatch(t, 2000, 1000, w[0])
+	itest.PutBatch(t, 2000, 1000, w...)
 
 	// Test with one node down.
 	defer servicelib.IptablesClearAll(t)
 	servicelib.IptablesBlockPort(t, itest.WalleDefaultPort+2)
 	s[2].Kill(t)
-	itest.PutBatch(t, 3000, 10, w[0])
-	itest.PutBatch(t, 3000, 100, w[0])
-	itest.PutBatch(t, 3000, 1000, w[0])
-	itest.PutBatch(t, 3000, 1000, w...)
+	itest.PutBatch(t, 2000, 10, w[0])
+	itest.PutBatch(t, 2000, 100, w[0])
+	itest.PutBatch(t, 2000, 1000, w[0])
+	itest.PutBatch(t, 2000, 1000, w...)
 }
