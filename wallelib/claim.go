@@ -48,8 +48,8 @@ func claimWriter(
 	_, err = cli.PutEntry(ctx, &walleapi.PutEntryRequest{
 		StreamUri:         streamURI,
 		Entry:             &walleapi.Entry{WriterId: resp.WriterId},
-		CommittedEntryId:  resp.LastEntry.EntryId,
-		CommittedEntryMd5: resp.LastEntry.ChecksumMd5,
+		CommittedEntryId:  resp.TailEntry.EntryId,
+		CommittedEntryMd5: resp.TailEntry.ChecksumMd5,
 	})
 	if err != nil {
 		return nil, err
@@ -57,7 +57,7 @@ func claimWriter(
 	w := newWriter(
 		c, streamURI,
 		writerLease, writerAddr,
-		resp.WriterId, resp.LastEntry, commitTime)
+		resp.WriterId, resp.TailEntry, commitTime)
 	return w, nil
 }
 

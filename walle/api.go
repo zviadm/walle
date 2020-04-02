@@ -109,7 +109,7 @@ func (s *Server) ClaimWriter(
 		for _, es := range entries {
 			return &walleapi.ClaimWriterResponse{
 				WriterId:  writerId.Encode(),
-				LastEntry: es[0],
+				TailEntry: es[0],
 			}, nil
 		}
 	}
@@ -178,7 +178,7 @@ func (s *Server) ClaimWriter(
 			return nil, err
 		}
 	}
-	return &walleapi.ClaimWriterResponse{WriterId: writerId.Encode(), LastEntry: maxEntry}, nil
+	return &walleapi.ClaimWriterResponse{WriterId: writerId.Encode(), TailEntry: maxEntry}, nil
 }
 
 func (s *Server) commitMaxEntry(

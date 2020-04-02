@@ -31,7 +31,7 @@ message ClaimWriterRequest {
 }
 message ClaimWriterResponse {
 	string writer_id = 1;
-	Entry last_entry = 2;
+	Entry tail_entry = 2;
 }
 
 message WriterStatusRequest {
