@@ -21,13 +21,11 @@ func TestRpcSizeLimits(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	defer servicelib.KillAll(t)
-	_, rootPb := itest.SetupRootNodes(t, ctx, 3)
+	_, rootPb, cli := itest.SetupRootNodes(t, ctx, 3)
 
-	cli, err := wallelib.NewClientFromRootPb(ctx, rootPb, "")
-	require.NoError(t, err)
 	topoMgr := topomgr.NewClient(cli)
 	streamURI := "/t1/size_limits"
-	_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
+	_, err := topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
 		TopologyUri: rootPb.RootUri,
 		StreamUri:   streamURI,
 		ServerIds:   itest.ServerIdsSlice(rootPb.Servers),

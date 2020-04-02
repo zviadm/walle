@@ -16,7 +16,7 @@ import (
 
 func SetupRootNodes(
 	t *testing.T, ctx context.Context, rootN int) (
-	s []*servicelib.Service, rootPb *walleapi.Topology) {
+	s []*servicelib.Service, rootPb *walleapi.Topology, rootCli wallelib.Client) {
 	rootURI := topomgr.Prefix + "itest"
 	wDir0 := storage.TestTmpDir()
 	rootPb = BootstrapDeployment(t, ctx, rootURI, wDir0, RootDefaultPort)
@@ -39,13 +39,12 @@ func SetupRootNodes(
 	}
 	wg.Wait()
 
-	cliCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	cli, err := wallelib.NewClientFromRootPb(cliCtx, rootPb, "")
+	var err error
+	rootCli, err = wallelib.NewClientFromRootPb(ctx, rootPb, "")
 	require.NoError(t, err)
-	topoMgr := topomgr.NewClient(cli)
+	topoMgr := topomgr.NewClient(rootCli)
 	topology, err := topoMgr.FetchTopology(
-		cliCtx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
+		ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
 	require.NoError(t, err)
 	serverIds := ServerIdsSlice(topology.Servers)
 	require.Len(t, serverIds, rootN)
@@ -58,7 +57,7 @@ func SetupRootNodes(
 		break
 	}
 	for i := 1; i < rootN; i++ {
-		_, err = topoMgr.UpdateServerIds(cliCtx, &topomgr_pb.UpdateServerIdsRequest{
+		_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
 			TopologyUri: rootURI,
 			StreamUri:   rootURI,
 			ServerIds:   serverIds[:i+1]})
@@ -66,8 +65,8 @@ func SetupRootNodes(
 	}
 	if rootN > 1 {
 		rootPb, err = topoMgr.FetchTopology(
-			cliCtx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
+			ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
 		require.NoError(t, err)
 	}
-	return s, rootPb
+	return s, rootPb, rootCli
 }

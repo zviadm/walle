@@ -21,12 +21,10 @@ func TestCrashingQuorum(t *testing.T) {
 	defer servicelib.KillAll(t)
 	defer servicelib.IptablesClearAll(t)
 
-	s, rootPb := itest.SetupRootNodes(t, ctx, 3)
+	s, rootPb, cli := itest.SetupRootNodes(t, ctx, 3)
 
-	cli, err := wallelib.NewClientFromRootPb(ctx, rootPb, "")
-	require.NoError(t, err)
 	topoMgr := topomgr.NewClient(cli)
-	_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
+	_, err := topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
 		TopologyUri: rootPb.RootUri,
 		StreamUri:   "/t1/blast",
 		ServerIds:   itest.ServerIdsSlice(rootPb.Servers),
