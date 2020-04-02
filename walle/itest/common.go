@@ -21,8 +21,9 @@ import (
 var _ = zlog.Info // Force import of `zlog`.
 
 const (
-	WallePkg         = "../../walle"
-	WalleDefaultPort = 5005
+	WallePkg           = "../../walle"
+	RootDefaultPort    = 5005
+	ClusterDefaultPort = 5055
 )
 
 func BootstrapDeployment(

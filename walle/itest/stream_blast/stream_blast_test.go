@@ -24,13 +24,13 @@ func TestStreamBlast(t *testing.T) {
 	wDir := storage.TestTmpDir()
 	rootURI := topomgr.Prefix + "itest"
 
-	rootTopology := itest.BootstrapDeployment(t, ctx, rootURI, wDir, itest.WalleDefaultPort)
+	rootTopology := itest.BootstrapDeployment(t, ctx, rootURI, wDir, itest.RootDefaultPort)
 	s := make([]*servicelib.Service, 3)
-	s[0] = itest.RunWalle(t, ctx, rootURI, "", rootTopology, wDir, itest.WalleDefaultPort)
+	s[0] = itest.RunWalle(t, ctx, rootURI, "", rootTopology, wDir, itest.RootDefaultPort)
 	defer s[0].Stop(t)
 	for i := 1; i <= 2; i++ {
 		s[i] = itest.RunWalle(
-			t, ctx, rootURI, "", rootTopology, storage.TestTmpDir(), itest.WalleDefaultPort+i)
+			t, ctx, rootURI, "", rootTopology, storage.TestTmpDir(), itest.RootDefaultPort+i)
 		defer s[i].Kill(t)
 	}
 
@@ -70,7 +70,7 @@ func TestStreamBlast(t *testing.T) {
 
 	// Test with one node down.
 	defer servicelib.IptablesClearAll(t)
-	servicelib.IptablesBlockPort(t, itest.WalleDefaultPort+2)
+	servicelib.IptablesBlockPort(t, itest.RootDefaultPort+2)
 	s[2].Kill(t)
 	itest.PutBatch(t, 2000, 10, w[0])
 	itest.PutBatch(t, 2000, 100, w[0])

@@ -21,6 +21,9 @@ var goVer = runtime.Version()
 var installMx sync.Mutex
 var pkgsInstalled = make(map[string]struct{})
 
+var runningMx sync.Mutex
+var runningServices []*Service
+
 type Service struct {
 	pkg   string
 	flags []string
@@ -87,7 +90,18 @@ func RunGoService(
 		processState: &os.ProcessState{},
 	}
 	s.Start(t, ctx)
+	runningMx.Lock()
+	defer runningMx.Unlock()
+	runningServices = append(runningServices, s)
 	return s
+}
+
+func KillAll(t *testing.T) {
+	runningMx.Lock()
+	defer runningMx.Unlock()
+	for idx := len(runningServices) - 1; idx >= 0; idx-- {
+		runningServices[idx].Kill(t)
+	}
 }
 
 func (s *Service) Start(t *testing.T, ctx context.Context) {

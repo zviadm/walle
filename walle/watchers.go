@@ -104,3 +104,7 @@ func (s *Server) writerInfoWatcher(ctx context.Context) {
 		}
 	}
 }
+
+func isInternalWriter(writerAddr string) bool {
+	return writerAddr == "" || strings.HasPrefix(writerAddr, writerInternalAddrPrefix)
+}

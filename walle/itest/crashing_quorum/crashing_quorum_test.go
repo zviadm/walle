@@ -22,9 +22,9 @@ func TestCrashingQuorum(t *testing.T) {
 	rootURI := topomgr.Prefix + "itest"
 	wDir := storage.TestTmpDir()
 
-	rootTopology := itest.BootstrapDeployment(t, ctx, rootURI, wDir, itest.WalleDefaultPort)
+	rootTopology := itest.BootstrapDeployment(t, ctx, rootURI, wDir, itest.RootDefaultPort)
 	s := make([]*servicelib.Service, 3)
-	s[0] = itest.RunWalle(t, ctx, rootURI, "", rootTopology, wDir, itest.WalleDefaultPort)
+	s[0] = itest.RunWalle(t, ctx, rootURI, "", rootTopology, wDir, itest.RootDefaultPort)
 	defer s[0].Kill(t)
 
 	rootD, err := wallelib.NewRootDiscovery(ctx, rootTopology)
@@ -34,7 +34,7 @@ func TestCrashingQuorum(t *testing.T) {
 
 	var serverIds []string
 	for i := 1; i <= 2; i++ {
-		s[i] = itest.RunWalle(t, ctx, rootURI, "", rootTopology, storage.TestTmpDir(), itest.WalleDefaultPort+i)
+		s[i] = itest.RunWalle(t, ctx, rootURI, "", rootTopology, storage.TestTmpDir(), itest.RootDefaultPort+i)
 		defer s[i].Kill(t)
 		topology, err := topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
 		require.NoError(t, err)
@@ -89,7 +89,7 @@ func crashLoop(t *testing.T, s []*servicelib.Service, crashC chan time.Duration,
 		}
 		idx := i % len(s)
 		time.Sleep(delay)
-		servicelib.IptablesBlockPort(t, itest.WalleDefaultPort+idx)
+		servicelib.IptablesBlockPort(t, itest.RootDefaultPort+idx)
 		zlog.Infof("TEST: killing s[%d] process", idx)
 		s[idx].Kill(t)
 
@@ -97,7 +97,7 @@ func crashLoop(t *testing.T, s []*servicelib.Service, crashC chan time.Duration,
 		if !ok {
 			return
 		}
-		servicelib.IptablesUnblockPort(t, itest.WalleDefaultPort+idx)
+		servicelib.IptablesUnblockPort(t, itest.RootDefaultPort+idx)
 		zlog.Infof("TEST: starting s[%d] process", idx)
 		s[idx].Start(t, ctx)
 		crashC <- 0

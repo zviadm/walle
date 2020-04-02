@@ -24,8 +24,8 @@ func TestTwoLevelTopology(t *testing.T) {
 	topologyT1URI := topomgr.Prefix + "t1"
 	t1URIs := []string{"/t1/0", "/t1/1", "/t1/2", "/t1/3"}
 
-	rootPb := itest.BootstrapDeployment(t, ctx, rootURI, wDir, itest.WalleDefaultPort)
-	s := itest.RunWalle(t, ctx, rootURI, "", rootPb, wDir, itest.WalleDefaultPort)
+	rootPb := itest.BootstrapDeployment(t, ctx, rootURI, wDir, itest.RootDefaultPort)
+	s := itest.RunWalle(t, ctx, rootURI, "", rootPb, wDir, itest.RootDefaultPort)
 	defer s.Stop(t)
 
 	cli, err := wallelib.NewClientFromRootPb(ctx, rootPb, "")
@@ -45,7 +45,7 @@ func TestTwoLevelTopology(t *testing.T) {
 	nT1 := 3
 	for i := 1; i <= nT1; i++ {
 		sT1 := itest.RunWalle(
-			t, ctx, rootURI, topologyT1URI, rootPb, storage.TestTmpDir(), itest.WalleDefaultPort+i)
+			t, ctx, rootURI, topologyT1URI, rootPb, storage.TestTmpDir(), itest.RootDefaultPort+i)
 		defer sT1.Kill(t)
 	}
 

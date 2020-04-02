@@ -23,8 +23,8 @@ func TestResizeQuorum(t *testing.T) {
 	rootURI := topomgr.Prefix + "itest"
 	wDir := storage.TestTmpDir()
 
-	rootTopology := itest.BootstrapDeployment(t, ctx, rootURI, wDir, itest.WalleDefaultPort)
-	s := itest.RunWalle(t, ctx, rootURI, "", rootTopology, wDir, itest.WalleDefaultPort)
+	rootTopology := itest.BootstrapDeployment(t, ctx, rootURI, wDir, itest.RootDefaultPort)
+	s := itest.RunWalle(t, ctx, rootURI, "", rootTopology, wDir, itest.RootDefaultPort)
 	defer s.Stop(t)
 
 	rootD, err := wallelib.NewRootDiscovery(ctx, rootTopology)
@@ -34,7 +34,7 @@ func TestResizeQuorum(t *testing.T) {
 	services := []*servicelib.Service{s}
 	nTotal := 5
 	for idx := 1; idx < nTotal; idx++ {
-		s := expandTopology(t, ctx, topoMgr, rootURI, itest.WalleDefaultPort+idx)
+		s := expandTopology(t, ctx, topoMgr, rootURI, itest.RootDefaultPort+idx)
 		defer s.Stop(t)
 		services = append(services, s)
 	}
