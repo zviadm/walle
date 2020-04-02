@@ -18,6 +18,7 @@ const (
 
 	shortBeat       = 5 * time.Millisecond
 	maxInFlightPuts = 128
+	maxInFlightSize = 4 * 1024 * 1024
 
 	connectTimeout  = time.Second
 	ReconnectDelay  = 5 * time.Second
@@ -40,10 +41,9 @@ type Writer struct {
 	cliIdx    int // Used for sticky load balancing of the Client
 	cachedCli walleapi.WalleApiClient
 
-	tailEntry    *walleapi.Entry
-	reqQ         chan *PutCtx
-	inFlightQ    chan struct{}
-	heartbeaterQ chan struct{}
+	tailEntry *walleapi.Entry
+	reqQ      chan *PutCtx
+	limiter   *limiter
 
 	committedEntryMx  sync.Mutex
 	committedEntryId  int64
@@ -97,9 +97,8 @@ func newWriter(
 		tailEntry: tailEntry,
 		// Use very large buffer for reqQ to never block. If user fills this queue up,
 		// PutEntry calls will start blocking.
-		reqQ:         make(chan *PutCtx, 16384),
-		inFlightQ:    make(chan struct{}, maxInFlightPuts),
-		heartbeaterQ: make(chan struct{}, 1),
+		reqQ:    make(chan *PutCtx, 16384),
+		limiter: newLimiter(maxInFlightPuts, maxInFlightSize),
 
 		committedEntryId:  tailEntry.EntryId,
 		committedEntryMd5: tailEntry.ChecksumMd5,
@@ -157,11 +156,17 @@ func (w *Writer) processor(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case req := <-w.reqQ:
-			select {
-			case <-ctx.Done():
-				return
-			case w.inFlightQ <- struct{}{}:
-				go w.process(ctx, req)
+			for {
+				ok, notify := w.limiter.Put(req.Entry.Size())
+				if ok {
+					go w.process(ctx, req)
+					break
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case <-notify:
+				}
 			}
 		}
 	}
@@ -217,7 +222,7 @@ func (w *Writer) heartbeater(ctx context.Context) {
 }
 
 func (w *Writer) process(ctx context.Context, req *PutCtx) {
-	defer func() { <-w.inFlightQ }()
+	defer w.limiter.Done(req.Entry.Size())
 	timeout := putEntryTimeout
 	if w.writerLease > timeout {
 		timeout = w.writerLease
@@ -305,4 +310,43 @@ func CalculateChecksumMd5(prevMd5 []byte, data []byte) []byte {
 	h.Write(prevMd5)
 	h.Write(data)
 	return h.Sum(nil)
+}
+
+// Limiter for maximum number and size of requests that are in-flight.
+type limiter struct {
+	maxN    int
+	maxSize int
+
+	mx           sync.Mutex
+	inflightN    int
+	inflightSize int
+	notify       chan struct{}
+}
+
+func newLimiter(maxN int, maxSize int) *limiter {
+	return &limiter{
+		maxN:    maxN,
+		maxSize: maxSize,
+		notify:  make(chan struct{}),
+	}
+}
+
+func (l *limiter) Put(size int) (bool, <-chan struct{}) {
+	l.mx.Lock()
+	defer l.mx.Unlock()
+	ok := (l.inflightN+1 <= l.maxN) && (l.inflightSize+size <= l.maxSize)
+	if ok {
+		l.inflightN += 1
+		l.inflightSize += size
+	}
+	return ok, l.notify
+}
+
+func (l *limiter) Done(size int) {
+	l.mx.Lock()
+	defer l.mx.Unlock()
+	l.inflightN -= 1
+	l.inflightSize -= size
+	close(l.notify)
+	l.notify = make(chan struct{})
 }
