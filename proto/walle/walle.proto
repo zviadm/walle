@@ -8,7 +8,10 @@ service Walle {
 	rpc WriterInfo(WriterInfoRequest) returns (WriterInfoResponse) {}
 	rpc PutEntryInternal(PutEntryInternalRequest) returns (PutEntryInternalResponse) {}
 
-	rpc LastEntries(LastEntriesRequest) returns (LastEntriesResponse) {}
+	// Returns last committed entry and all following uncommitted entries from the server.
+	// There are never any gaps in uncommitted entries.
+	rpc TailEntries(TailEntriesRequest) returns (stream Entry) {}
+
 	// NOTE: ReadEntries only returns committed entries. If it hits a GAP or end of the stream,
 	// it will return NOT_FOUND error.
 	rpc ReadEntries(ReadEntriesRequest) returns (stream Entry) {}
@@ -52,14 +55,11 @@ message PutEntryInternalRequest {
 }
 message PutEntryInternalResponse{}
 
-message LastEntriesRequest {
+message TailEntriesRequest {
 	string server_id = 1;
 	string stream_uri = 2;
 	int64 stream_version = 3;
 	string from_server_id = 4;
-}
-message LastEntriesResponse {
-	repeated Entry entries = 1;
 }
 
 message ReadEntriesRequest {

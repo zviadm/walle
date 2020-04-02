@@ -442,7 +442,7 @@ func (m *PutEntryInternalResponse) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_PutEntryInternalResponse proto.InternalMessageInfo
 
-type LastEntriesRequest struct {
+type TailEntriesRequest struct {
 	ServerId             string   `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
 	StreamUri            string   `protobuf:"bytes,2,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
 	StreamVersion        int64    `protobuf:"varint,3,opt,name=stream_version,json=streamVersion,proto3" json:"stream_version,omitempty"`
@@ -452,18 +452,18 @@ type LastEntriesRequest struct {
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *LastEntriesRequest) Reset()         { *m = LastEntriesRequest{} }
-func (m *LastEntriesRequest) String() string { return proto.CompactTextString(m) }
-func (*LastEntriesRequest) ProtoMessage()    {}
-func (*LastEntriesRequest) Descriptor() ([]byte, []int) {
+func (m *TailEntriesRequest) Reset()         { *m = TailEntriesRequest{} }
+func (m *TailEntriesRequest) String() string { return proto.CompactTextString(m) }
+func (*TailEntriesRequest) ProtoMessage()    {}
+func (*TailEntriesRequest) Descriptor() ([]byte, []int) {
 	return fileDescriptor_827f2b64ddfdb030, []int{6}
 }
-func (m *LastEntriesRequest) XXX_Unmarshal(b []byte) error {
+func (m *TailEntriesRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *LastEntriesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *TailEntriesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_LastEntriesRequest.Marshal(b, m, deterministic)
+		return xxx_messageInfo_TailEntriesRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalTo(b)
@@ -473,91 +473,44 @@ func (m *LastEntriesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return b[:n], nil
 	}
 }
-func (m *LastEntriesRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_LastEntriesRequest.Merge(m, src)
+func (m *TailEntriesRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TailEntriesRequest.Merge(m, src)
 }
-func (m *LastEntriesRequest) XXX_Size() int {
+func (m *TailEntriesRequest) XXX_Size() int {
 	return m.Size()
 }
-func (m *LastEntriesRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_LastEntriesRequest.DiscardUnknown(m)
+func (m *TailEntriesRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_TailEntriesRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_LastEntriesRequest proto.InternalMessageInfo
+var xxx_messageInfo_TailEntriesRequest proto.InternalMessageInfo
 
-func (m *LastEntriesRequest) GetServerId() string {
+func (m *TailEntriesRequest) GetServerId() string {
 	if m != nil {
 		return m.ServerId
 	}
 	return ""
 }
 
-func (m *LastEntriesRequest) GetStreamUri() string {
+func (m *TailEntriesRequest) GetStreamUri() string {
 	if m != nil {
 		return m.StreamUri
 	}
 	return ""
 }
 
-func (m *LastEntriesRequest) GetStreamVersion() int64 {
+func (m *TailEntriesRequest) GetStreamVersion() int64 {
 	if m != nil {
 		return m.StreamVersion
 	}
 	return 0
 }
 
-func (m *LastEntriesRequest) GetFromServerId() string {
+func (m *TailEntriesRequest) GetFromServerId() string {
 	if m != nil {
 		return m.FromServerId
 	}
 	return ""
-}
-
-type LastEntriesResponse struct {
-	Entries              []*walleapi.Entry `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
-	XXX_unrecognized     []byte            `json:"-"`
-	XXX_sizecache        int32             `json:"-"`
-}
-
-func (m *LastEntriesResponse) Reset()         { *m = LastEntriesResponse{} }
-func (m *LastEntriesResponse) String() string { return proto.CompactTextString(m) }
-func (*LastEntriesResponse) ProtoMessage()    {}
-func (*LastEntriesResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_827f2b64ddfdb030, []int{7}
-}
-func (m *LastEntriesResponse) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *LastEntriesResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_LastEntriesResponse.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *LastEntriesResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_LastEntriesResponse.Merge(m, src)
-}
-func (m *LastEntriesResponse) XXX_Size() int {
-	return m.Size()
-}
-func (m *LastEntriesResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_LastEntriesResponse.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_LastEntriesResponse proto.InternalMessageInfo
-
-func (m *LastEntriesResponse) GetEntries() []*walleapi.Entry {
-	if m != nil {
-		return m.Entries
-	}
-	return nil
 }
 
 type ReadEntriesRequest struct {
@@ -576,7 +529,7 @@ func (m *ReadEntriesRequest) Reset()         { *m = ReadEntriesRequest{} }
 func (m *ReadEntriesRequest) String() string { return proto.CompactTextString(m) }
 func (*ReadEntriesRequest) ProtoMessage()    {}
 func (*ReadEntriesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_827f2b64ddfdb030, []int{8}
+	return fileDescriptor_827f2b64ddfdb030, []int{7}
 }
 func (m *ReadEntriesRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -654,53 +607,50 @@ func init() {
 	proto.RegisterType((*WriterInfoResponse)(nil), "WriterInfoResponse")
 	proto.RegisterType((*PutEntryInternalRequest)(nil), "PutEntryInternalRequest")
 	proto.RegisterType((*PutEntryInternalResponse)(nil), "PutEntryInternalResponse")
-	proto.RegisterType((*LastEntriesRequest)(nil), "LastEntriesRequest")
-	proto.RegisterType((*LastEntriesResponse)(nil), "LastEntriesResponse")
+	proto.RegisterType((*TailEntriesRequest)(nil), "TailEntriesRequest")
 	proto.RegisterType((*ReadEntriesRequest)(nil), "ReadEntriesRequest")
 }
 
 func init() { proto.RegisterFile("walle/walle.proto", fileDescriptor_827f2b64ddfdb030) }
 
 var fileDescriptor_827f2b64ddfdb030 = []byte{
-	// 596 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xcc, 0x55, 0xcd, 0x6e, 0xd3, 0x4c,
-	0x14, 0xf5, 0x24, 0x4d, 0xda, 0xdc, 0xe4, 0xab, 0x9a, 0xeb, 0x4f, 0xaa, 0xeb, 0x42, 0x88, 0x0c,
-	0x48, 0x5d, 0xa0, 0x09, 0x2a, 0x54, 0x95, 0xd8, 0x81, 0xc4, 0x22, 0x52, 0x8b, 0x90, 0x11, 0x54,
-	0x62, 0x63, 0xb9, 0x9d, 0x69, 0x19, 0x29, 0xb6, 0xcb, 0xcc, 0xa4, 0x15, 0x3c, 0x09, 0x0b, 0xe0,
-	0x0d, 0x78, 0x09, 0x56, 0x2c, 0x79, 0x04, 0x14, 0xc4, 0x1b, 0xf0, 0x00, 0xc8, 0x33, 0xce, 0xaf,
-	0xdb, 0xae, 0xb3, 0x89, 0x3c, 0xe7, 0x5c, 0xd9, 0xe7, 0x9e, 0x7b, 0x72, 0x07, 0xda, 0x97, 0xf1,
-	0x60, 0xc0, 0x7b, 0xe6, 0x97, 0x9e, 0xcb, 0x4c, 0x67, 0xfe, 0xa6, 0x39, 0xc4, 0xe7, 0xa2, 0x37,
-	0x7e, 0xb0, 0x44, 0xf0, 0x97, 0xc0, 0xc6, 0x0b, 0x7e, 0x79, 0x24, 0x85, 0xe6, 0x32, 0xe4, 0xef,
-	0x87, 0x5c, 0x69, 0xdc, 0x86, 0x86, 0xe2, 0xf2, 0x82, 0xcb, 0x48, 0x30, 0x8f, 0x74, 0xc9, 0x4e,
-	0x23, 0x5c, 0xb3, 0x40, 0x9f, 0xe1, 0x6d, 0x00, 0xa5, 0x25, 0x8f, 0x93, 0x68, 0x28, 0x85, 0x57,
-	0x31, 0x6c, 0xc3, 0x22, 0xaf, 0xa5, 0xc0, 0xfb, 0xb0, 0x5e, 0xd0, 0x17, 0x5c, 0x2a, 0x91, 0xa5,
-	0x5e, 0xb5, 0x4b, 0x76, 0xaa, 0xe1, 0x7f, 0x16, 0x7d, 0x63, 0x41, 0xbc, 0x07, 0xeb, 0xa7, 0x32,
-	0x4b, 0xa2, 0xe9, 0x77, 0x56, 0xcc, 0x9b, 0x5a, 0x39, 0xfa, 0x6a, 0xfc, 0xad, 0x6d, 0x68, 0x5c,
-	0x1a, 0x65, 0x79, 0x41, 0xcd, 0x0a, 0xb1, 0x40, 0x9f, 0xe1, 0x1d, 0x68, 0x16, 0x64, 0xcc, 0x98,
-	0xf4, 0xea, 0x86, 0x06, 0x0b, 0x3d, 0x65, 0x4c, 0xe2, 0x16, 0xac, 0x0d, 0x78, 0xac, 0x78, 0x94,
-	0x28, 0x6f, 0xd5, 0x88, 0x58, 0x35, 0xe7, 0x43, 0x15, 0xb8, 0xd0, 0x9e, 0xe9, 0x5a, 0x9d, 0x67,
-	0xa9, 0xe2, 0xc1, 0x67, 0x02, 0x6d, 0x0b, 0xf5, 0xd3, 0xd3, 0x6c, 0xd9, 0xcc, 0x08, 0xbe, 0x13,
-	0xc0, 0x59, 0x79, 0x56, 0xf5, 0xbc, 0x47, 0xe4, 0x66, 0x8f, 0x2a, 0x37, 0x7a, 0x54, 0x9d, 0xf3,
-	0x08, 0x1f, 0x00, 0x4a, 0x9e, 0xc4, 0x22, 0x15, 0xe9, 0x59, 0x34, 0x29, 0x5a, 0x31, 0x45, 0x1b,
-	0x13, 0xe6, 0xa0, 0xa8, 0x2e, 0xb7, 0x5a, 0xbb, 0xa2, 0xd5, 0xe0, 0x6b, 0x05, 0x36, 0x5f, 0x0e,
-	0xf5, 0xf3, 0x54, 0xcb, 0x0f, 0xfd, 0x54, 0x73, 0x99, 0xc6, 0x83, 0xa5, 0x8b, 0xdd, 0x2d, 0xa8,
-	0xf1, 0x5c, 0xa0, 0x69, 0xa1, 0xb9, 0x5b, 0xa7, 0x46, 0x6e, 0x68, 0xc1, 0xdc, 0x97, 0x93, 0x2c,
-	0x49, 0x84, 0xd6, 0x9c, 0x45, 0x06, 0xca, 0xdf, 0x53, 0xb7, 0xbe, 0x4c, 0x18, 0xdb, 0x21, 0x43,
-	0x0a, 0xee, 0x62, 0x75, 0xc2, 0xf6, 0x4c, 0x1e, 0x5b, 0x61, 0x7b, 0xbe, 0xfc, 0x90, 0xed, 0x05,
-	0x3e, 0x78, 0x65, 0x7f, 0x8a, 0x80, 0x7e, 0x21, 0x80, 0x07, 0xb1, 0x32, 0xac, 0xe0, 0x6a, 0xe9,
-	0x12, 0xba, 0x0f, 0xee, 0x9c, 0xbc, 0x22, 0xa1, 0x5d, 0x58, 0xe5, 0x16, 0xf2, 0x48, 0xb7, 0x3a,
-	0x63, 0xe8, 0x18, 0x0e, 0xfe, 0x10, 0xc0, 0x90, 0xc7, 0x6c, 0x49, 0x1b, 0xcb, 0xab, 0x94, 0x8e,
-	0xa5, 0x9e, 0x8e, 0xdb, 0x86, 0xbb, 0x65, 0xd0, 0xf1, 0xa8, 0xbb, 0xd0, 0xe2, 0x69, 0x29, 0x12,
-	0xc0, 0xd3, 0x71, 0x18, 0x76, 0xbf, 0x55, 0xa0, 0x76, 0x94, 0x2f, 0x60, 0x7c, 0x0c, 0x8d, 0xc9,
-	0x02, 0xc2, 0x36, 0x5d, 0x5c, 0xc1, 0x3e, 0xd2, 0xf2, 0x7e, 0x72, 0x70, 0x1f, 0x60, 0xba, 0x01,
-	0x10, 0x69, 0x69, 0x5b, 0xf9, 0x2e, 0x2d, 0xaf, 0x88, 0xc0, 0xc1, 0x3e, 0x6c, 0x2c, 0xa6, 0x0a,
-	0x3d, 0x7a, 0xcd, 0x1f, 0xd1, 0xdf, 0xa2, 0xd7, 0x46, 0xd0, 0xc1, 0x27, 0xd0, 0x9c, 0x19, 0x32,
-	0xba, 0xb4, 0x9c, 0x48, 0xff, 0x7f, 0x7a, 0x45, 0x0e, 0x02, 0x07, 0x29, 0x34, 0x67, 0xc6, 0x8c,
-	0x2e, 0x2d, 0x0f, 0xdd, 0x2f, 0xc2, 0x11, 0x38, 0x0f, 0xc9, 0xb3, 0xbd, 0x1f, 0xa3, 0x0e, 0xf9,
-	0x39, 0xea, 0x90, 0x5f, 0xa3, 0x0e, 0xf9, 0xf4, 0xbb, 0xe3, 0xbc, 0xbd, 0x7b, 0x26, 0xf4, 0xbb,
-	0xe1, 0x31, 0x3d, 0xc9, 0x92, 0xde, 0xc7, 0x0b, 0x11, 0xb3, 0xc4, 0xde, 0x68, 0x3d, 0x73, 0x9d,
-	0xd9, 0xe7, 0xe3, 0xba, 0x39, 0x3c, 0xfa, 0x17, 0x00, 0x00, 0xff, 0xff, 0xf3, 0xb7, 0x76, 0x45,
-	0x09, 0x07, 0x00, 0x00,
+	// 570 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xcc, 0x55, 0xcd, 0x6e, 0x13, 0x3d,
+	0x14, 0x8d, 0xd3, 0x26, 0x6d, 0x6e, 0xf2, 0x55, 0xc9, 0xcd, 0xa2, 0xd3, 0xe9, 0x47, 0x88, 0x06,
+	0x90, 0xba, 0x40, 0x0e, 0x2a, 0x44, 0xac, 0x41, 0x62, 0x11, 0x89, 0x22, 0x34, 0xfc, 0x54, 0x62,
+	0x33, 0x72, 0x6b, 0xb7, 0x58, 0xca, 0xcc, 0x04, 0xdb, 0x49, 0x04, 0x4f, 0xc2, 0x02, 0x90, 0x78,
+	0x15, 0x56, 0x2c, 0x79, 0x04, 0x14, 0xc4, 0x1b, 0xf0, 0x00, 0x68, 0xec, 0xfc, 0x0f, 0xed, 0x3a,
+	0x9b, 0xd1, 0xf8, 0xdc, 0x23, 0xfb, 0xde, 0x73, 0x8f, 0xaf, 0xa1, 0x31, 0x66, 0xfd, 0xbe, 0xe8,
+	0xd8, 0x2f, 0x1d, 0xa8, 0xd4, 0xa4, 0xfe, 0xbe, 0x5d, 0xb0, 0x81, 0xec, 0xcc, 0x7e, 0x5c, 0x20,
+	0xf8, 0x43, 0xa0, 0xfe, 0x4c, 0x8c, 0x4f, 0x95, 0x34, 0x42, 0x85, 0xe2, 0xdd, 0x50, 0x68, 0x83,
+	0x87, 0x50, 0xd1, 0x42, 0x8d, 0x84, 0x8a, 0x24, 0xf7, 0x48, 0x9b, 0x1c, 0x55, 0xc2, 0x5d, 0x07,
+	0xf4, 0x38, 0xde, 0x00, 0xd0, 0x46, 0x09, 0x16, 0x47, 0x43, 0x25, 0xbd, 0xa2, 0x8d, 0x56, 0x1c,
+	0xf2, 0x4a, 0x49, 0xbc, 0x03, 0x7b, 0xd3, 0xf0, 0x48, 0x28, 0x2d, 0xd3, 0xc4, 0xdb, 0x6a, 0x93,
+	0xa3, 0xad, 0xf0, 0x3f, 0x87, 0xbe, 0x76, 0x20, 0xde, 0x86, 0xbd, 0x0b, 0x95, 0xc6, 0xd1, 0xe2,
+	0x9c, 0x6d, 0xbb, 0x53, 0x2d, 0x43, 0x5f, 0xcc, 0xce, 0x3a, 0x84, 0xca, 0xd8, 0x66, 0x96, 0x11,
+	0x4a, 0x2e, 0x11, 0x07, 0xf4, 0x38, 0xde, 0x84, 0xea, 0x34, 0xc8, 0x38, 0x57, 0x5e, 0xd9, 0x86,
+	0xc1, 0x41, 0x8f, 0x38, 0x57, 0x78, 0x00, 0xbb, 0x7d, 0xc1, 0xb4, 0x88, 0x62, 0xed, 0xed, 0xd8,
+	0x24, 0x76, 0xec, 0xfa, 0x44, 0x07, 0x4d, 0x68, 0x2c, 0x55, 0xad, 0x07, 0x69, 0xa2, 0x45, 0xf0,
+	0x89, 0x40, 0xc3, 0x41, 0xbd, 0xe4, 0x22, 0xdd, 0x34, 0x31, 0x82, 0x6f, 0x04, 0x70, 0x39, 0x3d,
+	0x97, 0xf5, 0xaa, 0x46, 0xe4, 0x7a, 0x8d, 0x8a, 0xd7, 0x6a, 0xb4, 0xb5, 0xa2, 0x11, 0xde, 0x05,
+	0x54, 0x22, 0x66, 0x32, 0x91, 0xc9, 0x65, 0x34, 0x27, 0x6d, 0x5b, 0x52, 0x7d, 0x1e, 0x79, 0x3a,
+	0x65, 0xe7, 0x4b, 0x2d, 0xfd, 0xa3, 0xd4, 0xe0, 0x4b, 0x11, 0xf6, 0x9f, 0x0f, 0xcd, 0x93, 0xc4,
+	0xa8, 0xf7, 0xbd, 0xc4, 0x08, 0x95, 0xb0, 0xfe, 0xc6, 0xd9, 0xee, 0x7f, 0x28, 0x89, 0x2c, 0x41,
+	0x5b, 0x42, 0xf5, 0xb8, 0x4c, 0x6d, 0xba, 0xa1, 0x03, 0x33, 0x5d, 0xce, 0xd3, 0x38, 0x96, 0xc6,
+	0x08, 0x1e, 0x59, 0x28, 0xdb, 0xa7, 0xec, 0x74, 0x99, 0x47, 0x5c, 0x85, 0x1c, 0x29, 0x34, 0xd7,
+	0xd9, 0x31, 0xef, 0x5a, 0x3f, 0xd6, 0xc2, 0xc6, 0x2a, 0xfd, 0x84, 0x77, 0x03, 0x1f, 0xbc, 0xbc,
+	0x3e, 0x53, 0x83, 0x7e, 0x26, 0x80, 0x2f, 0x99, 0xec, 0x67, 0x51, 0x29, 0xf4, 0xc6, 0x39, 0xf4,
+	0x37, 0x01, 0x0c, 0x05, 0xe3, 0x1b, 0x9a, 0x5f, 0xc6, 0xd2, 0x86, 0x29, 0xb3, 0xe8, 0x9a, 0xf3,
+	0x68, 0xcd, 0xa2, 0xb3, 0x8e, 0xb5, 0xa1, 0x26, 0x92, 0x5c, 0x67, 0x41, 0x24, 0xb3, 0x9e, 0x1e,
+	0x7f, 0x2d, 0x42, 0xe9, 0x34, 0x9b, 0xa3, 0xf8, 0x00, 0x2a, 0xf3, 0x39, 0x82, 0x0d, 0xba, 0x3e,
+	0x49, 0x7d, 0xa4, 0xf9, 0x31, 0x53, 0xc0, 0x87, 0x00, 0x8b, 0x8b, 0x8c, 0x48, 0x73, 0x43, 0xc7,
+	0x6f, 0xd2, 0xfc, 0x4d, 0x0f, 0x0a, 0xd8, 0x83, 0xfa, 0xba, 0x39, 0xd0, 0xa3, 0x57, 0xdc, 0x27,
+	0xff, 0x80, 0x5e, 0xe9, 0xa4, 0x02, 0x52, 0xa8, 0x2e, 0x59, 0x09, 0x9b, 0x34, 0x6f, 0x2c, 0x7f,
+	0x6a, 0xfc, 0xa0, 0x70, 0x8f, 0x64, 0xfc, 0xa5, 0xd6, 0x62, 0x93, 0xe6, 0x1b, 0xbd, 0xcc, 0x7f,
+	0xdc, 0xfd, 0x3e, 0x69, 0x91, 0x1f, 0x93, 0x16, 0xf9, 0x39, 0x69, 0x91, 0x8f, 0xbf, 0x5a, 0x85,
+	0x37, 0xb7, 0x2e, 0xa5, 0x79, 0x3b, 0x3c, 0xa3, 0xe7, 0x69, 0xdc, 0xf9, 0x30, 0x92, 0x8c, 0xc7,
+	0xee, 0x31, 0xea, 0xd8, 0x97, 0xc8, 0xfd, 0x9f, 0x95, 0xed, 0xe2, 0xfe, 0xdf, 0x00, 0x00, 0x00,
+	0xff, 0xff, 0x54, 0xd4, 0x9f, 0xfa, 0xc4, 0x06, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -718,7 +668,9 @@ type WalleClient interface {
 	NewWriter(ctx context.Context, in *NewWriterRequest, opts ...grpc.CallOption) (*NewWriterResponse, error)
 	WriterInfo(ctx context.Context, in *WriterInfoRequest, opts ...grpc.CallOption) (*WriterInfoResponse, error)
 	PutEntryInternal(ctx context.Context, in *PutEntryInternalRequest, opts ...grpc.CallOption) (*PutEntryInternalResponse, error)
-	LastEntries(ctx context.Context, in *LastEntriesRequest, opts ...grpc.CallOption) (*LastEntriesResponse, error)
+	// Returns last committed entry and all following uncommitted entries from the server.
+	// There are never any gaps in uncommitted entries.
+	TailEntries(ctx context.Context, in *TailEntriesRequest, opts ...grpc.CallOption) (Walle_TailEntriesClient, error)
 	// NOTE: ReadEntries only returns committed entries. If it hits a GAP or end of the stream,
 	// it will return NOT_FOUND error.
 	ReadEntries(ctx context.Context, in *ReadEntriesRequest, opts ...grpc.CallOption) (Walle_ReadEntriesClient, error)
@@ -759,17 +711,40 @@ func (c *walleClient) PutEntryInternal(ctx context.Context, in *PutEntryInternal
 	return out, nil
 }
 
-func (c *walleClient) LastEntries(ctx context.Context, in *LastEntriesRequest, opts ...grpc.CallOption) (*LastEntriesResponse, error) {
-	out := new(LastEntriesResponse)
-	err := c.cc.Invoke(ctx, "/Walle/LastEntries", in, out, opts...)
+func (c *walleClient) TailEntries(ctx context.Context, in *TailEntriesRequest, opts ...grpc.CallOption) (Walle_TailEntriesClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_Walle_serviceDesc.Streams[0], "/Walle/TailEntries", opts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &walleTailEntriesClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type Walle_TailEntriesClient interface {
+	Recv() (*walleapi.Entry, error)
+	grpc.ClientStream
+}
+
+type walleTailEntriesClient struct {
+	grpc.ClientStream
+}
+
+func (x *walleTailEntriesClient) Recv() (*walleapi.Entry, error) {
+	m := new(walleapi.Entry)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 func (c *walleClient) ReadEntries(ctx context.Context, in *ReadEntriesRequest, opts ...grpc.CallOption) (Walle_ReadEntriesClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_Walle_serviceDesc.Streams[0], "/Walle/ReadEntries", opts...)
+	stream, err := c.cc.NewStream(ctx, &_Walle_serviceDesc.Streams[1], "/Walle/ReadEntries", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -805,7 +780,9 @@ type WalleServer interface {
 	NewWriter(context.Context, *NewWriterRequest) (*NewWriterResponse, error)
 	WriterInfo(context.Context, *WriterInfoRequest) (*WriterInfoResponse, error)
 	PutEntryInternal(context.Context, *PutEntryInternalRequest) (*PutEntryInternalResponse, error)
-	LastEntries(context.Context, *LastEntriesRequest) (*LastEntriesResponse, error)
+	// Returns last committed entry and all following uncommitted entries from the server.
+	// There are never any gaps in uncommitted entries.
+	TailEntries(*TailEntriesRequest, Walle_TailEntriesServer) error
 	// NOTE: ReadEntries only returns committed entries. If it hits a GAP or end of the stream,
 	// it will return NOT_FOUND error.
 	ReadEntries(*ReadEntriesRequest, Walle_ReadEntriesServer) error
@@ -869,22 +846,25 @@ func _Walle_PutEntryInternal_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Walle_LastEntries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(LastEntriesRequest)
-	if err := dec(in); err != nil {
-		return nil, err
+func _Walle_TailEntries_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(TailEntriesRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
 	}
-	if interceptor == nil {
-		return srv.(WalleServer).LastEntries(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/Walle/LastEntries",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(WalleServer).LastEntries(ctx, req.(*LastEntriesRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+	return srv.(WalleServer).TailEntries(m, &walleTailEntriesServer{stream})
+}
+
+type Walle_TailEntriesServer interface {
+	Send(*walleapi.Entry) error
+	grpc.ServerStream
+}
+
+type walleTailEntriesServer struct {
+	grpc.ServerStream
+}
+
+func (x *walleTailEntriesServer) Send(m *walleapi.Entry) error {
+	return x.ServerStream.SendMsg(m)
 }
 
 func _Walle_ReadEntries_Handler(srv interface{}, stream grpc.ServerStream) error {
@@ -924,12 +904,13 @@ var _Walle_serviceDesc = grpc.ServiceDesc{
 			MethodName: "PutEntryInternal",
 			Handler:    _Walle_PutEntryInternal_Handler,
 		},
-		{
-			MethodName: "LastEntries",
-			Handler:    _Walle_LastEntries_Handler,
-		},
 	},
 	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "TailEntries",
+			Handler:       _Walle_TailEntries_Handler,
+			ServerStreams: true,
+		},
 		{
 			StreamName:    "ReadEntries",
 			Handler:       _Walle_ReadEntries_Handler,
@@ -1199,7 +1180,7 @@ func (m *PutEntryInternalResponse) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
-func (m *LastEntriesRequest) Marshal() (dAtA []byte, err error) {
+func (m *TailEntriesRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalTo(dAtA)
@@ -1209,7 +1190,7 @@ func (m *LastEntriesRequest) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *LastEntriesRequest) MarshalTo(dAtA []byte) (int, error) {
+func (m *TailEntriesRequest) MarshalTo(dAtA []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -1236,39 +1217,6 @@ func (m *LastEntriesRequest) MarshalTo(dAtA []byte) (int, error) {
 		i++
 		i = encodeVarintWalle(dAtA, i, uint64(len(m.FromServerId)))
 		i += copy(dAtA[i:], m.FromServerId)
-	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	return i, nil
-}
-
-func (m *LastEntriesResponse) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *LastEntriesResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if len(m.Entries) > 0 {
-		for _, msg := range m.Entries {
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintWalle(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n
-		}
 	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
@@ -1495,7 +1443,7 @@ func (m *PutEntryInternalResponse) Size() (n int) {
 	return n
 }
 
-func (m *LastEntriesRequest) Size() (n int) {
+func (m *TailEntriesRequest) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -1515,24 +1463,6 @@ func (m *LastEntriesRequest) Size() (n int) {
 	l = len(m.FromServerId)
 	if l > 0 {
 		n += 1 + l + sovWalle(uint64(l))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
-func (m *LastEntriesResponse) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if len(m.Entries) > 0 {
-		for _, e := range m.Entries {
-			l = e.Size()
-			n += 1 + l + sovWalle(uint64(l))
-		}
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -2548,7 +2478,7 @@ func (m *PutEntryInternalResponse) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *LastEntriesRequest) Unmarshal(dAtA []byte) error {
+func (m *TailEntriesRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -2571,10 +2501,10 @@ func (m *LastEntriesRequest) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: LastEntriesRequest: wiretype end group for non-group")
+			return fmt.Errorf("proto: TailEntriesRequest: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: LastEntriesRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: TailEntriesRequest: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -2691,94 +2621,6 @@ func (m *LastEntriesRequest) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.FromServerId = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipWalle(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthWalle
-			}
-			if (iNdEx + skippy) < 0 {
-				return ErrInvalidLengthWalle
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *LastEntriesResponse) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowWalle
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: LastEntriesResponse: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: LastEntriesResponse: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Entries", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowWalle
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthWalle
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthWalle
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Entries = append(m.Entries, &walleapi.Entry{})
-			if err := m.Entries[len(m.Entries)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

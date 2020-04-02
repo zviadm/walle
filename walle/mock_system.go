@@ -151,15 +151,20 @@ func (m *mockClient) WriterInfo(
 	return s.WriterInfo(ctx, in)
 }
 
-func (m *mockClient) LastEntries(
+func (m *mockClient) TailEntries(
 	ctx context.Context,
-	in *walle_pb.LastEntriesRequest,
-	opts ...grpc.CallOption) (*walle_pb.LastEntriesResponse, error) {
+	in *walle_pb.TailEntriesRequest,
+	opts ...grpc.CallOption) (walle_pb.Walle_TailEntriesClient, error) {
 	s, err := m.m.Server(in.ServerId)
 	if err != nil {
 		return nil, err
 	}
-	return s.LastEntries(ctx, in)
+	sClient, sServer, closeF := newMockEntriesStreams(ctx, 2)
+	go func() {
+		err := s.TailEntries(in, sServer)
+		closeF(err)
+	}()
+	return sClient, nil
 }
 
 func (m *mockClient) ReadEntries(
@@ -171,7 +176,7 @@ func (m *mockClient) ReadEntries(
 	if err != nil {
 		return nil, err
 	}
-	sClient, sServer, closeF := newMockReadEntriesStreams(ctx, 2)
+	sClient, sServer, closeF := newMockEntriesStreams(ctx, 2)
 	go func() {
 		err := s.ReadEntries(in, sServer)
 		closeF(err)
@@ -179,26 +184,26 @@ func (m *mockClient) ReadEntries(
 	return sClient, nil
 }
 
-func newMockReadEntriesStreams(
+func newMockEntriesStreams(
 	ctx context.Context, bufferSize int) (
-	walle_pb.Walle_ReadEntriesClient, walle_pb.Walle_ReadEntriesServer, func(err error)) {
-	s := &mockReadEntriesStream{ctx: ctx, buffer: make(chan entryPair, bufferSize)}
-	return &mockReadEntriesStreamClient{mockReadEntriesStream: s},
-		&mockReadEntriesStreamServer{mockReadEntriesStream: s},
+	*mockEntriesStreamClient, *mockEntriesStreamServer, func(err error)) {
+	s := &mockEntriesStream{ctx: ctx, buffer: make(chan entryPair, bufferSize)}
+	return &mockEntriesStreamClient{mockEntriesStream: s},
+		&mockEntriesStreamServer{mockEntriesStream: s},
 		s.Close
 }
 
-type mockReadEntriesStream struct {
+type mockEntriesStream struct {
 	ctx    context.Context
 	buffer chan entryPair
 }
 
-type mockReadEntriesStreamClient struct {
-	*mockReadEntriesStream
+type mockEntriesStreamClient struct {
+	*mockEntriesStream
 	grpc.ClientStream
 }
-type mockReadEntriesStreamServer struct {
-	*mockReadEntriesStream
+type mockEntriesStreamServer struct {
+	*mockEntriesStream
 	grpc.ServerStream
 }
 
@@ -207,24 +212,24 @@ type entryPair struct {
 	Err   error
 }
 
-func (m *mockReadEntriesStreamClient) Context() context.Context {
+func (m *mockEntriesStreamClient) Context() context.Context {
 	return m.ctx
 }
-func (m *mockReadEntriesStreamServer) Context() context.Context {
+func (m *mockEntriesStreamServer) Context() context.Context {
 	return m.ctx
 }
 
-func (m *mockReadEntriesStream) Recv() (*walleapi.Entry, error) {
+func (m *mockEntriesStream) Recv() (*walleapi.Entry, error) {
 	r := <-m.buffer
 	return r.Entry, r.Err
 }
 
-func (m *mockReadEntriesStream) Send(e *walleapi.Entry) error {
+func (m *mockEntriesStream) Send(e *walleapi.Entry) error {
 	m.buffer <- entryPair{Entry: e}
 	return nil
 }
 
-func (m *mockReadEntriesStream) Close(err error) {
+func (m *mockEntriesStream) Close(err error) {
 	if err == nil {
 		err = io.EOF
 	}

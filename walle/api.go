@@ -3,6 +3,7 @@ package walle
 import (
 	"bytes"
 	"context"
+	"io"
 	"strings"
 	"time"
 
@@ -57,7 +58,7 @@ func (s *Server) ClaimWriter(
 			if err != nil {
 				return nil, err
 			}
-			r, err := c.LastEntries(ctx, &walle_pb.LastEntriesRequest{
+			r, err := c.TailEntries(ctx, &walle_pb.TailEntriesRequest{
 				ServerId:      serverId,
 				StreamUri:     req.StreamUri,
 				StreamVersion: ssTopology.Version,
@@ -66,7 +67,18 @@ func (s *Server) ClaimWriter(
 			if err != nil {
 				return nil, err
 			}
-			entries[serverId] = r.Entries
+			var rEntries []*walleapi.Entry
+			for {
+				entry, err := r.Recv()
+				if err != nil {
+					if err == io.EOF {
+						break
+					}
+					return nil, err
+				}
+				rEntries = append(rEntries, entry)
+			}
+			entries[serverId] = rEntries
 		}
 		committed, err := s.commitMaxEntry(
 			ctx, req.StreamUri, ssTopology.Version, entries, writerId)

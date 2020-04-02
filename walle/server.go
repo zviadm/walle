@@ -197,18 +197,22 @@ func (s *Server) fetchCommittedEntry(
 	return nil, errors.Errorf("%s", errs)
 }
 
-func (s *Server) LastEntries(
-	ctx context.Context,
-	req *walle_pb.LastEntriesRequest) (*walle_pb.LastEntriesResponse, error) {
+func (s *Server) TailEntries(
+	req *walle_pb.TailEntriesRequest, stream walle_pb.Walle_TailEntriesServer) error {
 	ss, err := s.processRequestHeader(req)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	entries, err := ss.LastEntries()
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return &walle_pb.LastEntriesResponse{Entries: entries}, nil
+	for _, entry := range entries {
+		if err := stream.Send(entry); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Server) ReadEntries(
