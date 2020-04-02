@@ -26,7 +26,7 @@ func TestRpcSizeLimits(t *testing.T) {
 		t, ctx, rootCli, rootPb.RootUri, streamURI,
 		rootPb.Streams[rootPb.RootUri].ServerIds)
 	w, err := wallelib.WaitAndClaim(
-		ctx, cli, streamURI, "blastwriter:1001", time.Second)
+		ctx, rootCli, streamURI, "blastwriter:1001", time.Second)
 	require.NoError(t, err)
 	defer w.Close()
 	putCtx := w.PutEntry([]byte{})
@@ -34,7 +34,7 @@ func TestRpcSizeLimits(t *testing.T) {
 	require.NoError(t, putCtx.Err())
 
 	// HAX: Manually put entries in a stream, so that they remain uncommitted.
-	c, err := cli.ForStream("/t1/size_limits")
+	c, err := rootCli.ForStream("/t1/size_limits")
 	require.NoError(t, err)
 
 	entries := []*walleapi.Entry{putCtx.Entry}
@@ -76,7 +76,7 @@ func TestRpcSizeLimits(t *testing.T) {
 
 	zlog.Info("TEST: claiming new writer to resolve large uncommitted entries...")
 	w2, err := wallelib.ClaimWriter(
-		ctx, cli, streamURI, "blastwriter:1001", time.Second)
+		ctx, rootCli, streamURI, "blastwriter:1001", time.Second)
 	require.NoError(t, err)
 	require.EqualValues(t, entries[len(entries)-1].EntryId, w2.Committed().EntryId)
 }

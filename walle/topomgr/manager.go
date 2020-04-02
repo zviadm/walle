@@ -9,6 +9,8 @@ import (
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/wallelib"
 	"github.com/zviadm/zlog"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var flagManagerLease = flag.Duration(
@@ -24,56 +26,48 @@ type Manager struct {
 	c    wallelib.Client
 	addr string
 
-	mx      sync.Mutex
-	perTopo map[string]*perTopoData
-}
-
-type perTopoData struct {
-	cancel     context.CancelFunc
-	notifyDone <-chan struct{}
-	writer     *wallelib.Writer
-	topology   *walleapi.Topology
-	putCtx     *wallelib.PutCtx
+	mx       sync.Mutex
+	clusters map[string]*clusterData
 }
 
 func NewManager(c wallelib.Client, addr string) *Manager {
 	return &Manager{
-		c:       c,
-		addr:    addr,
-		perTopo: make(map[string]*perTopoData),
+		c:        c,
+		addr:     addr,
+		clusters: make(map[string]*clusterData),
 	}
 }
 
 // Manage, StopManaging & Close calls aren't thread-safe, must be called from a single thread only.
 func (m *Manager) Close() {
-	for topologyURI, _ := range m.perTopo {
-		m.StopManaging(topologyURI)
+	for clusterURI, _ := range m.clusters {
+		m.StopManaging(clusterURI)
 	}
 }
 
 // Manage, StopManaging & Close calls aren't thread-safe, must be called from a single thread only.
-func (m *Manager) Manage(topologyURI string) {
-	if _, ok := m.perTopo[topologyURI]; ok {
+func (m *Manager) Manage(clusterURI string) {
+	if _, ok := m.clusters[clusterURI]; ok {
 		return
 	}
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	ctx, cancel := context.WithCancel(context.Background())
 	notifyDone := make(chan struct{})
-	m.perTopo[topologyURI] = &perTopoData{
+	m.clusters[clusterURI] = &clusterData{
 		cancel:     cancel,
 		notifyDone: notifyDone,
 	}
-	go m.manageLoop(ctx, notifyDone, topologyURI)
+	go m.manageLoop(ctx, notifyDone, clusterURI)
 }
 
 func (m *Manager) manageLoop(
 	ctx context.Context,
 	notifyDone chan struct{},
-	topologyURI string) {
+	clusterURI string) {
 	defer close(notifyDone)
 	for {
-		w, err := wallelib.WaitAndClaim(ctx, m.c, topologyURI, m.addr, *flagManagerLease)
+		w, err := wallelib.WaitAndClaim(ctx, m.c, clusterURI, m.addr, *flagManagerLease)
 		if err != nil {
 			return // context has expired.
 		}
@@ -83,7 +77,7 @@ func (m *Manager) manageLoop(
 			// This must never happen!
 			// TODO(zviad): Decide on best path forward here. We don't have to crash,
 			// theoretically it can be recovered if topology is still valid.
-			zlog.Fatalf("[tm] unrecoverable err %s:%d - %s - %s", topologyURI, e.EntryId, topology, err)
+			zlog.Fatalf("[tm] unrecoverable err %s:%d - %s - %s", clusterURI, e.EntryId, topology, err)
 		}
 		// initialize GoLang structs/maps to avoid `nil` pointer errors.
 		if topology.Streams == nil {
@@ -92,17 +86,17 @@ func (m *Manager) manageLoop(
 		if topology.Servers == nil {
 			topology.Servers = make(map[string]*walleapi.ServerInfo)
 		}
-		zlog.Infof("[tm] claimed writer: %s, version: %d", topologyURI, topology.Version)
+		zlog.Infof("[tm] claimed writer: %s, version: %d", clusterURI, topology.Version)
 		m.mx.Lock()
-		m.perTopo[topologyURI].writer = w
-		m.perTopo[topologyURI].topology = topology
+		m.clusters[clusterURI].writer = w
+		m.clusters[clusterURI].topology = topology
 		m.mx.Unlock()
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-w.Done():
-				zlog.Warningf("[tm] claim lost unexpectedly: %s", topologyURI)
+				zlog.Warningf("[tm] claim lost unexpectedly: %s", clusterURI)
 			}
 			break
 		}
@@ -110,8 +104,8 @@ func (m *Manager) manageLoop(
 }
 
 // manage & stopManaging calls aren't thread-safe, must be called from a single thread only.
-func (m *Manager) StopManaging(topologyURI string) {
-	perTopo, ok := m.perTopo[topologyURI]
+func (m *Manager) StopManaging(clusterURI string) {
+	perTopo, ok := m.clusters[clusterURI]
 	if !ok {
 		return
 	}
@@ -120,8 +114,59 @@ func (m *Manager) StopManaging(topologyURI string) {
 
 	m.mx.Lock()
 	defer m.mx.Unlock()
-	if w := m.perTopo[topologyURI].writer; w != nil {
+	if w := m.clusters[clusterURI].writer; w != nil {
 		w.Close()
 	}
-	delete(m.perTopo, topologyURI)
+	delete(m.clusters, clusterURI)
+}
+
+func (m *Manager) clusterMX(clusterURI string) (c *clusterData, unlock func(), err error) {
+	m.mx.Lock()
+	defer func() {
+		if err != nil {
+			m.mx.Unlock()
+		}
+	}()
+	c, ok := m.clusters[clusterURI]
+	if !ok || c.writer == nil {
+		return nil, nil, status.Errorf(codes.Unavailable, "not serving: %s", clusterURI)
+	}
+	if !c.writer.IsExclusive() {
+		return nil, nil, status.Errorf(codes.Unavailable,
+			"writer no longer exclusive: %s", clusterURI)
+	}
+	return c, m.mx.Unlock, err
+}
+
+type clusterData struct {
+	cancel     context.CancelFunc
+	notifyDone <-chan struct{}
+	writer     *wallelib.Writer
+	topology   *walleapi.Topology
+	putCtx     *wallelib.PutCtx
+}
+
+func (c *clusterData) commitTopology() *wallelib.PutCtx {
+	topologyB, err := c.topology.Marshal()
+	if err != nil {
+		panic(err) // this must never happen, crashing is the only sane solution.
+	}
+	putCtx := c.writer.PutEntry(topologyB)
+	c.putCtx = putCtx
+	return putCtx
+}
+
+func resolvePutCtx(ctx context.Context, putCtx *wallelib.PutCtx, err error) error {
+	if err != nil {
+		return err
+	}
+	if putCtx == nil {
+		return nil
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-putCtx.Done():
+		return putCtx.Err()
+	}
 }

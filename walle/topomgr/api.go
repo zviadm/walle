@@ -30,29 +30,29 @@ func (m *Manager) UpdateServerInfo(
 }
 
 func (m *Manager) updateServerInfo(req *topomgr.UpdateServerInfoRequest) (*wallelib.PutCtx, error) {
-	p, unlock, err := m.perTopoMX(req.ClusterUri)
+	c, unlock, err := m.clusterMX(req.ClusterUri)
 	if err != nil {
 		return nil, err
 	}
 	defer unlock()
 
-	if proto.Equal(p.topology.Servers[req.ServerId], req.ServerInfo) {
-		return p.putCtx, nil
+	if proto.Equal(c.topology.Servers[req.ServerId], req.ServerInfo) {
+		return c.putCtx, nil
 	}
-	p.topology.Version += 1
-	p.topology.Servers[req.ServerId] = req.ServerInfo
-	return p.commitTopology(), nil
+	c.topology.Version += 1
+	c.topology.Servers[req.ServerId] = req.ServerInfo
+	return c.commitTopology(), nil
 }
 
 func (m *Manager) FetchTopology(
 	ctx context.Context,
 	req *topomgr.FetchTopologyRequest) (*walleapi.Topology, error) {
-	p, unlock, err := m.perTopoMX(req.ClusterUri)
+	c, unlock, err := m.clusterMX(req.ClusterUri)
 	if err != nil {
 		return nil, err
 	}
-	putCtx := p.putCtx
-	topology := proto.Clone(p.topology).(*walleapi.Topology)
+	putCtx := c.putCtx
+	topology := proto.Clone(c.topology).(*walleapi.Topology)
 	unlock()
 
 	if err := resolvePutCtx(ctx, putCtx, nil); err != nil {
@@ -68,11 +68,11 @@ func (m *Manager) UpdateServerIds(
 		return nil, err
 	}
 
-	p, unlock, err := m.perTopoMX(req.ClusterUri)
+	c, unlock, err := m.clusterMX(req.ClusterUri)
 	if err != nil {
 		return nil, err
 	}
-	topology := proto.Clone(p.topology).(*walleapi.Topology)
+	topology := proto.Clone(c.topology).(*walleapi.Topology)
 	unlock()
 
 	changed, err := verifyAndDiffMembershipChange(topology, req.StreamUri, req.ServerIds)
@@ -128,66 +128,23 @@ func (m *Manager) updateServerIds(
 	ctx context.Context,
 	req *topomgr.UpdateServerIdsRequest,
 	streamVersion int64) (*wallelib.PutCtx, *walleapi.Topology, error) {
-	p, unlock, err := m.perTopoMX(req.ClusterUri)
+	c, unlock, err := m.clusterMX(req.ClusterUri)
 	if err != nil {
 		return nil, nil, err
 	}
 	defer unlock()
-	if p.topology.Streams[req.StreamUri].GetVersion() != streamVersion {
+	if c.topology.Streams[req.StreamUri].GetVersion() != streamVersion {
 		return nil, nil, status.Errorf(codes.Unavailable, "conflict with concurrent topology update for: %s", req.StreamUri)
 	}
-	p.topology.Version += 1
-	streamT := p.topology.Streams[req.StreamUri]
+	c.topology.Version += 1
+	streamT := c.topology.Streams[req.StreamUri]
 	if streamVersion == 0 {
 		streamT = &walleapi.StreamTopology{}
-		p.topology.Streams[req.StreamUri] = streamT
+		c.topology.Streams[req.StreamUri] = streamT
 	}
 	streamT.Version += 1
 	streamT.ServerIds = req.ServerIds
-	topology := proto.Clone(p.topology).(*walleapi.Topology)
-	putCtx := p.commitTopology()
+	topology := proto.Clone(c.topology).(*walleapi.Topology)
+	putCtx := c.commitTopology()
 	return putCtx, topology, nil
-}
-
-func (m *Manager) perTopoMX(topologyURI string) (p *perTopoData, unlock func(), err error) {
-	m.mx.Lock()
-	defer func() {
-		if err != nil {
-			m.mx.Unlock()
-		}
-	}()
-	p, ok := m.perTopo[topologyURI]
-	if !ok || p.writer == nil {
-		return nil, nil, status.Errorf(codes.Unavailable, "not serving: %s", topologyURI)
-	}
-	if !p.writer.IsExclusive() {
-		return nil, nil, status.Errorf(codes.Unavailable,
-			"writer no longer exclusive: %s", topologyURI)
-	}
-	return p, m.mx.Unlock, err
-}
-
-func (p *perTopoData) commitTopology() *wallelib.PutCtx {
-	topologyB, err := p.topology.Marshal()
-	if err != nil {
-		panic(err) // this must never happen, crashing is the only sane solution.
-	}
-	putCtx := p.writer.PutEntry(topologyB)
-	p.putCtx = putCtx
-	return putCtx
-}
-
-func resolvePutCtx(ctx context.Context, putCtx *wallelib.PutCtx, err error) error {
-	if err != nil {
-		return err
-	}
-	if putCtx == nil {
-		return nil
-	}
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-putCtx.Done():
-		return putCtx.Err()
-	}
 }

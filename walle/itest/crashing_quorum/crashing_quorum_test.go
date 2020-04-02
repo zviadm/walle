@@ -19,7 +19,7 @@ func TestCrashingQuorum(t *testing.T) {
 	defer servicelib.KillAll(t)
 	defer servicelib.IptablesClearAll(t)
 
-	s, rootPb, cli := itest.SetupRootNodes(t, ctx, 3)
+	s, rootPb, rootCli := itest.SetupRootNodes(t, ctx, 3)
 
 	streamURI := "/t1/crashing"
 	itest.CreateStream(
@@ -36,7 +36,7 @@ func TestCrashingQuorum(t *testing.T) {
 	}()
 
 	w, err := wallelib.WaitAndClaim(
-		ctx, cli, streamURI, "blastwriter:1001", time.Second)
+		ctx, rootCli, streamURI, "blastwriter:1001", time.Second)
 	require.NoError(t, err)
 	defer w.Close()
 	require.EqualValues(t, 0, w.Committed().EntryId)
