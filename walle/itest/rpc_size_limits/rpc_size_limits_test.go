@@ -28,7 +28,7 @@ func TestRpcSizeLimits(t *testing.T) {
 	_, err := topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
 		TopologyUri: rootPb.RootUri,
 		StreamUri:   streamURI,
-		ServerIds:   itest.ServerIdsSlice(rootPb.Servers),
+		ServerIds:   rootPb.Streams[rootPb.RootUri].ServerIds,
 	})
 	require.NoError(t, err)
 

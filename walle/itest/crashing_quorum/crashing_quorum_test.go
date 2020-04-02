@@ -27,7 +27,7 @@ func TestCrashingQuorum(t *testing.T) {
 	_, err := topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
 		TopologyUri: rootPb.RootUri,
 		StreamUri:   "/t1/blast",
-		ServerIds:   itest.ServerIdsSlice(rootPb.Servers),
+		ServerIds:   rootPb.Streams[rootPb.RootUri].ServerIds,
 	})
 	require.NoError(t, err)
 

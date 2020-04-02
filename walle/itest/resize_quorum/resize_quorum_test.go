@@ -13,33 +13,23 @@ import (
 	"github.com/zviadm/walle/walle/itest"
 	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/walle/walle/topomgr"
-	"github.com/zviadm/walle/wallelib"
 	"github.com/zviadm/zlog"
 )
 
 func TestResizeQuorum(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	rootURI := topomgr.Prefix + "itest"
-	wDir := storage.TestTmpDir()
+	defer servicelib.KillAll(t)
 
-	rootTopology := itest.BootstrapDeployment(t, ctx, rootURI, wDir, itest.RootDefaultPort)
-	s := itest.RunWalle(t, ctx, rootURI, "", rootTopology, wDir, itest.RootDefaultPort)
-	defer s.Stop(t)
-
-	rootD, err := wallelib.NewRootDiscovery(ctx, rootTopology)
-	require.NoError(t, err)
-	cli := wallelib.NewClient(ctx, rootD)
+	services, rootPb, cli := itest.SetupRootNodes(t, ctx, 1)
 	topoMgr := topomgr.NewClient(cli)
-	services := []*servicelib.Service{s}
 	nTotal := 5
 	for idx := 1; idx < nTotal; idx++ {
-		s := expandTopology(t, ctx, topoMgr, rootURI, itest.RootDefaultPort+idx)
-		defer s.Stop(t)
+		s := expandTopology(t, ctx, topoMgr, rootPb.RootUri, itest.RootDefaultPort+idx)
 		services = append(services, s)
 	}
 	for _, s := range services[:nTotal-1] {
-		shrinkTopology(t, ctx, s, topoMgr, cli, rootURI)
+		shrinkTopology(t, ctx, s, topoMgr, rootPb.RootUri)
 	}
 }
 
@@ -50,15 +40,15 @@ func expandTopology(
 	rootURI string,
 	port int) *servicelib.Service {
 
-	topology, err := topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
+	rootPb, err := topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
 	require.NoError(t, err)
-	s := itest.RunWalle(t, ctx, rootURI, "", topology, storage.TestTmpDir(), port)
+	s := itest.RunWalle(t, ctx, rootPb, "", storage.TestTmpDir(), port)
 
-	topology, err = topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
+	rootPb, err = topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
 	require.NoError(t, err)
-	serverId := serverIdsDiff(t, topology.Servers, topology.Streams[rootURI].ServerIds)
-	serverIds := append(topology.Streams[rootURI].ServerIds, serverId)
-	zlog.Info("TEST: --- expanding to: ", serverAddrs(topology.Servers, serverIds))
+	serverId := serverIdsDiff(t, rootPb.Servers, rootPb.Streams[rootURI].ServerIds)
+	serverIds := append(rootPb.Streams[rootURI].ServerIds, serverId)
+	zlog.Info("TEST: --- expanding to: ", serverAddrs(rootPb.Servers, serverIds))
 	_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
 		TopologyUri: rootURI,
 		StreamUri:   rootURI,
@@ -89,20 +79,19 @@ func shrinkTopology(
 	ctx context.Context,
 	s *servicelib.Service,
 	topoMgr topomgr_pb.TopoManagerClient,
-	cli wallelib.Client,
 	rootURI string) {
-	topology, err := topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
+	rootPb, err := topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
 	require.NoError(t, err)
 
-	serverIds := topology.Streams[rootURI].ServerIds[1:]
-	zlog.Info("TEST: --- shrinking to: ", serverAddrs(topology.Servers, serverIds))
+	serverIds := rootPb.Streams[rootURI].ServerIds[1:]
+	zlog.Info("TEST: --- shrinking to: ", serverAddrs(rootPb.Servers, serverIds))
 	_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
 		TopologyUri: rootURI,
 		StreamUri:   rootURI,
 		ServerIds:   serverIds,
 	})
 	require.NoError(t, err)
-	s.Stop(t)
+	s.Stop(t) // Make sure graceful stop is working.
 }
 
 func serverAddrs(servers map[string]*walleapi.ServerInfo, serverIds []string) []string {

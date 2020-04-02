@@ -54,16 +54,15 @@ func BootstrapDeployment(
 func RunWalle(
 	t *testing.T,
 	ctx context.Context,
-	rootURI string,
+	rootPb *walleapi.Topology,
 	topologyURI string,
-	rootTopology *walleapi.Topology,
 	storageDir string,
 	port int) *servicelib.Service {
-	err := wallelib.TopologyToFile(rootTopology, path.Join(storageDir, "root.pb"))
+	err := wallelib.TopologyToFile(rootPb, path.Join(storageDir, "root.pb"))
 	require.NoError(t, err)
 	s := servicelib.RunGoService(
 		t, ctx, WallePkg, []string{
-			"-walle.root_uri", rootURI,
+			"-walle.root_uri", rootPb.RootUri,
 			"-walle.topology_uri", topologyURI,
 			"-walle.storage_dir", storageDir,
 			"-walle.port", strconv.Itoa(port),
