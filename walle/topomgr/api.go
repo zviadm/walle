@@ -82,6 +82,8 @@ func (m *Manager) UpdateServerIds(
 	}
 
 	// First make sure majority of current members are at the latest version.
+	// TODO(zviad): Need to also make sure that there are no GAPs that can lead to data loss
+	// when removing serverIds from a member list.
 	if err := m.waitForStreamVersion(ctx, topology, req.StreamUri); err != nil {
 		return nil, err
 	}

@@ -11,6 +11,7 @@ service WalleApi {
 	// StreamEntries call will block until deadline, if there are no new committed
 	// entries. Thus it can be used as a way to do long poll and stream latest entries from
 	// a stream.
+	// TODO(zviad): This api isn't final. Most likely will need various changes.
 	rpc StreamEntries(StreamEntriesRequest) returns (stream Entry) {}
 }
 
