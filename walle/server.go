@@ -203,7 +203,7 @@ func (s *Server) TailEntries(
 	if err != nil {
 		return err
 	}
-	entries, err := ss.LastEntries()
+	entries, err := ss.TailEntries()
 	if err != nil {
 		return err
 	}

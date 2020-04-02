@@ -40,7 +40,7 @@ type Writer struct {
 	cliIdx    int // Used for sticky load balancing of the Client
 	cachedCli walleapi.WalleApiClient
 
-	lastEntry    *walleapi.Entry
+	tailEntry    *walleapi.Entry
 	reqQ         chan *PutCtx
 	inFlightQ    chan struct{}
 	heartbeaterQ chan struct{}
@@ -83,7 +83,7 @@ func newWriter(
 	writerLease time.Duration,
 	writerAddr string,
 	writerId string,
-	lastEntry *walleapi.Entry,
+	tailEntry *walleapi.Entry,
 	commitTime time.Time) *Writer {
 	ctx, cancel := context.WithCancel(context.Background())
 	w := &Writer{
@@ -94,16 +94,16 @@ func newWriter(
 		writerId:    writerId,
 		longBeat:    writerLease / 8,
 
-		lastEntry: lastEntry,
+		tailEntry: tailEntry,
 		// Use very large buffer for reqQ to never block. If user fills this queue up,
 		// PutEntry calls will start blocking.
 		reqQ:         make(chan *PutCtx, 16384),
 		inFlightQ:    make(chan struct{}, maxInFlightPuts),
 		heartbeaterQ: make(chan struct{}, 1),
 
-		committedEntryId:  lastEntry.EntryId,
-		committedEntryMd5: lastEntry.ChecksumMd5,
-		toCommit:          lastEntry,
+		committedEntryId:  tailEntry.EntryId,
+		committedEntryMd5: tailEntry.ChecksumMd5,
+		toCommit:          tailEntry,
 		commitTime:        commitTime,
 
 		rootCtx:    ctx,
@@ -264,12 +264,12 @@ func (w *Writer) process(ctx context.Context, req *PutCtx) {
 
 func (w *Writer) PutEntry(data []byte) *PutCtx {
 	entry := &walleapi.Entry{
-		EntryId:  w.lastEntry.EntryId + 1,
+		EntryId:  w.tailEntry.EntryId + 1,
 		WriterId: w.writerId,
 		Data:     data,
 	}
-	entry.ChecksumMd5 = CalculateChecksumMd5(w.lastEntry.ChecksumMd5, data)
-	w.lastEntry = entry
+	entry.ChecksumMd5 = CalculateChecksumMd5(w.tailEntry.ChecksumMd5, data)
+	w.tailEntry = entry
 	r := &PutCtx{
 		Entry: entry,
 		done:  make(chan struct{}),

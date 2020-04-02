@@ -204,7 +204,7 @@ func (m *streamStorage) RenewLease(
 	m.renewedLease = time.Now().Add(extraBuffer)
 }
 
-func (m *streamStorage) LastEntries() ([]*walleapi.Entry, error) {
+func (m *streamStorage) TailEntries() ([]*walleapi.Entry, error) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	if m.sess.IsClosed() {
