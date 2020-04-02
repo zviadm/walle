@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	topomgr_pb "github.com/zviadm/walle/proto/topomgr"
 	"github.com/zviadm/walle/tt/servicelib"
 	"github.com/zviadm/walle/walle/itest"
 	"github.com/zviadm/walle/walle/topomgr"
@@ -22,18 +21,17 @@ func TestStreamBlast(t *testing.T) {
 	defer cancel()
 	defer servicelib.KillAll(t)
 
-	s, rootPb, cli := itest.SetupRootNodes(t, ctx, 3)
+	_, rootPb, rootCli := itest.SetupRootNodes(t, ctx, 1)
+	clusterURI := topomgr.Prefix + "blast"
+	s, serverIds := itest.SetupClusterNodes(t, ctx, rootPb, rootCli, clusterURI, 3)
+
 	blastURIPrefix := "/blast/"
 	blastURIs := 4
-	topoMgr := topomgr.NewClient(cli)
 	for i := 0; i < blastURIs; i++ {
-		_, err := topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
-			TopologyUri: rootPb.RootUri,
-			StreamUri:   blastURIPrefix + strconv.Itoa(i),
-			ServerIds:   rootPb.Streams[rootPb.RootUri].ServerIds,
-		})
-		require.NoError(t, err)
+		itest.CreateStream(t, ctx, rootCli, clusterURI, blastURIPrefix+strconv.Itoa(i), serverIds)
 	}
+	cli, err := wallelib.NewClientFromRootPb(ctx, rootPb, clusterURI)
+	require.NoError(t, err)
 
 	w := make([]*wallelib.Writer, blastURIs)
 	for i := 0; i < blastURIs; i++ {

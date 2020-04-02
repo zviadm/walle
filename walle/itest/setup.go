@@ -70,3 +70,49 @@ func SetupRootNodes(
 	}
 	return s, rootPb, rootCli
 }
+
+func SetupClusterNodes(
+	t *testing.T,
+	ctx context.Context,
+	rootPb *walleapi.Topology,
+	rootCli wallelib.Client,
+	clusterURI string,
+	clusterN int) (s []*servicelib.Service, serverIds []string) {
+
+	CreateStream(
+		t, ctx, rootCli, rootPb.RootUri, clusterURI, rootPb.Streams[rootPb.RootUri].ServerIds)
+	s = make([]*servicelib.Service, clusterN)
+	mx := sync.Mutex{}
+	wg := sync.WaitGroup{}
+	wg.Add(len(s))
+	for idx := range s {
+		go func(idx int) {
+			defer wg.Done()
+			ss := RunWalle(t, ctx, rootPb, clusterURI, storage.TestTmpDir(), ClusterDefaultPort+idx)
+			mx.Lock()
+			defer mx.Unlock()
+			s[idx] = ss
+		}(idx)
+	}
+	wg.Wait()
+	topoMgr := topomgr.NewClient(rootCli)
+	clusterPb, err := topoMgr.FetchTopology(
+		ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: clusterURI})
+	require.NoError(t, err)
+	return s, ServerIdsSlice(clusterPb.Servers)
+}
+
+func CreateStream(
+	t *testing.T,
+	ctx context.Context,
+	root wallelib.Client,
+	clusterURI string,
+	streamURI string,
+	serverIds []string) {
+	topoMgr := topomgr.NewClient(root)
+	_, err := topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
+		TopologyUri: clusterURI,
+		StreamUri:   streamURI,
+		ServerIds:   serverIds})
+	require.NoError(t, err)
+}

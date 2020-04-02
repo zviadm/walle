@@ -18,8 +18,8 @@ type client struct {
 	c wallelib.Client
 }
 
-func NewClient(c wallelib.Client) topomgr.TopoManagerClient {
-	return &client{c}
+func NewClient(root wallelib.Client) topomgr.TopoManagerClient {
+	return &client{root}
 }
 
 func (t *client) connectAndDo(
