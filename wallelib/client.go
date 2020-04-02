@@ -1,3 +1,4 @@
+// wallelib provides client libraries to interact with WALLE servers
 package wallelib
 
 import (
