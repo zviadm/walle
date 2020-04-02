@@ -77,7 +77,6 @@ func (s *Server) broadcastRequest(
 	}
 	errsC := make(chan *callErr, len(serverIds))
 	for _, serverId := range serverIds {
-		// TODO(zviad): if serverId == s.serverId ==> c should be self wrapped server.
 		c, err := s.c.ForServer(serverId)
 		if err != nil {
 			errsC <- &callErr{ServerId: serverId, Err: err}

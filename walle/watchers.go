@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	writerTimeoutToResolve   = wallelib.LeaseMinimum // TODO(zviad): should this be a flag?
+	writerTimeoutToResolve   = wallelib.LeaseMinimum
 	writerTimeoutToReResolve = 10 * writerTimeoutToResolve
 	writerInternalAddrPrefix = "_internal:"
 )

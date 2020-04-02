@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"io"
 	"os"
 	"path"
 	"sync"
@@ -115,125 +114,7 @@ func (m *mockClient) ForServer(serverId string) (walle_pb.WalleClient, error) {
 	if s == nil {
 		return nil, errors.Errorf("unknown serverId: %s", hex.EncodeToString([]byte(serverId)))
 	}
-	return m, nil
-}
-
-func (m *mockClient) PutEntryInternal(
-	ctx context.Context,
-	in *walle_pb.PutEntryInternalRequest,
-	opts ...grpc.CallOption) (*walle_pb.PutEntryInternalResponse, error) {
-	s, err := m.m.Server(in.ServerId)
-	if err != nil {
-		return nil, err
-	}
-	return s.PutEntryInternal(ctx, in)
-}
-
-func (m *mockClient) NewWriter(
-	ctx context.Context,
-	in *walle_pb.NewWriterRequest,
-	opts ...grpc.CallOption) (*walle_pb.NewWriterResponse, error) {
-	s, err := m.m.Server(in.ServerId)
-	if err != nil {
-		return nil, err
-	}
-	return s.NewWriter(ctx, in)
-}
-
-func (m *mockClient) WriterInfo(
-	ctx context.Context,
-	in *walle_pb.WriterInfoRequest,
-	opts ...grpc.CallOption) (*walle_pb.WriterInfoResponse, error) {
-	s, err := m.m.Server(in.ServerId)
-	if err != nil {
-		return nil, err
-	}
-	return s.WriterInfo(ctx, in)
-}
-
-func (m *mockClient) TailEntries(
-	ctx context.Context,
-	in *walle_pb.TailEntriesRequest,
-	opts ...grpc.CallOption) (walle_pb.Walle_TailEntriesClient, error) {
-	s, err := m.m.Server(in.ServerId)
-	if err != nil {
-		return nil, err
-	}
-	sClient, sServer, closeF := newMockEntriesStreams(ctx, 2)
-	go func() {
-		err := s.TailEntries(in, sServer)
-		closeF(err)
-	}()
-	return sClient, nil
-}
-
-func (m *mockClient) ReadEntries(
-	ctx context.Context,
-	in *walle_pb.ReadEntriesRequest,
-	opts ...grpc.CallOption) (walle_pb.Walle_ReadEntriesClient, error) {
-
-	s, err := m.m.Server(in.ServerId)
-	if err != nil {
-		return nil, err
-	}
-	sClient, sServer, closeF := newMockEntriesStreams(ctx, 2)
-	go func() {
-		err := s.ReadEntries(in, sServer)
-		closeF(err)
-	}()
-	return sClient, nil
-}
-
-func newMockEntriesStreams(
-	ctx context.Context, bufferSize int) (
-	*mockEntriesStreamClient, *mockEntriesStreamServer, func(err error)) {
-	s := &mockEntriesStream{ctx: ctx, buffer: make(chan entryPair, bufferSize)}
-	return &mockEntriesStreamClient{mockEntriesStream: s},
-		&mockEntriesStreamServer{mockEntriesStream: s},
-		s.Close
-}
-
-type mockEntriesStream struct {
-	ctx    context.Context
-	buffer chan entryPair
-}
-
-type mockEntriesStreamClient struct {
-	*mockEntriesStream
-	grpc.ClientStream
-}
-type mockEntriesStreamServer struct {
-	*mockEntriesStream
-	grpc.ServerStream
-}
-
-type entryPair struct {
-	Entry *walleapi.Entry
-	Err   error
-}
-
-func (m *mockEntriesStreamClient) Context() context.Context {
-	return m.ctx
-}
-func (m *mockEntriesStreamServer) Context() context.Context {
-	return m.ctx
-}
-
-func (m *mockEntriesStream) Recv() (*walleapi.Entry, error) {
-	r := <-m.buffer
-	return r.Entry, r.Err
-}
-
-func (m *mockEntriesStream) Send(e *walleapi.Entry) error {
-	m.buffer <- entryPair{Entry: e}
-	return nil
-}
-
-func (m *mockEntriesStream) Close(err error) {
-	if err == nil {
-		err = io.EOF
-	}
-	m.buffer <- entryPair{Err: err}
+	return &clientSelf{s: s}, nil
 }
 
 type mockApiClient struct {

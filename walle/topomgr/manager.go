@@ -87,13 +87,6 @@ func (m *Manager) manageLoop(
 			// theoretically it can be recovered if topology is still valid.
 			zlog.Fatalf("[tm] unrecoverable err %s:%d - %s - %s", clusterURI, e.EntryId, topology, err)
 		}
-		// initialize GoLang structs/maps to avoid `nil` pointer errors.
-		if topology.Streams == nil {
-			topology.Streams = make(map[string]*walleapi.StreamTopology)
-		}
-		if topology.Servers == nil {
-			topology.Servers = make(map[string]*walleapi.ServerInfo)
-		}
 		zlog.Infof("[tm] claimed writer: %s, version: %d", clusterURI, topology.Version)
 		m.mx.Lock()
 		m.clusters[clusterURI].writer = w

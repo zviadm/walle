@@ -40,8 +40,8 @@ func NewServer(
 	r := &Server{
 		rootCtx: ctx,
 		s:       s,
-		c:       c,
 	}
+	r.c = wrapClient(c, s.ServerId(), r)
 	r.pipeline = pipeline.New(ctx, s.FlushSync, r.fetchCommittedEntry)
 
 	r.watchTopology(ctx, d, topoMgr)

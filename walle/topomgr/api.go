@@ -41,6 +41,9 @@ func (m *Manager) updateServerInfo(req *topomgr.UpdateServerInfoRequest) (*walle
 	}
 	topology := proto.Clone(c.topology).(*walleapi.Topology)
 	topology.Version += 1
+	if topology.Servers == nil {
+		topology.Servers = make(map[string]*walleapi.ServerInfo, 1)
+	}
 	topology.Servers[req.ServerId] = req.ServerInfo
 	return c.commitTopology(topology)
 }
@@ -142,8 +145,11 @@ func (m *Manager) updateServerIds(
 	topology := proto.Clone(c.topology).(*walleapi.Topology)
 	topology.Version += 1
 	streamT := topology.Streams[req.StreamUri]
-	if streamVersion == 0 {
+	if streamT == nil {
 		streamT = &walleapi.StreamTopology{}
+		if topology.Streams == nil {
+			topology.Streams = make(map[string]*walleapi.StreamTopology, 1)
+		}
 		topology.Streams[req.StreamUri] = streamT
 	}
 	streamT.Version += 1
