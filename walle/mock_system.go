@@ -23,8 +23,8 @@ type mockSystem struct {
 	walle_pb.WalleClient
 	storagePath string
 
-	mx         sync.Mutex
 	servers    map[string]*Server
+	mx         sync.Mutex
 	isDisabled map[string]bool
 }
 
@@ -32,30 +32,37 @@ func newMockSystem(
 	ctx context.Context,
 	topology *walleapi.Topology,
 	storagePath string) (*mockSystem, *mockApiClient) {
-	mSystem := &mockSystem{
+	m := &mockSystem{
 		storagePath: storagePath,
 		servers:     make(map[string]*Server, len(topology.Servers)),
 		isDisabled:  make(map[string]bool, len(topology.Servers)),
 	}
-	mApiClient := &mockApiClient{mSystem}
-	mClient := &mockClient{mApiClient, mSystem}
-
+	apiClient := &mockApiClient{m}
+	client := &mockClient{apiClient, m}
 	d := &wallelib.StaticDiscovery{T: topology}
+
+	// Perform expensive part without lock.
+	storages := make(map[string]storage.Storage, len(topology.Servers))
 	for serverId := range topology.Servers {
-		m, err := storage.Init(
+		var err error
+		storages[serverId], err = storage.Init(
 			path.Join(storagePath, hex.EncodeToString([]byte(serverId))+".walledb"),
 			storage.InitOpts{Create: true, ServerId: serverId})
 		panic.OnErr(err)
-		mSystem.servers[serverId] = NewServer(ctx, m, mClient, d, nil)
+	}
+	m.mx.Lock()
+	defer m.mx.Unlock()
+	for serverId := range topology.Servers {
+		m.servers[serverId] = NewServer(ctx, storages[serverId], client, d, nil)
 	}
 	go func() {
 		<-ctx.Done()
 		// Need to sleep before cleaning up storage, since not everything exits immediatelly
 		// and can cause a crash.
 		time.Sleep(wallelib.LeaseMinimum)
-		mSystem.cleanup()
+		m.cleanup()
 	}()
-	return mSystem, mApiClient
+	return m, apiClient
 }
 
 func (m *mockSystem) cleanup() {

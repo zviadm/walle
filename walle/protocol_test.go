@@ -15,7 +15,7 @@ import (
 )
 
 // Example simple topology.
-var topo3Node = &walleapi.Topology{
+var cluster3Node = &walleapi.Topology{
 	Streams: map[string]*walleapi.StreamTopology{
 		"/mock/1": &walleapi.StreamTopology{
 			Version:   3,
@@ -32,7 +32,7 @@ var topo3Node = &walleapi.Topology{
 func TestProtocolClaimWriter(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	_, c := newMockSystem(ctx, topo3Node, storage.TestTmpDir())
+	_, c := newMockSystem(ctx, cluster3Node, storage.TestTmpDir())
 
 	w, err := wallelib.WaitAndClaim(
 		ctx, c, "/mock/1", "testhost:1001", wallelib.LeaseMinimum)
@@ -94,7 +94,7 @@ func TestProtocolClaimBarrage(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(nClaims)*2*time.Second)
 	defer cancel()
-	_, c := newMockSystem(ctx, topo3Node, storage.TestTmpDir())
+	_, c := newMockSystem(ctx, cluster3Node, storage.TestTmpDir())
 
 	errChan := make(chan error, nClaims)
 	entries := make(chan *walleapi.Entry, nClaims)
@@ -133,7 +133,7 @@ func TestProtocolClaimBarrage(t *testing.T) {
 func TestProtocolGapRecovery(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	m, c := newMockSystem(ctx, topo3Node, storage.TestTmpDir())
+	m, c := newMockSystem(ctx, cluster3Node, storage.TestTmpDir())
 
 	w, err := wallelib.WaitAndClaim(ctx, c, "/mock/1", "testhost:1001", wallelib.LeaseMinimum)
 	require.NoError(t, err)
@@ -144,7 +144,7 @@ func TestProtocolGapRecovery(t *testing.T) {
 	<-ee.Done()
 	require.NoError(t, ee.Err())
 
-	serverIds := topo3Node.Streams["/mock/1"].ServerIds
+	serverIds := cluster3Node.Streams["/mock/1"].ServerIds
 	m.Toggle(serverIds[0], false)
 	ee = w.PutEntry([]byte("d2"))
 	<-ee.Done()

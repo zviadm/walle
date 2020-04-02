@@ -23,7 +23,6 @@ type Server struct {
 	c       Client
 
 	pipeline *pipeline.Pipeline
-	topoMgr  *topomgr.Manager
 }
 
 type Client interface {
