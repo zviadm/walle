@@ -123,6 +123,8 @@ func (d *discovery) updateTopology(topology *walleapi.Topology) {
 			topology.Version, d.topology.Version)
 		return
 	}
+	zlog.Info(
+		"DEBUG: wallelib.topology ", d.topologyURI, " ", d.topology.Version, " -> ", topology.Version)
 	d.topology = topology
 	close(d.notify)
 	d.notify = make(chan struct{})
