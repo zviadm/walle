@@ -26,7 +26,7 @@ func BenchmarkPutEntrySerial(b *testing.B) {
 	defer cancel()
 	_, c := newMockSystem(ctx, topo1Node, storage.TestTmpDir())
 
-	w, _, err := wallelib.WaitAndClaim(ctx, c, "/mock/1", "testhost:1001", wallelib.LeaseMinimum)
+	w, err := wallelib.WaitAndClaim(ctx, c, "/mock/1", "testhost:1001", wallelib.LeaseMinimum)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -47,7 +47,7 @@ func BenchmarkPutEntryPipeline(b *testing.B) {
 	defer cancel()
 	_, c := newMockSystem(ctx, topo1Node, storage.TestTmpDir())
 
-	w, _, err := wallelib.WaitAndClaim(ctx, c, "/mock/1", "testhost:1001", wallelib.LeaseMinimum)
+	w, err := wallelib.WaitAndClaim(ctx, c, "/mock/1", "testhost:1001", wallelib.LeaseMinimum)
 	if err != nil {
 		b.Fatal(err)
 	}

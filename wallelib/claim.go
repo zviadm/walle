@@ -16,10 +16,10 @@ func ClaimWriter(
 	c Client,
 	streamURI string,
 	writerAddr string,
-	writerLease time.Duration) (*Writer, *walleapi.Entry, error) {
+	writerLease time.Duration) (*Writer, error) {
 	cli, err := c.ForStream(streamURI)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	return claimWriter(ctx, c, cli, streamURI, writerAddr, writerLease)
 }
@@ -30,7 +30,7 @@ func claimWriter(
 	cli walleapi.WalleApiClient,
 	streamURI string,
 	writerAddr string,
-	writerLease time.Duration) (*Writer, *walleapi.Entry, error) {
+	writerLease time.Duration) (*Writer, error) {
 	// TODO(zviad): if previous writer has much larger lease
 	// and is still active, this can timeout.
 	ctx, cancel := context.WithTimeout(ctx, writerLease*3)
@@ -42,7 +42,7 @@ func claimWriter(
 			LeaseMs:    writerLease.Nanoseconds() / time.Millisecond.Nanoseconds(),
 		})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	commitTime := time.Now()
 	_, err = cli.PutEntry(ctx, &walleapi.PutEntryRequest{
@@ -52,13 +52,13 @@ func claimWriter(
 		CommittedEntryMd5: resp.LastEntry.ChecksumMd5,
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	w := newWriter(
 		c, streamURI,
 		writerLease, writerAddr,
 		resp.WriterId, resp.LastEntry, commitTime)
-	return w, resp.LastEntry, nil
+	return w, nil
 }
 
 // WaitAndClaim only attempts to claim once current writer is no longer actively heartbeating.
@@ -68,7 +68,7 @@ func WaitAndClaim(
 	c Client,
 	streamURI string,
 	writerAddr string,
-	writerLease time.Duration) (w *Writer, e *walleapi.Entry, err error) {
+	writerLease time.Duration) (w *Writer, err error) {
 	err = KeepTryingWithBackoff(ctx, writerLease/2, writerLease/2,
 		func(retryN uint) (bool, bool, error) {
 			s, err := c.ForStream(streamURI)
@@ -98,11 +98,11 @@ func WaitAndClaim(
 			}
 			// Use same ForStream client that already returned successful result for `WriterStatus` call.
 			// This helps to avoid any unneccessary timeouts if some other node is in a questionable state.
-			w, e, err = claimWriter(ctx, c, s, streamURI, writerAddr, writerLease)
+			w, err = claimWriter(ctx, c, s, streamURI, writerAddr, writerLease)
 			return err == nil, false, err
 		})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	return
 }

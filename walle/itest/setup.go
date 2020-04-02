@@ -38,11 +38,14 @@ func SetupRootNodes(
 		}(idx)
 	}
 	wg.Wait()
-	cli, err := wallelib.NewClientFromRootPb(ctx, rootPb, "")
+
+	cliCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	cli, err := wallelib.NewClientFromRootPb(cliCtx, rootPb, "")
 	require.NoError(t, err)
 	topoMgr := topomgr.NewClient(cli)
 	topology, err := topoMgr.FetchTopology(
-		ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
+		cliCtx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
 	require.NoError(t, err)
 	serverIds := ServerIdsSlice(topology.Servers)
 	require.Len(t, serverIds, rootN)
@@ -55,7 +58,7 @@ func SetupRootNodes(
 		break
 	}
 	for i := 1; i < rootN; i++ {
-		_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
+		_, err = topoMgr.UpdateServerIds(cliCtx, &topomgr_pb.UpdateServerIdsRequest{
 			TopologyUri: rootURI,
 			StreamUri:   rootURI,
 			ServerIds:   serverIds[:i+1]})
@@ -63,7 +66,7 @@ func SetupRootNodes(
 	}
 	if rootN > 1 {
 		rootPb, err = topoMgr.FetchTopology(
-			ctx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
+			cliCtx, &topomgr_pb.FetchTopologyRequest{TopologyUri: rootURI})
 		require.NoError(t, err)
 	}
 	return s, rootPb

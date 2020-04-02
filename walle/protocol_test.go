@@ -34,7 +34,7 @@ func TestProtocolClaimWriter(t *testing.T) {
 	defer cancel()
 	_, c := newMockSystem(ctx, topo3Node, storage.TestTmpDir())
 
-	w, _, err := wallelib.WaitAndClaim(
+	w, err := wallelib.WaitAndClaim(
 		ctx, c, "/mock/1", "testhost:1001", wallelib.LeaseMinimum)
 	require.NoError(t, err)
 	defer w.Close()
@@ -72,7 +72,7 @@ func TestProtocolClaimWriter(t *testing.T) {
 	require.True(t, w.IsExclusive())
 
 	// Make sure clean writer transition works.
-	w2, _, err := wallelib.ClaimWriter(ctx, c, "/mock/1", "testhost:1002", wallelib.LeaseMinimum)
+	w2, err := wallelib.ClaimWriter(ctx, c, "/mock/1", "testhost:1002", wallelib.LeaseMinimum)
 	require.NoError(t, err)
 	defer w2.Close()
 	require.False(t, w.IsExclusive())
@@ -103,10 +103,11 @@ func TestProtocolClaimBarrage(t *testing.T) {
 			defer func() { errChan <- err }()
 			addr := "testhost:" + strconv.Itoa(idx)
 			for {
-				w, entry, err := wallelib.WaitAndClaim(ctx, c, "/mock/1", addr, lease)
+				w, err := wallelib.WaitAndClaim(ctx, c, "/mock/1", addr, lease)
 				if err != nil {
 					return err
 				}
+				entry := w.Committed()
 				putCtx := w.PutEntry([]byte(strconv.Itoa(idx)))
 				<-putCtx.Done()
 				w.Close()
@@ -134,7 +135,7 @@ func TestProtocolGapRecovery(t *testing.T) {
 	defer cancel()
 	m, c := newMockSystem(ctx, topo3Node, storage.TestTmpDir())
 
-	w, _, err := wallelib.WaitAndClaim(ctx, c, "/mock/1", "testhost:1001", wallelib.LeaseMinimum)
+	w, err := wallelib.WaitAndClaim(ctx, c, "/mock/1", "testhost:1001", wallelib.LeaseMinimum)
 	require.NoError(t, err)
 	defer w.Close()
 

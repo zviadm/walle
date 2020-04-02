@@ -63,11 +63,11 @@ func TestCrashingQuorum(t *testing.T) {
 		crashWG.Wait()
 	}()
 
-	w, e, err := wallelib.WaitAndClaim(
+	w, err := wallelib.WaitAndClaim(
 		ctx, cli, "/t1/blast", "blastwriter:1001", time.Second)
 	require.NoError(t, err)
 	defer w.Close()
-	require.EqualValues(t, 0, e.EntryId)
+	require.EqualValues(t, 0, w.Committed().EntryId)
 	zlog.Info("TEST: writer claimed for /t1/blast")
 
 	for i := 0; i < 4; i++ {

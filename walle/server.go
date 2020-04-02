@@ -55,9 +55,10 @@ func NewServer(
 			continue // can race with topology watcher.
 		}
 		writerId, writerAddr, _, _ := ss.WriterInfo()
-		if !isInternalWriter(writerAddr) {
-			ss.RenewLease(writerId, wallelib.ReconnectDelay)
+		if isInternalWriter(writerAddr) {
+			continue
 		}
+		ss.RenewLease(writerId, wallelib.ReconnectDelay)
 	}
 	return r
 }

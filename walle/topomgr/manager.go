@@ -73,10 +73,11 @@ func (m *Manager) manageLoop(
 	topologyURI string) {
 	defer close(notifyDone)
 	for {
-		w, e, err := wallelib.WaitAndClaim(ctx, m.c, topologyURI, m.addr, *flagManagerLease)
+		w, err := wallelib.WaitAndClaim(ctx, m.c, topologyURI, m.addr, *flagManagerLease)
 		if err != nil {
 			return // context has expired.
 		}
+		e := w.Committed()
 		topology, err := wallelib.TopologyFromEntry(e)
 		if err != nil || topology.Version != e.EntryId {
 			// This must never happen!

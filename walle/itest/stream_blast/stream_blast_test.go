@@ -57,7 +57,7 @@ func TestStreamBlast(t *testing.T) {
 	for i := 0; i < blastURIs; i++ {
 		var err error
 		// use higher lease since this test is very CPU intensive.
-		w[i], _, err = wallelib.WaitAndClaim(
+		w[i], err = wallelib.WaitAndClaim(
 			ctx, cli, blastURIPrefix+strconv.Itoa(i), "blastwriter:1001", 4*time.Second)
 		require.NoError(t, err)
 		defer w[i].Close()
