@@ -7,6 +7,8 @@ import "walleapi/walleapi.proto";
 service TopoManager {
 	rpc FetchTopology(FetchTopologyRequest) returns (Topology) {}
 
+	// TODO(zviad): These APIs are experimental. Most likely they will need to be
+	// tweaked or renamed.
 	rpc UpdateServerInfo(UpdateServerInfoRequest) returns (google.protobuf.Empty) {}
 	rpc UpdateServerIds(UpdateServerIdsRequest) returns (UpdateServerIdsResponse) {}
 }
