@@ -1,6 +1,7 @@
 package walle
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"time"
@@ -290,10 +291,11 @@ func (s *Server) checkAndUpdateWriterId(
 	writerId storage.WriterId) error {
 	for {
 		ssWriterId, writerAddr, _, _ := ss.WriterInfo()
-		if writerId == ssWriterId {
+		cmpWriterId := bytes.Compare(writerId, ssWriterId)
+		if cmpWriterId == 0 {
 			return nil
 		}
-		if writerId < ssWriterId {
+		if cmpWriterId < 0 {
 			return status.Errorf(
 				codes.FailedPrecondition, "writer no longer active: %s - %s < %s", writerAddr, writerId, ssWriterId)
 		}
@@ -302,7 +304,7 @@ func (s *Server) checkAndUpdateWriterId(
 			return err
 		}
 		respWriterId := storage.WriterId(resp.WriterId)
-		if respWriterId <= ssWriterId {
+		if bytes.Compare(respWriterId, ssWriterId) <= 0 {
 			return status.Errorf(codes.Internal, "writerId is newer than majority?: %s > %s", writerId, ssWriterId)
 		}
 		zlog.Infof(

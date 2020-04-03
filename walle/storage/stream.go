@@ -173,8 +173,9 @@ func (m *streamStorage) UpdateWriter(
 	if m.sess.Closed() {
 		return false, 0
 	}
-	if writerId <= m.writerId {
-		return writerId == m.writerId, 0
+	cmpWriterId := bytes.Compare(writerId, m.writerId)
+	if cmpWriterId <= 0 {
+		return cmpWriterId == 0, 0
 	}
 	remainingLease := m.unsafeRemainingLease()
 	m.writerId = writerId
@@ -197,7 +198,7 @@ func (m *streamStorage) RenewLease(
 	writerId WriterId, extraBuffer time.Duration) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
-	if writerId != m.writerId {
+	if bytes.Compare(writerId, m.writerId) != 0 {
 		return
 	}
 	panic.OnNotOk(extraBuffer >= 0, "extra buffer must be >=0: %s", extraBuffer)
@@ -316,8 +317,9 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) bool {
 	}
 
 	entryWriterId := WriterId(entry.WriterId)
-	panic.OnNotOk(entryWriterId != "", "writerId must always be set")
-	if !isCommitted && entryWriterId < m.writerId {
+	panic.OnNotOk(len(entryWriterId) > 0, "writerId must always be set")
+	// NOTE(zviad): if !isCommitted, writerId needs to be checked here again atomically, in the lock.
+	if !isCommitted && bytes.Compare(entryWriterId, m.writerId) != 0 {
 		return false
 	}
 	if entry.EntryId > m.tailEntry.EntryId+1 {
@@ -359,16 +361,13 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) bool {
 		return true
 	}
 
-	// NOTE(zviad): if !isCommitted, writerId needs to be checked here again atomically, in the lock.
-	if !isCommitted && entryWriterId != m.writerId {
-		return false
-	}
 	if m.tailEntry.EntryId >= entry.EntryId {
 		existingEntry := m.unsafeReadEntry(entry.EntryId)
-		if existingEntry.WriterId > entry.WriterId {
+		cmpWriterId := bytes.Compare(existingEntry.WriterId, entry.WriterId)
+		if cmpWriterId > 0 {
 			return false
 		}
-		if existingEntry.WriterId == entry.WriterId {
+		if cmpWriterId == 0 {
 			return true
 		}
 		// Truncate entries, because rest of the uncommitted entries are no longer valid, since a new writer

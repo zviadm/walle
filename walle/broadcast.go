@@ -1,6 +1,7 @@
 package walle
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"sort"
@@ -30,7 +31,7 @@ func (s *Server) broadcastWriterInfo(
 			})
 			respMx.Lock()
 			defer respMx.Unlock()
-			if resp.GetWriterId() > respMax.GetWriterId() {
+			if bytes.Compare(resp.GetWriterId(), respMax.GetWriterId()) > 0 {
 				respMax = resp
 			}
 			remainingMs = append(remainingMs, resp.GetRemainingLeaseMs())

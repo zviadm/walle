@@ -23,7 +23,7 @@ message NewWriterRequest {
 	int64 stream_version = 3;
 	string from_server_id = 4;
 
-	string writer_id = 5;
+	bytes writer_id = 5;
 	string writer_addr = 6;
 	int64 lease_ms = 7;
 }
@@ -36,7 +36,7 @@ message WriterInfoRequest {
 	string from_server_id = 4;
 }
 message WriterInfoResponse {
-	string writer_id = 1;
+	bytes writer_id = 1;
 	string writer_addr = 2;
 	int64 lease_ms = 3;
 	int64 remaining_lease_ms = 4;

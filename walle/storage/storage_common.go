@@ -15,13 +15,13 @@ import (
 	"github.com/zviadm/walle/walle/panic"
 )
 
-type WriterId string
+type WriterId []byte
 
-func (w WriterId) Encode() string {
-	return string(w)
+func (w WriterId) Encode() []byte {
+	return w
 }
 func (w WriterId) String() string {
-	return hex.EncodeToString([]byte(w))
+	return hex.EncodeToString(w)
 }
 
 // func (s ServerId) Encode() string {
@@ -55,7 +55,7 @@ const (
 var (
 	Entry0 = &walleapi.Entry{
 		EntryId:     0,
-		WriterId:    string(make([]byte, writerIdLen)),
+		WriterId:    make([]byte, writerIdLen),
 		ChecksumMd5: make([]byte, md5.Size),
 	}
 	entry0B, _    = Entry0.Marshal()

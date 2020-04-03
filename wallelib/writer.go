@@ -34,7 +34,7 @@ type Writer struct {
 	streamURI   string
 	writerLease time.Duration
 	writerAddr  string
-	writerId    string
+	writerId    []byte
 	longBeat    time.Duration
 
 	cliMX     sync.Mutex
@@ -82,7 +82,7 @@ func newWriter(
 	streamURI string,
 	writerLease time.Duration,
 	writerAddr string,
-	writerId string,
+	writerId []byte,
 	tailEntry *walleapi.Entry,
 	commitTime time.Time) *Writer {
 	ctx, cancel := context.WithCancel(context.Background())

@@ -97,8 +97,9 @@ func (s *Server) ClaimWriter(
 			continue
 		}
 		e := es[len(es)-1]
-		if maxEntry == nil || e.WriterId > maxEntry.WriterId ||
-			(e.WriterId == maxEntry.WriterId && e.EntryId > maxEntry.EntryId) {
+		cmpWriterId := bytes.Compare(e.WriterId, maxEntry.GetWriterId())
+		if maxEntry == nil || cmpWriterId > 0 ||
+			(cmpWriterId == 0 && e.EntryId > maxEntry.EntryId) {
 			maxWriterServerId = serverId
 			maxEntry = e
 		}
@@ -241,7 +242,7 @@ func (s *Server) WriterStatus(
 
 func (s *Server) PutEntry(
 	ctx context.Context, req *walleapi.PutEntryRequest) (*walleapi.PutEntryResponse, error) {
-	if req.Entry.GetWriterId() == "" {
+	if len(req.Entry.GetWriterId()) == 0 {
 		return nil, status.Errorf(codes.FailedPrecondition, "writer_id must be set")
 	}
 	if len(req.Entry.Data) > wallelib.MaxEntrySize {

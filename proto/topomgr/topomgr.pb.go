@@ -286,6 +286,8 @@ const _ = grpc.SupportPackageIsVersion4
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type TopoManagerClient interface {
 	FetchTopology(ctx context.Context, in *FetchTopologyRequest, opts ...grpc.CallOption) (*walleapi.Topology, error)
+	// TODO(zviad): These APIs are experimental. Most likely they will need to be
+	// tweaked or renamed.
 	UpdateServerInfo(ctx context.Context, in *UpdateServerInfoRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	UpdateServerIds(ctx context.Context, in *UpdateServerIdsRequest, opts ...grpc.CallOption) (*UpdateServerIdsResponse, error)
 }
@@ -328,6 +330,8 @@ func (c *topoManagerClient) UpdateServerIds(ctx context.Context, in *UpdateServe
 // TopoManagerServer is the server API for TopoManager service.
 type TopoManagerServer interface {
 	FetchTopology(context.Context, *FetchTopologyRequest) (*walleapi.Topology, error)
+	// TODO(zviad): These APIs are experimental. Most likely they will need to be
+	// tweaked or renamed.
 	UpdateServerInfo(context.Context, *UpdateServerInfoRequest) (*empty.Empty, error)
 	UpdateServerIds(context.Context, *UpdateServerIdsRequest) (*UpdateServerIdsResponse, error)
 }
