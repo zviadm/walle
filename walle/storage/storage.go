@@ -43,7 +43,7 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 	if opts.MaxLocalStreams == 0 {
 		opts.MaxLocalStreams = 100
 	}
-	cfg := &wt.ConnectionConfig{
+	cfg := wt.ConnCfg{
 		Create:     wt.Bool(opts.Create),
 		Log:        "enabled,compressor=snappy",
 		SessionMax: opts.MaxLocalStreams*2 + 2,
@@ -52,13 +52,13 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 	if err != nil {
 		return nil, err
 	}
-	metaS, err := c.OpenSession(nil)
+	metaS, err := c.OpenSession()
 	panic.OnErr(err)
-	panic.OnErr(metaS.Create(metadataDS, &wt.DataSourceConfig{BlockCompressor: "snappy"}))
+	panic.OnErr(metaS.Create(metadataDS, wt.DataSourceCfg{BlockCompressor: "snappy"}))
 	metaR, err := metaS.Scan(metadataDS)
 	panic.OnErr(err)
 	defer metaR.Close()
-	metaW, err := metaS.Mutate(metadataDS, nil)
+	metaW, err := metaS.Mutate(metadataDS)
 	panic.OnErr(err)
 	serverIdB, err := metaR.ReadUnsafeValue([]byte(glbServerId))
 	if err != nil {
@@ -80,7 +80,7 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 		panic.OnErr(
 			metaW.Insert([]byte(glbServerId), serverIdB))
 	}
-	flushS, err := c.OpenSession(nil)
+	flushS, err := c.OpenSession()
 	panic.OnErr(err)
 	r := &storage{
 		serverId: string(serverIdB),
@@ -123,9 +123,9 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 		if !IsMember(topology, r.serverId) {
 			continue
 		}
-		sess, err := c.OpenSession(nil)
+		sess, err := c.OpenSession()
 		panic.OnErr(err)
-		sessRO, err := c.OpenSession(nil)
+		sessRO, err := c.OpenSession()
 		panic.OnErr(err)
 		r.streams[streamURI] = openStreamStorage(r.serverId, streamURI, sess, sessRO)
 		r.streams[streamURI].setTopology(topology)
@@ -134,10 +134,12 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 	return r, nil
 }
 
+// Closing storage will leak underlying memory that is held by WiredTiger C library.
+// Assumption is that, after closing storage, program will exit promptly.
 func (m *storage) Close() {
 	m.mx.Lock()
 	defer m.mx.Unlock()
-	panic.OnErr(m.c.Close())
+	panic.OnErr(m.c.Close(wt.ConnCloseCfg{LeakMemory: wt.True}))
 }
 
 func (m *storage) ServerId() string {
@@ -214,11 +216,11 @@ func (m *storage) Update(
 }
 
 func (m *storage) makeLocalStream(streamURI string) (Stream, error) {
-	sess, err := m.c.OpenSession(nil)
+	sess, err := m.c.OpenSession()
 	if err != nil {
 		return nil, err
 	}
-	sessRO, err := m.c.OpenSession(nil)
+	sessRO, err := m.c.OpenSession()
 	if err != nil {
 		panic.OnErr(sess.Close()) // close successfully opened session.
 		return nil, err
