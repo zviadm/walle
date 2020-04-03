@@ -2,7 +2,6 @@ package walle
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"path"
@@ -46,7 +45,7 @@ func newMockSystem(
 	for serverId := range topology.Servers {
 		var err error
 		storages[serverId], err = storage.Init(
-			path.Join(storagePath, hex.EncodeToString([]byte(serverId))+".walledb"),
+			path.Join(storagePath, serverId+".walledb"),
 			storage.InitOpts{Create: true, ServerId: serverId})
 		panic.OnErr(err)
 	}
@@ -79,11 +78,11 @@ func (m *mockSystem) Server(serverId string) (*Server, error) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	if m.isDisabled[serverId] {
-		return nil, errors.Errorf("[%s] is unavailable!", hex.EncodeToString([]byte(serverId)))
+		return nil, errors.Errorf("[%s] is unavailable!", serverId)
 	}
 	s, ok := m.servers[serverId]
 	if !ok {
-		return nil, errors.Errorf("[%s] doesn't exist!", hex.EncodeToString([]byte(serverId)))
+		return nil, errors.Errorf("[%s] doesn't exist!", serverId)
 	}
 	return s, nil
 }
@@ -104,7 +103,7 @@ func (m *mockSystem) Toggle(serverId string, enabled bool) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	_, ok := m.servers[serverId]
-	panic.OnNotOk(ok, fmt.Sprintf("unknown serverId: %s", hex.EncodeToString([]byte(serverId))))
+	panic.OnNotOk(ok, fmt.Sprintf("unknown serverId: %s", serverId))
 	m.isDisabled[serverId] = !enabled
 }
 
@@ -119,7 +118,7 @@ func (m *mockClient) ForServer(serverId string) (walle_pb.WalleClient, error) {
 		return nil, err
 	}
 	if s == nil {
-		return nil, errors.Errorf("unknown serverId: %s", hex.EncodeToString([]byte(serverId)))
+		return nil, errors.Errorf("unknown serverId: %s", serverId)
 	}
 	return &clientSelf{s: s}, nil
 }

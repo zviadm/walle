@@ -2,7 +2,6 @@ package walle
 
 import (
 	"context"
-	"encoding/hex"
 	"strings"
 	"time"
 
@@ -90,7 +89,7 @@ func (s *Server) writerInfoWatcher(ctx context.Context) {
 			if time.Duration(wInfo.RemainingLeaseMs)*time.Millisecond >= -timeoutToResolve {
 				continue
 			}
-			writerAddr = writerInternalAddrPrefix + hex.EncodeToString([]byte(s.s.ServerId()))
+			writerAddr = writerInternalAddrPrefix + s.s.ServerId()
 			zlog.Infof(
 				"[ww] resolving stream %s (prev: %s, %dms) ",
 				streamURI, wInfo.WriterAddr, wInfo.RemainingLeaseMs)

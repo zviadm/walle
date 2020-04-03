@@ -3,7 +3,6 @@ package wallelib
 
 import (
 	"context"
-	"encoding/hex"
 	"math/rand"
 	"sync"
 
@@ -178,8 +177,7 @@ func (c *client) unsafeServerConn(serverId string) (*grpc.ClientConn, error) {
 	if !ok {
 		serverInfo, ok := c.topology.Servers[serverId]
 		if !ok {
-			return nil, errors.Errorf(
-				"serverId: %s, not found in topology", hex.EncodeToString([]byte(serverId)))
+			return nil, errors.Errorf("serverId: %s, not found in topology", serverId)
 		}
 		var err error
 		conn, err = grpc.Dial(

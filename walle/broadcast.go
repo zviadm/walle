@@ -3,7 +3,6 @@ package walle
 import (
 	"bytes"
 	"context"
-	"encoding/hex"
 	"sort"
 	"sync"
 
@@ -96,7 +95,7 @@ func (s *Server) broadcastRequest(
 			return nil, ctx.Err()
 		case err := <-errsC:
 			if err.Err != nil {
-				errs = append(errs, errors.Wrap(err.Err, hex.EncodeToString([]byte(err.ServerId))))
+				errs = append(errs, errors.Wrap(err.Err, err.ServerId))
 				errCode := status.Convert(err.Err).Code()
 				if errCode == codes.FailedPrecondition || errCodeFinal != codes.FailedPrecondition {
 					errCodeFinal = errCode

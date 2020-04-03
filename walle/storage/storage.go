@@ -60,6 +60,8 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 	defer metaR.Close()
 	metaW, err := metaS.Mutate(metadataDS)
 	panic.OnErr(err)
+
+	var serverId string
 	serverIdB, err := metaR.ReadUnsafeValue([]byte(glbServerId))
 	if err != nil {
 		if wt.ErrCode(err) != wt.ErrNotFound {
@@ -69,21 +71,31 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 			return nil, errors.Errorf("serverId doesn't exist in the database: %s", dbPath)
 		}
 		if opts.ServerId != "" {
-			serverIdB = []byte(opts.ServerId)
+			serverId = opts.ServerId
 		} else {
-			serverIdB = make([]byte, serverIdLen)
-			rand.Read(serverIdB)
+			serverIdB = make([]byte, 8)
+			_, err := rand.Read(serverIdB)
+			if err != nil {
+				return nil, err
+			}
+			serverId = hex.EncodeToString(serverIdB)
 			zlog.Infof(
-				"initializing new database: %s, with serverId: %s...",
-				dbPath, hex.EncodeToString(serverIdB))
+				"initializing new database: %s, with serverId: %s...", dbPath, serverId)
 		}
 		panic.OnErr(
-			metaW.Insert([]byte(glbServerId), serverIdB))
+			metaW.Insert([]byte(glbServerId), []byte(serverId)))
+	} else {
+		serverId = string(serverIdB)
 	}
+	if opts.ServerId != "" && opts.ServerId != serverId {
+		return nil, errors.Errorf(
+			"storage already has different serverId: %s vs %s", serverId, opts.ServerId)
+	}
+
 	flushS, err := c.OpenSession()
 	panic.OnErr(err)
 	r := &storage{
-		serverId: string(serverIdB),
+		serverId: serverId,
 		c:        c,
 		flushS:   flushS,
 		metaS:    metaS,
@@ -94,7 +106,7 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 		return nil, errors.Errorf(
 			"storage already has different serverId: %s vs %s", r.serverId, opts.ServerId)
 	}
-	zlog.Infof("storage: %s", hex.EncodeToString(serverIdB))
+	zlog.Infof("storage: %s", r.serverId)
 
 	r.streamT = make(map[string]*walleapi.StreamTopology)
 	panic.OnErr(metaR.Reset())

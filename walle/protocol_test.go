@@ -19,13 +19,13 @@ var cluster3Node = &walleapi.Topology{
 	Streams: map[string]*walleapi.StreamTopology{
 		"/mock/1": &walleapi.StreamTopology{
 			Version:   3,
-			ServerIds: []string{"\x00\x01", "\x00\x02", "\x00\x03"},
+			ServerIds: []string{"01", "02", "03"},
 		},
 	},
 	Servers: map[string]*walleapi.ServerInfo{
-		"\x00\x01": &walleapi.ServerInfo{Address: "localhost1:1001"},
-		"\x00\x02": &walleapi.ServerInfo{Address: "localhost2:1001"},
-		"\x00\x03": &walleapi.ServerInfo{Address: "localhost3:1001"},
+		"01": &walleapi.ServerInfo{Address: "localhost1:1001"},
+		"02": &walleapi.ServerInfo{Address: "localhost2:1001"},
+		"03": &walleapi.ServerInfo{Address: "localhost3:1001"},
 	},
 }
 

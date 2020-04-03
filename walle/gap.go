@@ -2,7 +2,6 @@ package walle
 
 import (
 	"context"
-	"encoding/hex"
 	"io"
 	"time"
 
@@ -121,7 +120,6 @@ Main:
 		if serverId == s.s.ServerId() {
 			continue
 		}
-		serverIdHex := hex.EncodeToString([]byte(serverId))
 
 		c, err := s.c.ForServer(serverId)
 		if err != nil {
@@ -150,8 +148,7 @@ Main:
 				if err == io.EOF {
 					if startId != endId {
 						zlog.Errorf(
-							"ERR_FATAL; unreachable code. %s server: %s is buggy!",
-							ss.StreamURI(), serverIdHex)
+							"ERR_FATAL; unreachable code. %s server: %s is buggy!", ss.StreamURI(), serverId)
 						continue Main
 					}
 					return nil
@@ -161,8 +158,7 @@ Main:
 			}
 			if entry.EntryId != startId {
 				zlog.Errorf(
-					"ERR_FATAL; unreachable code. %s server: %s is buggy!",
-					ss.StreamURI(), serverIdHex)
+					"ERR_FATAL; unreachable code. %s server: %s is buggy!", ss.StreamURI(), serverId)
 				continue Main
 			}
 			startId += 1

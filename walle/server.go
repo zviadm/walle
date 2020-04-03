@@ -3,7 +3,6 @@ package walle
 import (
 	"bytes"
 	"context"
-	"encoding/hex"
 	"time"
 
 	"github.com/pkg/errors"
@@ -252,12 +251,10 @@ type requestHeader interface {
 
 func (s *Server) processRequestHeader(req requestHeader) (ss storage.Stream, err error) {
 	if req.GetServerId() != s.s.ServerId() {
-		return nil, status.Errorf(
-			codes.NotFound, "invalid server_id: %s", hex.EncodeToString([]byte(req.GetServerId())))
+		return nil, status.Errorf(codes.NotFound, "invalid server_id: %s", req.GetServerId())
 	}
 	if req.GetFromServerId() == "" {
-		return nil, status.Errorf(
-			codes.NotFound, "invalid from_server_id: %s", hex.EncodeToString([]byte(req.GetFromServerId())))
+		return nil, status.Errorf(codes.NotFound, "invalid from_server_id: %s", req.GetFromServerId())
 	}
 	ss, ok := s.s.Stream(req.GetStreamUri())
 	if !ok {
@@ -280,7 +277,7 @@ func (s *Server) checkStreamVersion(
 	}
 	return status.Errorf(
 		codes.NotFound, "stream[%s] incompatible version: %d vs %d (from: %s)",
-		ss.StreamURI(), reqStreamVersion, ssTopology.Version, hex.EncodeToString([]byte(fromServerId)))
+		ss.StreamURI(), reqStreamVersion, ssTopology.Version, fromServerId)
 }
 
 // Checks writerId if it is still active for a given streamURI. If newer writerId is supplied, will try
@@ -308,8 +305,7 @@ func (s *Server) checkAndUpdateWriterId(
 			return status.Errorf(codes.Internal, "writerId is newer than majority?: %s > %s", writerId, ssWriterId)
 		}
 		zlog.Infof(
-			"[%s] writerId: updating %s -> %s",
-			ss.StreamURI(), hex.EncodeToString([]byte(ssWriterId)), hex.EncodeToString([]byte(writerId)))
+			"[%s] writerId: updating %s -> %s", ss.StreamURI(), ssWriterId, writerId)
 		ss.UpdateWriter(respWriterId, resp.WriterAddr, time.Duration(resp.LeaseMs)*time.Millisecond)
 	}
 }

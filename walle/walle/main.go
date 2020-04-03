@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/hex"
 	"flag"
 	"net"
 	"os"
@@ -86,7 +85,7 @@ func main() {
 		}
 		zlog.Infof(
 			"bootstrapped %s, server: %s - %s",
-			*rootURI, hex.EncodeToString([]byte(ss.ServerId())), serverInfo)
+			*rootURI, ss.ServerId(), serverInfo)
 		return
 	}
 

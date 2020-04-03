@@ -21,15 +21,8 @@ func (w WriterId) Encode() []byte {
 	return w
 }
 func (w WriterId) String() string {
-	return hex.EncodeToString(w)
+	return "w:0x" + hex.EncodeToString(w)
 }
-
-// func (s ServerId) Encode() string {
-// 	return string(s)
-// }
-// func (s ServerId) String() string {
-// 	return hex.EncodeToString([]byte(s))
-// }
 
 const (
 	metadataDS = "table:metadata"
@@ -46,9 +39,7 @@ const (
 	sfxGapStartId    = ":gap_start_id"
 	sfxGapEndId      = ":gap_end_id"
 
-	writerIdLen = 16
-	serverIdLen = 16
-
+	writerIdLen     = 16
 	streamURIMaxLen = 100
 )
 

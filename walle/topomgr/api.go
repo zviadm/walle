@@ -2,7 +2,6 @@ package topomgr
 
 import (
 	"context"
-	"encoding/hex"
 	"time"
 
 	"github.com/golang/protobuf/proto"
@@ -24,8 +23,7 @@ func (m *Manager) UpdateServerInfo(
 		return nil, err
 	}
 	zlog.Infof(
-		"[tm] updated server: %s : %s -> %s",
-		req.ClusterUri, hex.EncodeToString([]byte(req.ServerId)), req.ServerInfo)
+		"[tm] updated server: %s : %s -> %s", req.ClusterUri, req.ServerId, req.ServerInfo)
 	return &empty.Empty{}, nil
 }
 
