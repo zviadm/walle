@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/zviadm/tt/servicelib"
 	"github.com/zviadm/walle/proto/walleapi"
-	"github.com/zviadm/walle/tt/servicelib"
 	"github.com/zviadm/walle/walle/itest"
 	"github.com/zviadm/walle/wallelib"
 	"github.com/zviadm/zlog"

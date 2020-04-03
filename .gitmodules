@@ -1,3 +1,6 @@
 [submodule "wt"]
 	path = wt
 	url = git@github.com:zviadm/wt.git
+[submodule "tt"]
+	path = tt
+	url = git@github.com:zviadm/tt.git

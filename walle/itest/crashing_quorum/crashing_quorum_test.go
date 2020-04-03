@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/zviadm/walle/tt/servicelib"
+	"github.com/zviadm/tt/servicelib"
 	"github.com/zviadm/walle/walle/itest"
 	"github.com/zviadm/walle/wallelib"
 	"github.com/zviadm/zlog"
@@ -69,7 +69,8 @@ func crashLoop(t *testing.T, s []*servicelib.Service, crashC chan time.Duration,
 		if !ok {
 			return
 		}
-		servicelib.IptablesUnblockPort(t, itest.RootDefaultPort+idx)
+		servicelib.IptablesClearAll(t)
+		// servicelib.IptablesUnblockPort(t, itest.RootDefaultPort+idx)
 		zlog.Infof("TEST: starting s[%d] process", idx)
 		s[idx].Start(t, ctx)
 		crashC <- 0
