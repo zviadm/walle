@@ -2,7 +2,6 @@ package pipeline
 
 import (
 	"context"
-	"flag"
 	"time"
 
 	"github.com/pkg/errors"
@@ -13,11 +12,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
-
-var flagStreamQueueMB = flag.Int(
-	"walle.stream_queue_mb", 16,
-	"Maximum size of the in-flight/in-memory request queue per stream. "+
-		"Default should be fine in most cases. Must be set to at least 4MB.")
 
 type stream struct {
 	ss                  storage.Stream
@@ -30,13 +24,14 @@ type stream struct {
 func newStream(
 	ctx context.Context,
 	ss storage.Stream,
+	maxStreamQueueSize int,
 	flushQ chan<- *ResultCtx,
 	fetchCommittedEntry fetchFunc) *stream {
 	r := &stream{
 		ss:                  ss,
 		flushQ:              flushQ,
 		fetchCommittedEntry: fetchCommittedEntry,
-		q:                   newQueue(*flagStreamQueueMB * 1024 * 1024),
+		q:                   newQueue(maxStreamQueueSize),
 	}
 	go r.process(ctx)
 	return r

@@ -31,7 +31,8 @@ var _ Storage = &storage{}
 type InitOpts struct {
 	Create          bool   // create database if it doesn't exist.
 	ServerId        string // use provided serverId. only needed in testing.
-	MaxLocalStreams int    // maximum number of local streams supported.
+	CacheSizeMB     int
+	MaxLocalStreams int // maximum number of local streams supported.
 }
 
 func Init(dbPath string, opts InitOpts) (Storage, error) {
@@ -47,6 +48,7 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 		Create:     wt.Bool(opts.Create),
 		Log:        "enabled,compressor=snappy",
 		SessionMax: opts.MaxLocalStreams*2 + 2,
+		CacheSize:  opts.CacheSizeMB * 1024 * 1024,
 	}
 	c, err := wt.Open(dbPath, cfg)
 	if err != nil {

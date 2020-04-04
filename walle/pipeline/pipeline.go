@@ -23,6 +23,7 @@ type fetchFunc func(
 // for much better overall throughput.
 type Pipeline struct {
 	rootCtx             context.Context
+	maxStreamQueueSize  int
 	flushSync           func()
 	flushQ              chan *ResultCtx
 	fetchCommittedEntry fetchFunc
@@ -33,10 +34,12 @@ type Pipeline struct {
 
 func New(
 	ctx context.Context,
+	maxStreamQueueSize int,
 	flushSync func(),
 	fetchCommittedEntry fetchFunc) *Pipeline {
 	r := &Pipeline{
 		rootCtx:             ctx,
+		maxStreamQueueSize:  maxStreamQueueSize,
 		flushSync:           flushSync,
 		flushQ:              make(chan *ResultCtx, storageFlushQ),
 		fetchCommittedEntry: fetchCommittedEntry,
@@ -51,7 +54,8 @@ func (s *Pipeline) ForStream(ss storage.Stream) *stream {
 	defer s.mx.Unlock()
 	p, ok := s.p[ss]
 	if !ok {
-		p = newStream(s.rootCtx, ss, s.flushQ, s.fetchCommittedEntry)
+		p = newStream(
+			s.rootCtx, ss, s.maxStreamQueueSize, s.flushQ, s.fetchCommittedEntry)
 		s.p[ss] = p
 	}
 	return p

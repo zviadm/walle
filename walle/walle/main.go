@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"runtime/debug"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -39,6 +40,11 @@ func main() {
 	var clusterURI = flag.String("walle.cluster_uri", "",
 		"Cluster URI for this server. If not set, value from -walle.root_uri will be used.")
 
+	// Tuning flags.
+	var targetMemMB = flag.Int(
+		"walle.target_mem_mb", 200, "Target total memory usage.")
+	var maxLocalStreams = flag.Int(
+		"walle.max_local_streams", 10, "Maximum number of streams that this server can handle.")
 	flag.Parse()
 	ctx, cancelAll := context.WithCancel(context.Background())
 	var cancelDeadline atomic.Value
@@ -63,11 +69,27 @@ func main() {
 	if *port == "" {
 		zlog.Fatal("must provide port to listen on using -walle.port flag")
 	}
-	serverInfo := &walleapi.ServerInfo{
-		Address: net.JoinHostPort(*host, *port),
+	serverInfo := &walleapi.ServerInfo{Address: net.JoinHostPort(*host, *port)}
+
+	// Memory allocation:
+	// 50% goes to WT Cache. (non-GO memory)
+	// 25% goes to per stream queue.
+	// 25% goes to GC overhead.
+	cacheSizeMB := *targetMemMB / 2
+	streamQueueMB := *targetMemMB / 4 / (*maxLocalStreams)
+	debug.SetGCPercent(100)
+	if streamQueueMB*1024*1024 <= wallelib.MaxInFlightSize {
+		zlog.Fatal(
+			"not enough memory available per stream queue (need 4MB). " +
+				"either increase -walle.target_mem_mb, or decrease -walle.max_local_streams")
 	}
+
 	zlog.Infof("initializing storage: %s...", dbPath)
-	ss, err := storage.Init(dbPath, storage.InitOpts{Create: true})
+	ss, err := storage.Init(dbPath, storage.InitOpts{
+		Create:          true,
+		CacheSizeMB:     cacheSizeMB,
+		MaxLocalStreams: *maxLocalStreams,
+	})
 	if err != nil {
 		zlog.Fatal(err)
 	}
@@ -128,7 +150,7 @@ func main() {
 	if *rootURI == *clusterURI {
 		topoMgr = topomgr.NewManager(rootCli, serverInfo.Address)
 	}
-	ws := walle.NewServer(ctx, ss, c, d, topoMgr)
+	ws := walle.NewServer(ctx, ss, c, d, streamQueueMB*1024*1024, topoMgr)
 	s := grpc.NewServer()
 	walle_pb.RegisterWalleServer(s, ws)
 	walleapi.RegisterWalleApiServer(s, ws)

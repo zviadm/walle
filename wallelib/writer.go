@@ -13,12 +13,12 @@ import (
 )
 
 const (
-	LeaseMinimum = 100 * time.Millisecond
-	MaxEntrySize = 1024 * 1024 // 1MB
+	LeaseMinimum    = 100 * time.Millisecond
+	MaxEntrySize    = 1024 * 1024 // 1MB
+	MaxInFlightSize = 4 * 1024 * 1024
 
 	shortBeat       = 5 * time.Millisecond
 	maxInFlightPuts = 128
-	maxInFlightSize = 4 * 1024 * 1024
 
 	connectTimeout  = time.Second
 	ReconnectDelay  = 5 * time.Second
@@ -98,7 +98,7 @@ func newWriter(
 		// Use very large buffer for reqQ to never block. If user fills this queue up,
 		// PutEntry calls will start blocking.
 		reqQ:    make(chan *PutCtx, 16384),
-		limiter: newLimiter(maxInFlightPuts, maxInFlightSize),
+		limiter: newLimiter(maxInFlightPuts, MaxInFlightSize),
 
 		committedEntryId:  tailEntry.EntryId,
 		committedEntryMd5: tailEntry.ChecksumMd5,

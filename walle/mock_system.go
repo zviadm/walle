@@ -52,7 +52,8 @@ func newMockSystem(
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	for serverId := range topology.Servers {
-		m.servers[serverId] = NewServer(ctx, storages[serverId], client, d, nil)
+		m.servers[serverId] = NewServer(
+			ctx, storages[serverId], client, d, wallelib.MaxInFlightSize, nil)
 	}
 	go func() {
 		<-ctx.Done()
