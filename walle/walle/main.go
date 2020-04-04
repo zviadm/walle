@@ -80,7 +80,7 @@ func main() {
 	debug.SetGCPercent(100)
 	if streamQueueMB*1024*1024 <= wallelib.MaxInFlightSize {
 		zlog.Fatal(
-			"not enough memory available per stream queue (need 4MB). " +
+			"not enough memory available for per stream queue (need 4MB). " +
 				"either increase -walle.target_mem_mb, or decrease -walle.max_local_streams")
 	}
 
