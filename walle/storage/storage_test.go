@@ -184,3 +184,29 @@ func TestStreamLimits(t *testing.T) {
 	}
 	require.True(t, hasErr, "MaxStreams limit must have kicked in at some point!")
 }
+
+func TestStreamOpenClose(t *testing.T) {
+	s, err := Init(TestTmpDir(), InitOpts{Create: true, MaxLocalStreams: 1})
+	require.NoError(t, err)
+	defer s.Close()
+
+	streamURI := "/test1"
+	err = s.Update(streamURI, &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
+	require.NoError(t, err)
+	ss, ok := s.Stream(streamURI)
+	require.True(t, ok)
+	require.False(t, ss.IsClosed())
+
+	err = s.Update(streamURI, &walleapi.StreamTopology{Version: 2, ServerIds: []string{}})
+	require.NoError(t, err)
+	require.True(t, ss.IsClosed())
+	_, ok = s.Stream(streamURI)
+	require.False(t, ok)
+
+	err = s.Update(streamURI, &walleapi.StreamTopology{Version: 3, ServerIds: []string{s.ServerId()}})
+	require.NoError(t, err)
+	require.True(t, ss.IsClosed())
+	ss2, ok := s.Stream(streamURI)
+	require.True(t, ok)
+	require.False(t, ss2.IsClosed())
+}
