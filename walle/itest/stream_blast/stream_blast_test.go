@@ -11,10 +11,7 @@ import (
 	"github.com/zviadm/walle/walle/itest"
 	"github.com/zviadm/walle/walle/topomgr"
 	"github.com/zviadm/walle/wallelib"
-	"github.com/zviadm/zlog"
 )
-
-var _ = zlog.Info
 
 func TestStreamBlast(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)

@@ -7,6 +7,7 @@ package itest
 
 import (
 	"context"
+	"os"
 	"path"
 	"strconv"
 	"testing"
@@ -46,8 +47,10 @@ func BootstrapDeployment(
 		"")
 	sBootstrap.Wait(t)
 
-	rootTopology, err := wallelib.TopologyFromFile(path.Join(storageDir, "root.pb"))
+	rootPbFile := path.Join(storageDir, "root.pb")
+	rootTopology, err := wallelib.TopologyFromFile(rootPbFile)
 	require.NoError(t, err)
+	os.Setenv(wallelib.EnvRootPb, rootPbFile)
 	return rootTopology
 }
 

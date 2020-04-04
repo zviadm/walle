@@ -8,13 +8,13 @@ import (
 )
 
 const (
-	envRootPb = "WALLE_ROOTPB"
+	EnvRootPb = "WALLE_ROOTPB"
 )
 
 func RootPbFromEnv() (*walleapi.Topology, error) {
-	rootPb := os.Getenv(envRootPb)
+	rootPb := os.Getenv(EnvRootPb)
 	if rootPb == "" {
-		return nil, errors.Errorf("Environment variable: %s not defined", envRootPb)
+		return nil, errors.Errorf("Environment variable: %s not defined", EnvRootPb)
 	}
 	return TopologyFromFile(rootPb)
 }
