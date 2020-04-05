@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sort"
 
 	"github.com/pkg/errors"
 	topomgr_pb "github.com/zviadm/walle/proto/topomgr"
@@ -38,8 +39,13 @@ func main() {
 	case "streams":
 		t, err := topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{ClusterUri: clusterURI})
 		exitOnErr(err)
-		for streamURI, streamT := range t.Streams {
-			fmt.Printf("%s - %s\n", streamURI, streamT.ServerIds)
+		streamURIs := make(sort.StringSlice, 0, len(t.Streams))
+		for streamURI := range t.Streams {
+			streamURIs = append(streamURIs, streamURI)
+		}
+		streamURIs.Sort()
+		for _, streamURI := range streamURIs {
+			fmt.Printf("%s - %s\n", streamURI, t.Streams[streamURI].ServerIds)
 		}
 	case "servers":
 		t, err := topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{ClusterUri: clusterURI})
@@ -60,6 +66,7 @@ func main() {
 				ServerIds:  serverIds,
 			})
 		exitOnErr(err)
+		fmt.Printf("stream: %s, members: %s\n", streamURI, serverIds)
 	default:
 		exitOnErr(errors.Errorf("unknown command: %s", cmd))
 	}

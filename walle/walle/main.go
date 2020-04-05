@@ -41,7 +41,7 @@ func main() {
 
 	// Tuning flags.
 	var targetMemMB = flag.Int(
-		"walle.target_mem_mb", 200, "Target total memory usage.")
+		"walle.target_mem_mb", 200, "Target maximum total memory usage.")
 	var maxLocalStreams = flag.Int(
 		"walle.max_local_streams", 10, "Maximum number of streams that this server can handle.")
 	flag.Parse()
@@ -74,10 +74,10 @@ func main() {
 	cacheSizeMB := *targetMemMB / 2
 	streamQueueMB := *targetMemMB / 4 / (*maxLocalStreams)
 	debug.SetGCPercent(100)
-	if streamQueueMB*1024*1024 < wallelib.MaxInFlightSize {
-		zlog.Fatal(
-			"not enough memory available for per stream queue (need 4MB). " +
-				"either increase -walle.target_mem_mb, or decrease -walle.max_local_streams")
+	if streamQueueMB*1024*1024 <= wallelib.MaxInFlightSize {
+		streamQueueMB = wallelib.MaxInFlightSize / 1024 / 1024
+		// TODO(zviad): Produce a warning that target memory might not be enough for
+		// all queues.
 	}
 
 	zlog.Infof("initializing storage: %s...", dbPath)
