@@ -15,10 +15,10 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func (m *Manager) UpdateServerInfo(
+func (m *Manager) RegisterServer(
 	ctx context.Context,
-	req *topomgr.UpdateServerInfoRequest) (*empty.Empty, error) {
-	putCtx, err := m.updateServerInfo(req)
+	req *topomgr.RegisterServerRequest) (*empty.Empty, error) {
+	putCtx, err := m.registerServer(req)
 	if err := resolvePutCtx(ctx, putCtx, err); err != nil {
 		return nil, err
 	}
@@ -27,7 +27,7 @@ func (m *Manager) UpdateServerInfo(
 	return &empty.Empty{}, nil
 }
 
-func (m *Manager) updateServerInfo(req *topomgr.UpdateServerInfoRequest) (*wallelib.PutCtx, error) {
+func (m *Manager) registerServer(req *topomgr.RegisterServerRequest) (*wallelib.PutCtx, error) {
 	c, unlock, err := m.clusterMX(req.ClusterUri)
 	if err != nil {
 		return nil, err

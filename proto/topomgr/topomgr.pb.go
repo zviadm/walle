@@ -6,12 +6,13 @@ package topomgr
 import (
 	context "context"
 	fmt "fmt"
+	io "io"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	empty "github.com/golang/protobuf/ptypes/empty"
 	walleapi "github.com/zviadm/walle/proto/walleapi"
 	grpc "google.golang.org/grpc"
-	io "io"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -72,7 +73,7 @@ func (m *FetchTopologyRequest) GetClusterUri() string {
 	return ""
 }
 
-type UpdateServerInfoRequest struct {
+type RegisterServerRequest struct {
 	ClusterUri           string               `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
 	ServerId             string               `protobuf:"bytes,2,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
 	ServerInfo           *walleapi.ServerInfo `protobuf:"bytes,3,opt,name=server_info,json=serverInfo,proto3" json:"server_info,omitempty"`
@@ -81,18 +82,18 @@ type UpdateServerInfoRequest struct {
 	XXX_sizecache        int32                `json:"-"`
 }
 
-func (m *UpdateServerInfoRequest) Reset()         { *m = UpdateServerInfoRequest{} }
-func (m *UpdateServerInfoRequest) String() string { return proto.CompactTextString(m) }
-func (*UpdateServerInfoRequest) ProtoMessage()    {}
-func (*UpdateServerInfoRequest) Descriptor() ([]byte, []int) {
+func (m *RegisterServerRequest) Reset()         { *m = RegisterServerRequest{} }
+func (m *RegisterServerRequest) String() string { return proto.CompactTextString(m) }
+func (*RegisterServerRequest) ProtoMessage()    {}
+func (*RegisterServerRequest) Descriptor() ([]byte, []int) {
 	return fileDescriptor_4b9802c6f2bebbad, []int{1}
 }
-func (m *UpdateServerInfoRequest) XXX_Unmarshal(b []byte) error {
+func (m *RegisterServerRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *UpdateServerInfoRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *RegisterServerRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_UpdateServerInfoRequest.Marshal(b, m, deterministic)
+		return xxx_messageInfo_RegisterServerRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalTo(b)
@@ -102,33 +103,33 @@ func (m *UpdateServerInfoRequest) XXX_Marshal(b []byte, deterministic bool) ([]b
 		return b[:n], nil
 	}
 }
-func (m *UpdateServerInfoRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_UpdateServerInfoRequest.Merge(m, src)
+func (m *RegisterServerRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RegisterServerRequest.Merge(m, src)
 }
-func (m *UpdateServerInfoRequest) XXX_Size() int {
+func (m *RegisterServerRequest) XXX_Size() int {
 	return m.Size()
 }
-func (m *UpdateServerInfoRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_UpdateServerInfoRequest.DiscardUnknown(m)
+func (m *RegisterServerRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_RegisterServerRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_UpdateServerInfoRequest proto.InternalMessageInfo
+var xxx_messageInfo_RegisterServerRequest proto.InternalMessageInfo
 
-func (m *UpdateServerInfoRequest) GetClusterUri() string {
+func (m *RegisterServerRequest) GetClusterUri() string {
 	if m != nil {
 		return m.ClusterUri
 	}
 	return ""
 }
 
-func (m *UpdateServerInfoRequest) GetServerId() string {
+func (m *RegisterServerRequest) GetServerId() string {
 	if m != nil {
 		return m.ServerId
 	}
 	return ""
 }
 
-func (m *UpdateServerInfoRequest) GetServerInfo() *walleapi.ServerInfo {
+func (m *RegisterServerRequest) GetServerInfo() *walleapi.ServerInfo {
 	if m != nil {
 		return m.ServerInfo
 	}
@@ -239,7 +240,7 @@ var xxx_messageInfo_UpdateServerIdsResponse proto.InternalMessageInfo
 
 func init() {
 	proto.RegisterType((*FetchTopologyRequest)(nil), "FetchTopologyRequest")
-	proto.RegisterType((*UpdateServerInfoRequest)(nil), "UpdateServerInfoRequest")
+	proto.RegisterType((*RegisterServerRequest)(nil), "RegisterServerRequest")
 	proto.RegisterType((*UpdateServerIdsRequest)(nil), "UpdateServerIdsRequest")
 	proto.RegisterType((*UpdateServerIdsResponse)(nil), "UpdateServerIdsResponse")
 }
@@ -247,30 +248,31 @@ func init() {
 func init() { proto.RegisterFile("topomgr/topomgr.proto", fileDescriptor_4b9802c6f2bebbad) }
 
 var fileDescriptor_4b9802c6f2bebbad = []byte{
-	// 365 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x52, 0xc1, 0x6a, 0xc2, 0x40,
-	0x10, 0x75, 0x2b, 0x94, 0x66, 0x42, 0x69, 0x59, 0xaa, 0xa6, 0x91, 0xa6, 0x12, 0x28, 0x78, 0x28,
-	0x1b, 0xd0, 0x83, 0xf7, 0x42, 0x05, 0x0f, 0xbd, 0xd8, 0x7a, 0xe9, 0x45, 0xa2, 0x59, 0x63, 0x20,
-	0xc9, 0xa6, 0xbb, 0x1b, 0xc5, 0xde, 0xfb, 0x0f, 0xfd, 0xa4, 0x1e, 0x4b, 0xbf, 0xa0, 0xd8, 0x1f,
-	0x29, 0x66, 0xdd, 0x52, 0x45, 0xc1, 0xd3, 0xce, 0xbc, 0xc7, 0xec, 0xbc, 0x79, 0x33, 0x50, 0x91,
-	0x2c, 0x63, 0x49, 0xc8, 0xbd, 0xf5, 0x4b, 0x32, 0xce, 0x24, 0xb3, 0xeb, 0x21, 0x63, 0x61, 0x4c,
-	0xbd, 0x22, 0x1b, 0xe5, 0x13, 0x8f, 0x26, 0x99, 0x5c, 0xac, 0xc9, 0xda, 0xdc, 0x8f, 0x63, 0xea,
-	0x67, 0x91, 0xa7, 0x03, 0x45, 0xb8, 0x1d, 0xb8, 0xe8, 0x52, 0x39, 0x9e, 0x3e, 0xb1, 0x8c, 0xc5,
-	0x2c, 0x5c, 0xf4, 0xe9, 0x4b, 0x4e, 0x85, 0xc4, 0xd7, 0x60, 0x8e, 0xe3, 0x5c, 0x48, 0xca, 0x87,
-	0x39, 0x8f, 0x2c, 0xd4, 0x40, 0x4d, 0xa3, 0x0f, 0x6b, 0x68, 0xc0, 0x23, 0xf7, 0x0d, 0x41, 0x6d,
-	0x90, 0x05, 0xbe, 0xa4, 0x8f, 0x94, 0xcf, 0x28, 0xef, 0xa5, 0x13, 0x76, 0x68, 0x31, 0xae, 0x83,
-	0x21, 0x8a, 0xaa, 0x61, 0x14, 0x58, 0x47, 0x05, 0x7d, 0xa2, 0x80, 0x5e, 0x80, 0x6f, 0xc1, 0xd4,
-	0x64, 0x3a, 0x61, 0x56, 0xb9, 0x81, 0x9a, 0x66, 0xcb, 0x24, 0xff, 0xda, 0x80, 0xf8, 0x8b, 0xdd,
-	0x39, 0x54, 0x37, 0x64, 0x04, 0xe2, 0x60, 0x15, 0x57, 0x00, 0x42, 0x72, 0xea, 0x27, 0x05, 0xaf,
-	0x64, 0x18, 0x0a, 0xd1, 0xb4, 0x16, 0x29, 0xac, 0x72, 0xa3, 0x5c, 0xd0, 0xba, 0x8b, 0x7b, 0xb9,
-	0x35, 0xff, 0xaa, 0xb1, 0xc8, 0x58, 0x2a, 0x68, 0xeb, 0x0b, 0x81, 0xb9, 0x32, 0xf4, 0xc1, 0x4f,
-	0xfd, 0x90, 0x72, 0xdc, 0x86, 0xd3, 0x0d, 0x93, 0x71, 0x85, 0xec, 0x32, 0xdd, 0x36, 0x88, 0x46,
-	0xdc, 0x12, 0xee, 0xc2, 0xf9, 0xb6, 0xbf, 0xd8, 0x22, 0x7b, 0x2c, 0xb7, 0xab, 0x44, 0xad, 0x9f,
-	0xe8, 0xf5, 0x93, 0xfb, 0xd5, 0xfa, 0x8b, 0x7f, 0xce, 0xb6, 0x74, 0xe2, 0x1a, 0xd9, 0x6d, 0x99,
-	0x6d, 0x91, 0x3d, 0x23, 0xb9, 0xa5, 0xbb, 0xce, 0xc7, 0xd2, 0x41, 0x9f, 0x4b, 0x07, 0x7d, 0x2f,
-	0x1d, 0xf4, 0xfe, 0xe3, 0x94, 0x9e, 0x6f, 0xc2, 0x48, 0x4e, 0xf3, 0x11, 0x19, 0xb3, 0xc4, 0x7b,
-	0x9d, 0x45, 0x7e, 0x90, 0xa8, 0xeb, 0x52, 0x27, 0xa8, 0xcf, 0x73, 0x74, 0x5c, 0xa4, 0xed, 0xdf,
-	0x00, 0x00, 0x00, 0xff, 0xff, 0x20, 0x75, 0x9f, 0x32, 0xb8, 0x02, 0x00, 0x00,
+	// 374 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x92, 0x41, 0x6b, 0xe2, 0x40,
+	0x14, 0xc7, 0x33, 0x2b, 0x2c, 0x9b, 0x17, 0x76, 0x17, 0x86, 0x55, 0xb3, 0x91, 0xcd, 0x4a, 0xa0,
+	0xe0, 0xa1, 0x4c, 0x40, 0x0f, 0xde, 0x85, 0x0a, 0x1e, 0x7a, 0x49, 0xeb, 0xa5, 0x17, 0x89, 0x66,
+	0x8c, 0x81, 0x24, 0x93, 0xce, 0x4c, 0x14, 0x7b, 0xed, 0x97, 0xe8, 0x47, 0xea, 0xa9, 0xf4, 0x23,
+	0x14, 0xfb, 0x45, 0x8a, 0x99, 0x4c, 0xc1, 0xd6, 0x82, 0xa7, 0xcc, 0xfb, 0xff, 0x78, 0xbc, 0x7f,
+	0xfe, 0xef, 0x41, 0x53, 0xb2, 0x82, 0x65, 0x31, 0xf7, 0xeb, 0x2f, 0x29, 0x38, 0x93, 0xcc, 0xe9,
+	0xc4, 0x8c, 0xc5, 0x29, 0xf5, 0xab, 0x6a, 0x5e, 0x2e, 0x7d, 0x9a, 0x15, 0x72, 0x5b, 0xc3, 0xf6,
+	0x26, 0x4c, 0x53, 0x1a, 0x16, 0x89, 0xaf, 0x1f, 0x0a, 0x78, 0x43, 0xf8, 0x33, 0xa6, 0x72, 0xb1,
+	0xba, 0x66, 0x05, 0x4b, 0x59, 0xbc, 0x0d, 0xe8, 0x6d, 0x49, 0x85, 0xc4, 0xff, 0xc1, 0x5a, 0xa4,
+	0xa5, 0x90, 0x94, 0xcf, 0x4a, 0x9e, 0xd8, 0xa8, 0x8b, 0x7a, 0x66, 0x00, 0xb5, 0x34, 0xe5, 0x89,
+	0x77, 0x8f, 0xa0, 0x19, 0xd0, 0x38, 0xd9, 0xd7, 0x57, 0x94, 0xaf, 0x29, 0x3f, 0xb5, 0x15, 0x77,
+	0xc0, 0x14, 0x55, 0xc7, 0x2c, 0x89, 0xec, 0x6f, 0x15, 0xfe, 0xa1, 0x84, 0x49, 0x84, 0xcf, 0xc1,
+	0xd2, 0x30, 0x5f, 0x32, 0xbb, 0xd1, 0x45, 0x3d, 0xab, 0x6f, 0x11, 0x35, 0x62, 0x92, 0x2f, 0x59,
+	0x00, 0xe2, 0xfd, 0xed, 0x6d, 0xa0, 0x35, 0x2d, 0xa2, 0x50, 0xd2, 0x9a, 0x47, 0xe2, 0x64, 0x17,
+	0xff, 0x00, 0x84, 0xe4, 0x34, 0xcc, 0x2a, 0xae, 0x6c, 0x98, 0x4a, 0xd1, 0x58, 0x9b, 0x14, 0x76,
+	0xa3, 0xdb, 0xa8, 0xb0, 0x9e, 0xe2, 0xfd, 0x85, 0xf6, 0xa7, 0xc1, 0xa2, 0x60, 0xb9, 0xa0, 0xfd,
+	0x27, 0x04, 0xd6, 0x3e, 0xce, 0xcb, 0x30, 0x0f, 0x63, 0xca, 0xf1, 0x00, 0x7e, 0x1e, 0x44, 0x8c,
+	0x9b, 0xe4, 0x58, 0xe4, 0x8e, 0x49, 0xb4, 0xe2, 0x19, 0x78, 0x04, 0xbf, 0x0e, 0xd3, 0xc5, 0x2d,
+	0x72, 0x34, 0x6e, 0xa7, 0x45, 0xd4, 0xe2, 0x89, 0x5e, 0x3c, 0xb9, 0xd8, 0x2f, 0xde, 0x33, 0xf0,
+	0x18, 0x7e, 0x7f, 0xf0, 0x88, 0xdb, 0xe4, 0x78, 0x5c, 0x8e, 0x4d, 0xbe, 0xf8, 0x1d, 0xcf, 0x18,
+	0x0d, 0x1f, 0x77, 0x2e, 0x7a, 0xde, 0xb9, 0xe8, 0x65, 0xe7, 0xa2, 0x87, 0x57, 0xd7, 0xb8, 0x39,
+	0x8b, 0x13, 0xb9, 0x2a, 0xe7, 0x64, 0xc1, 0x32, 0xff, 0x6e, 0x9d, 0x84, 0x51, 0xa6, 0xee, 0x4a,
+	0x1d, 0x9f, 0x3e, 0xcc, 0xf9, 0xf7, 0xaa, 0x1c, 0xbc, 0x05, 0x00, 0x00, 0xff, 0xff, 0x94, 0xe5,
+	0x6e, 0x7e, 0xb2, 0x02, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -286,9 +288,12 @@ const _ = grpc.SupportPackageIsVersion4
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type TopoManagerClient interface {
 	FetchTopology(ctx context.Context, in *FetchTopologyRequest, opts ...grpc.CallOption) (*walleapi.Topology, error)
+	// RegisterServer call registers WALLE server node with a cluster. It is expected
+	// to be called by the WALLE server process itself.
+	RegisterServer(ctx context.Context, in *RegisterServerRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// TODO(zviad): These APIs are experimental. Most likely they will need to be
 	// tweaked or renamed.
-	UpdateServerInfo(ctx context.Context, in *UpdateServerInfoRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	// rpc RegisterServer(RegisterServerRequest) returns (google.protobuf.Empty) {}
 	UpdateServerIds(ctx context.Context, in *UpdateServerIdsRequest, opts ...grpc.CallOption) (*UpdateServerIdsResponse, error)
 }
 
@@ -309,9 +314,9 @@ func (c *topoManagerClient) FetchTopology(ctx context.Context, in *FetchTopology
 	return out, nil
 }
 
-func (c *topoManagerClient) UpdateServerInfo(ctx context.Context, in *UpdateServerInfoRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+func (c *topoManagerClient) RegisterServer(ctx context.Context, in *RegisterServerRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
-	err := c.cc.Invoke(ctx, "/TopoManager/UpdateServerInfo", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/TopoManager/RegisterServer", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -330,9 +335,12 @@ func (c *topoManagerClient) UpdateServerIds(ctx context.Context, in *UpdateServe
 // TopoManagerServer is the server API for TopoManager service.
 type TopoManagerServer interface {
 	FetchTopology(context.Context, *FetchTopologyRequest) (*walleapi.Topology, error)
+	// RegisterServer call registers WALLE server node with a cluster. It is expected
+	// to be called by the WALLE server process itself.
+	RegisterServer(context.Context, *RegisterServerRequest) (*empty.Empty, error)
 	// TODO(zviad): These APIs are experimental. Most likely they will need to be
 	// tweaked or renamed.
-	UpdateServerInfo(context.Context, *UpdateServerInfoRequest) (*empty.Empty, error)
+	// rpc RegisterServer(RegisterServerRequest) returns (google.protobuf.Empty) {}
 	UpdateServerIds(context.Context, *UpdateServerIdsRequest) (*UpdateServerIdsResponse, error)
 }
 
@@ -358,20 +366,20 @@ func _TopoManager_FetchTopology_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
-func _TopoManager_UpdateServerInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateServerInfoRequest)
+func _TopoManager_RegisterServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RegisterServerRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(TopoManagerServer).UpdateServerInfo(ctx, in)
+		return srv.(TopoManagerServer).RegisterServer(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/TopoManager/UpdateServerInfo",
+		FullMethod: "/TopoManager/RegisterServer",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TopoManagerServer).UpdateServerInfo(ctx, req.(*UpdateServerInfoRequest))
+		return srv.(TopoManagerServer).RegisterServer(ctx, req.(*RegisterServerRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -403,8 +411,8 @@ var _TopoManager_serviceDesc = grpc.ServiceDesc{
 			Handler:    _TopoManager_FetchTopology_Handler,
 		},
 		{
-			MethodName: "UpdateServerInfo",
-			Handler:    _TopoManager_UpdateServerInfo_Handler,
+			MethodName: "RegisterServer",
+			Handler:    _TopoManager_RegisterServer_Handler,
 		},
 		{
 			MethodName: "UpdateServerIds",
@@ -442,7 +450,7 @@ func (m *FetchTopologyRequest) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
-func (m *UpdateServerInfoRequest) Marshal() (dAtA []byte, err error) {
+func (m *RegisterServerRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalTo(dAtA)
@@ -452,7 +460,7 @@ func (m *UpdateServerInfoRequest) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *UpdateServerInfoRequest) MarshalTo(dAtA []byte) (int, error) {
+func (m *RegisterServerRequest) MarshalTo(dAtA []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -579,7 +587,7 @@ func (m *FetchTopologyRequest) Size() (n int) {
 	return n
 }
 
-func (m *UpdateServerInfoRequest) Size() (n int) {
+func (m *RegisterServerRequest) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -740,7 +748,7 @@ func (m *FetchTopologyRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *UpdateServerInfoRequest) Unmarshal(dAtA []byte) error {
+func (m *RegisterServerRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -763,10 +771,10 @@ func (m *UpdateServerInfoRequest) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: UpdateServerInfoRequest: wiretype end group for non-group")
+			return fmt.Errorf("proto: RegisterServerRequest: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: UpdateServerInfoRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: RegisterServerRequest: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:

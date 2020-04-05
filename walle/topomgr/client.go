@@ -67,11 +67,11 @@ func (t *client) FetchTopology(
 		})
 	return r, err
 }
-func (t *client) UpdateServerInfo(
-	ctx context.Context, in *topomgr.UpdateServerInfoRequest, opts ...grpc.CallOption) (r *empty.Empty, err error) {
+func (t *client) RegisterServer(
+	ctx context.Context, in *topomgr.RegisterServerRequest, opts ...grpc.CallOption) (r *empty.Empty, err error) {
 	err = t.connectAndDo(ctx, in.ClusterUri,
 		func(ctx context.Context, c topomgr.TopoManagerClient) error {
-			r, err = c.UpdateServerInfo(ctx, in, opts...)
+			r, err = c.RegisterServer(ctx, in, opts...)
 			return err
 		})
 	return r, err

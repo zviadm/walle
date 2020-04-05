@@ -46,7 +46,8 @@ func main() {
 		for serverId, sInfo := range t.Servers {
 			fmt.Printf("%s - %s\n", serverId, sInfo.Address)
 		}
-	// case "":
+	//case "create":
+
 	default:
 		exitOnErr(errors.Errorf("unknown command: %s", cmd))
 	}

@@ -7,9 +7,13 @@ import "walleapi/walleapi.proto";
 service TopoManager {
 	rpc FetchTopology(FetchTopologyRequest) returns (Topology) {}
 
+	// RegisterServer call registers WALLE server node with a cluster. It is expected
+	// to be called by the WALLE server process itself.
+	rpc RegisterServer(RegisterServerRequest) returns (google.protobuf.Empty) {}
+
 	// TODO(zviad): These APIs are experimental. Most likely they will need to be
 	// tweaked or renamed.
-	rpc UpdateServerInfo(UpdateServerInfoRequest) returns (google.protobuf.Empty) {}
+	// rpc RegisterServer(RegisterServerRequest) returns (google.protobuf.Empty) {}
 	rpc UpdateServerIds(UpdateServerIdsRequest) returns (UpdateServerIdsResponse) {}
 }
 
@@ -17,11 +21,12 @@ message FetchTopologyRequest {
 	string cluster_uri = 1;
 }
 
-message UpdateServerInfoRequest {
+message RegisterServerRequest {
 	string cluster_uri = 1;
 	string server_id = 2;
 	ServerInfo server_info = 3;
 }
+
 message UpdateServerIdsRequest {
 	string cluster_uri = 1;
 	string stream_uri = 2;
