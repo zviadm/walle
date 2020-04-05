@@ -34,7 +34,7 @@ func main() {
 	var port = flag.String("walle.port", "", "Port to listen on.")
 
 	var bootstrapRootURI = flag.String(
-		"walle.bootstrap_root_uri", "",
+		"walle.bootstrap_uri", "",
 		"Bootstrap new deployment. Will exit once new bootstrapped storage is created.")
 
 	var clusterURI = flag.String("walle.cluster_uri", "", "Cluster URI to join.")
@@ -74,7 +74,7 @@ func main() {
 	cacheSizeMB := *targetMemMB / 2
 	streamQueueMB := *targetMemMB / 4 / (*maxLocalStreams)
 	debug.SetGCPercent(100)
-	if streamQueueMB*1024*1024 <= wallelib.MaxInFlightSize {
+	if streamQueueMB*1024*1024 < wallelib.MaxInFlightSize {
 		zlog.Fatal(
 			"not enough memory available for per stream queue (need 4MB). " +
 				"either increase -walle.target_mem_mb, or decrease -walle.max_local_streams")

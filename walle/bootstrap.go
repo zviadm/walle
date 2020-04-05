@@ -1,13 +1,23 @@
 package walle
 
 import (
+	"strings"
+
 	"github.com/pkg/errors"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/storage"
+	"github.com/zviadm/walle/walle/topomgr"
 	"github.com/zviadm/walle/wallelib"
 )
 
 func BootstrapRoot(s storage.Storage, rootURI string, rootFile string, rootInfo *walleapi.ServerInfo) error {
+	if err := storage.ValidateStreamURI(rootURI); err != nil {
+		return err
+	}
+	if !strings.HasPrefix(rootURI, topomgr.Prefix) {
+		return errors.Errorf("root_uri must have: %s prefix", topomgr.Prefix)
+	}
+
 	var entryId int64 = 1
 	rootPb := &walleapi.Topology{
 		RootUri: rootURI,

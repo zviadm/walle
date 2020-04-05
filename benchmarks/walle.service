@@ -1,0 +1,16 @@
+[Unit]
+Description=WALLE
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+User=zviad
+ExecStart=/bin/bash -ce "exec /home/zviad/walle -walle.storage_dir=/mnt/disks/w0/walle -walle.port=5005 \
+	-walle.cluster_uri=/cluster/bench \
+	-walle.target_mem_mb=1600 -walle.max_local_streams=100 &> /home/zviad/walle.log"
+
+[Install]
+WantedBy=multi-user.target

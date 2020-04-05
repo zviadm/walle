@@ -39,7 +39,7 @@ func BootstrapDeployment(
 	// Bootstrap WALLE `itest` deployment.
 	sBootstrap := servicelib.RunGoService(
 		t, ctx, WallePkg, []string{
-			"-walle.bootstrap_root_uri", rootURI,
+			"-walle.bootstrap_uri", rootURI,
 			"-walle.storage_dir", storageDir,
 			"-walle.port", strconv.Itoa(port),
 		},

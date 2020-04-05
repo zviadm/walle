@@ -12,12 +12,14 @@ for i in {0..2}; do
 		--image-project="ubuntu-os-cloud" --image-family=$IMAGEFAMILY --machine-type=$MACHINETYPE \
 		--local-ssd interface="nvme"
 done
-sleep "2s"
+
+gcloud compute ssh wctl-0 -- "sudo apt-get install -y --no-install-recommends libsnappy-dev"
 for i in {0..2}; do
 	gcloud compute ssh wnode-$i -- "
+sudo apt-get install -y --no-install-recommends libsnappy-dev
 sudo mkfs.ext4 -F /dev/nvme0n1
 sudo mkdir -p /mnt/disks/w0
 sudo mount /dev/nvme0n1 /mnt/disks/w0
-sudo chmod ug+w /mnt/disks/w0
+sudo chmod a+w /mnt/disks/w0
 "
 done
