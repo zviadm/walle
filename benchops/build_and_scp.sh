@@ -18,7 +18,7 @@ gcloud compute scp $HOME/.tt_cache/goroot/bin/wctl wctl-0:
 if [[ -z $N ]]; then
 	exit 0
 fi
-for i in {0..$N}; do
+for i in $(seq 0 $N); do
 	gcloud compute ssh wnode-$i -- "sudo systemctl stop walle"
 	gcloud compute scp $HOME/.tt_cache/goroot/bin/walle wnode-$i:
 	gcloud compute ssh wnode-$i -- "sudo systemctl start walle"
