@@ -2,6 +2,7 @@ package topomgr
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/golang/protobuf/proto"
@@ -66,7 +67,7 @@ func (m *Manager) FetchTopology(
 func (m *Manager) UpdateServerIds(
 	ctx context.Context,
 	req *topomgr.UpdateServerIdsRequest) (*topomgr.UpdateServerIdsResponse, error) {
-	if err := storage.IsValidStreamURI(req.StreamUri); err != nil {
+	if err := storage.ValidateStreamURI(req.StreamUri); err != nil {
 		return nil, err
 	}
 
@@ -76,6 +77,10 @@ func (m *Manager) UpdateServerIds(
 	}
 	topology := c.topology
 	unlock()
+	if strings.HasPrefix(req.StreamUri, Prefix) && topology.RootUri == "" {
+		return nil, status.Error(
+			codes.InvalidArgument, "/cluster streams can only exist in root cluster")
+	}
 
 	changed, err := verifyAndDiffMembershipChange(topology, req.StreamUri, req.ServerIds)
 	if err != nil {

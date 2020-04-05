@@ -8,7 +8,6 @@ import (
 
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/zlog"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
@@ -209,7 +208,7 @@ func (w *Writer) heartbeater(ctx context.Context) {
 				})
 				if err != nil {
 					errCode := status.Convert(err).Code()
-					return errCode == codes.FailedPrecondition, false, err
+					return IsErrFinal(errCode), false, err
 				}
 				w.updateCommittedEntryId(now, toCommit.EntryId, toCommit.ChecksumMd5, toCommit)
 				return true, false, nil
@@ -255,7 +254,7 @@ func (w *Writer) process(ctx context.Context, req *PutCtx) {
 				}
 				silentErr := (req.Entry.EntryId > toCommit.EntryId+1)
 				errCode := status.Convert(err).Code()
-				return errCode == codes.FailedPrecondition, silentErr, err
+				return IsErrFinal(errCode), silentErr, err
 			}
 			w.updateCommittedEntryId(
 				now, toCommit.EntryId, toCommit.ChecksumMd5, req.Entry)

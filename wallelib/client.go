@@ -200,3 +200,8 @@ func (c *client) unsafeServerConn(serverId string) (*grpc.ClientConn, error) {
 	}
 	return conn, nil
 }
+
+// Returns True for error codes that are never retriable in WALLE.
+func IsErrFinal(errCode codes.Code) bool {
+	return errCode == codes.FailedPrecondition || errCode == codes.InvalidArgument
+}

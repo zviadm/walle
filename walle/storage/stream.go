@@ -50,7 +50,7 @@ func createStreamStorage(
 	streamURI string,
 	sess *wt.Session,
 	sessRO *wt.Session) Stream {
-	panic.OnErr(IsValidStreamURI(streamURI))
+	panic.OnErr(ValidateStreamURI(streamURI))
 	panic.OnErr(sess.Create(streamDS(streamURI), wt.DataSourceCfg{BlockCompressor: "snappy"}))
 
 	panic.OnErr(sess.TxBegin(wt.TxCfg{Sync: wt.True}))

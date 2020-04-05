@@ -53,7 +53,7 @@ func (t *client) connectAndDo(
 			defer conn.Close()
 			err = f(ctx, topomgr.NewTopoManagerClient(conn))
 			errCode := status.Convert(err).Code()
-			errFinal := errCode == codes.OK || errCode == codes.FailedPrecondition
+			errFinal := errCode == codes.OK || wallelib.IsErrFinal(errCode)
 			return errFinal, false, err
 		})
 }

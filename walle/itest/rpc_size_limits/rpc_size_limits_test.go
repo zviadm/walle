@@ -72,7 +72,7 @@ func TestRpcSizeLimits(t *testing.T) {
 	})
 	// Make sure MaxEntrySize limits work, and Put gets rejected.
 	require.Error(t, err)
-	require.EqualValues(t, codes.FailedPrecondition, status.Convert(err).Code())
+	require.EqualValues(t, codes.InvalidArgument, status.Convert(err).Code())
 
 	zlog.Info("TEST: claiming new writer to resolve large uncommitted entries...")
 	w2, err := wallelib.ClaimWriter(

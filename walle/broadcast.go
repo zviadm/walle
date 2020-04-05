@@ -9,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/walle/storage"
+	"github.com/zviadm/walle/wallelib"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -97,7 +98,7 @@ func (s *Server) broadcastRequest(
 			if err.Err != nil {
 				errs = append(errs, errors.Wrap(err.Err, err.ServerId))
 				errCode := status.Convert(err.Err).Code()
-				if errCode == codes.FailedPrecondition || errCodeFinal != codes.FailedPrecondition {
+				if wallelib.IsErrFinal(errCode) || !wallelib.IsErrFinal(errCodeFinal) {
 					errCodeFinal = errCode
 				}
 			} else {

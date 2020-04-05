@@ -10,9 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/panic"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type WriterId []byte
@@ -66,12 +67,12 @@ func streamDS(streamURI string) string {
 
 var reStreamURI = regexp.MustCompile("/[a-z0-9_/]+")
 
-func IsValidStreamURI(streamURI string) error {
+func ValidateStreamURI(streamURI string) error {
 	if len(streamURI) > streamURIMaxLen {
-		return errors.Errorf("streamURI must be at most %d bytes: %s", streamURIMaxLen, streamURI)
+		return status.Errorf(codes.InvalidArgument, "streamURI must be at most %d bytes: %s", streamURIMaxLen, streamURI)
 	}
 	if !reStreamURI.MatchString(streamURI) {
-		return errors.Errorf("invlaid streamURI: %s", streamURI)
+		return status.Errorf(codes.InvalidArgument, "invlaid streamURI: %s", streamURI)
 	}
 	return nil
 }
