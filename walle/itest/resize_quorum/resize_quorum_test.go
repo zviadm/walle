@@ -42,7 +42,7 @@ func expandTopology(
 
 	rootPb, err := topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{ClusterUri: rootURI})
 	require.NoError(t, err)
-	s := itest.RunWalle(t, ctx, rootPb, "", storage.TestTmpDir(), port)
+	s := itest.RunWalle(t, ctx, rootPb, rootPb.RootUri, storage.TestTmpDir(), port)
 
 	rootPb, err = topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{ClusterUri: rootURI})
 	require.NoError(t, err)

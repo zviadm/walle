@@ -39,10 +39,9 @@ func BootstrapDeployment(
 	// Bootstrap WALLE `itest` deployment.
 	sBootstrap := servicelib.RunGoService(
 		t, ctx, WallePkg, []string{
-			"-walle.root_uri", rootURI,
+			"-walle.bootstrap_root_uri", rootURI,
 			"-walle.storage_dir", storageDir,
 			"-walle.port", strconv.Itoa(port),
-			"-walle.bootstrap_only",
 		},
 		"")
 	sBootstrap.Wait(t)
@@ -65,7 +64,6 @@ func RunWalle(
 	require.NoError(t, err)
 	s := servicelib.RunGoService(
 		t, ctx, WallePkg, []string{
-			"-walle.root_uri", rootPb.RootUri,
 			"-walle.cluster_uri", clusterURI,
 			"-walle.storage_dir", storageDir,
 			"-walle.port", strconv.Itoa(port),

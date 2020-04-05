@@ -26,19 +26,18 @@ import (
 )
 
 func main() {
-	var rootURI = flag.String("walle.root_uri", "", "Root topology URI for the cluster.")
 	var storageDir = flag.String("walle.storage_dir", "", "Path where database and discovery data will be stored.")
 	var host = flag.String(
 		"walle.host", "",
 		"Hostname that other servers can use to connect to this server. "+
 			"If it isn't set, os.Hostname() will be used to determine it automatically.")
 	var port = flag.String("walle.port", "", "Port to listen on.")
-	var bootstrapOnly = flag.Bool(
-		"walle.bootstrap_only", false,
-		"Bootstrap new deployment. Will exit once new bootstrapped storage is created. "+
-			"Should be started again without -walle.bootstrap_only flag if it exits successfully.")
-	var clusterURI = flag.String("walle.cluster_uri", "",
-		"Cluster URI for this server. If not set, value from -walle.root_uri will be used.")
+
+	var bootstrapRootURI = flag.String(
+		"walle.bootstrap_root_uri", "",
+		"Bootstrap new deployment. Will exit once new bootstrapped storage is created.")
+
+	var clusterURI = flag.String("walle.cluster_uri", "", "Cluster URI to join.")
 
 	// Tuning flags.
 	var targetMemMB = flag.Int(
@@ -50,9 +49,6 @@ func main() {
 	var cancelDeadline atomic.Value
 	cancelDeadline.Store(time.Time{})
 
-	if *rootURI == "" {
-		zlog.Fatal("must provide root streamURI using -walle.root_uri flag")
-	}
 	if *storageDir == "" {
 		zlog.Fatal("must provide path to the storage using -walle.db_path flag")
 	}
@@ -100,23 +96,22 @@ func main() {
 		zlog.Infof("storage closed and flushed")
 	}()
 
-	if *bootstrapOnly {
-		err := walle.BootstrapRoot(ss, *rootURI, rootFile, serverInfo)
+	if *bootstrapRootURI != "" {
+		err := walle.BootstrapRoot(ss, *bootstrapRootURI, rootFile, serverInfo)
 		if err != nil {
 			zlog.Fatal(err)
 		}
 		zlog.Infof(
 			"bootstrapped %s, server: %s - %s",
-			*rootURI, ss.ServerId(), serverInfo)
+			*bootstrapRootURI, ss.ServerId(), serverInfo)
 		return
 	}
 
-	zlog.Infof("initializing root discovery: %s - %s...", *rootURI, rootFile)
-	rootTopology, err := wallelib.TopologyFromFile(rootFile)
+	rootPb, err := wallelib.TopologyFromFile(rootFile)
 	if err != nil {
 		zlog.Fatal(err)
 	}
-	rootD, err := wallelib.NewRootDiscovery(ctx, rootTopology)
+	rootD, err := wallelib.NewRootDiscovery(ctx, rootPb)
 	if err != nil {
 		zlog.Fatal(err)
 	}
@@ -124,12 +119,10 @@ func main() {
 	go watchTopologyAndSave(ctx, rootD, rootFile)
 	var d wallelib.Discovery
 	var c walle.Client
-	if *clusterURI == "" || *clusterURI == *rootURI {
-		*clusterURI = *rootURI
+	if *clusterURI == rootPb.RootUri {
 		d = rootD
 		c = rootCli
 	} else {
-		zlog.Infof("initializing discovery: %s...", *clusterURI)
 		topology, _ := wallelib.TopologyFromFile(topoFile) // ok to ignore errors.
 		d, err = wallelib.NewDiscovery(ctx, rootCli, *clusterURI, topology)
 		if err != nil {
@@ -147,7 +140,7 @@ func main() {
 	}
 
 	var topoMgr *topomgr.Manager
-	if *rootURI == *clusterURI {
+	if rootPb.RootUri == *clusterURI {
 		topoMgr = topomgr.NewManager(rootCli, serverInfo.Address)
 	}
 	ws := walle.NewServer(ctx, ss, c, d, streamQueueMB*1024*1024, topoMgr)

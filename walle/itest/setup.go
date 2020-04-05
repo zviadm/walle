@@ -31,7 +31,7 @@ func SetupRootNodes(
 			if idx > 0 {
 				wDir = storage.TestTmpDir()
 			}
-			ss := RunWalle(t, ctx, rootPb, "", wDir, RootDefaultPort+idx)
+			ss := RunWalle(t, ctx, rootPb, rootURI, wDir, RootDefaultPort+idx)
 			mx.Lock()
 			defer mx.Unlock()
 			s[idx] = ss
