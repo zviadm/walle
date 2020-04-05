@@ -78,7 +78,9 @@ func (s *Server) NewWriter(
 	// Need to wait `remainingLease` duration before returning. However, we also need to make sure new
 	// lease doesn't expire since writer client can't heartbeat until this call succeeds.
 	if remainingLease > 0 {
-		ss.RenewLease(reqWriterId, remainingLease)
+		if !ss.RenewLease(reqWriterId, remainingLease) {
+			return nil, status.Errorf(codes.FailedPrecondition, "there is already another new writer")
+		}
 		time.Sleep(remainingLease)
 	}
 	return &walle_pb.NewWriterResponse{}, nil
@@ -109,14 +111,18 @@ func (s *Server) PutEntryInternal(
 		return nil, err
 	}
 	writerId := storage.WriterId(req.Entry.WriterId)
-	if err := s.checkAndUpdateWriterId(ctx, ss, writerId); err != nil {
+	isCommitted := req.CommittedEntryId >= req.Entry.EntryId
+	err = s.checkAndUpdateWriterId(ctx, ss, writerId)
+	if !isCommitted && err != nil {
 		return nil, err
 	}
-	ss.RenewLease(writerId, 0)
+	if !ss.RenewLease(writerId, 0) && !req.IgnoreLeaseRenew {
+		return nil, status.Errorf(codes.FailedPrecondition, "writer_id lease renew failed, claim is lost")
+	}
 
 	p := s.pipeline.ForStream(ss)
 	var res *pipeline.ResultCtx
-	if req.Entry.EntryId == 0 || req.Entry.EntryId > req.CommittedEntryId {
+	if req.Entry.EntryId == 0 || !isCommitted {
 		if ss.CommitEntry(req.CommittedEntryId, req.CommittedEntryMd5) {
 			res = s.pipeline.QueueFlush()
 		} else {
@@ -124,7 +130,6 @@ func (s *Server) PutEntryInternal(
 		}
 	}
 	if req.Entry.EntryId > 0 {
-		isCommitted := req.CommittedEntryId >= req.Entry.EntryId
 		res = p.QueuePut(req.Entry, isCommitted)
 	}
 	select {

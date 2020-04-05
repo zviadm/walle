@@ -127,6 +127,40 @@ func TestProtocolClaim01(t *testing.T) {
 	<-pCtx.Done()
 	require.NoError(t, pCtx.Err())
 	require.EqualValues(t, 3, pCtx.Entry.EntryId)
+	w.Close()
+}
+
+func TestProtocolClaim02(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	m, c := newMockSystem(ctx, cluster3Node, storage.TestTmpDir())
+
+	// slower heartbeat to make sure `02` misses commit.
+	w, err := wallelib.WaitAndClaim(
+		ctx, c, "/mock/1", "testhost:1001", 2*time.Second)
+	require.NoError(t, err)
+	m.Toggle("03", false)
+	_ = w.PutEntry([]byte("e1"))
+	pCtx := w.PutEntry([]byte("e2"))
+	<-pCtx.Done()
+	m.Toggle("02", false) // immediatelly kill `02` so it misses commit call.
+	require.NoError(t, pCtx.Err())
+
+	pCtx = w.PutEntry([]byte("e3"))
+	select {
+	case <-pCtx.Done():
+		t.Fatal("put mustn't succed")
+	case <-time.After(100 * time.Millisecond):
+		// Makes sure put for e3 and commit for e2 happens for server: 01.
+	}
+
+	w.Close()
+	m.Toggle("02", true)
+	w, err = wallelib.WaitAndClaim(
+		ctx, c, "/mock/1", "testhost:1001", wallelib.LeaseMinimum)
+	require.NoError(t, err)
+	require.EqualValues(t, []byte("e3"), w.Committed().Data)
+	w.Close()
 }
 
 func TestProtocolClaimBarrage(t *testing.T) {

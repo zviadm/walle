@@ -195,14 +195,15 @@ func (m *streamStorage) unsafeRemainingLease() time.Duration {
 	return m.renewedLease.Add(m.writerLease).Sub(time.Now())
 }
 func (m *streamStorage) RenewLease(
-	writerId WriterId, extraBuffer time.Duration) {
+	writerId WriterId, extraBuffer time.Duration) bool {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	if bytes.Compare(writerId, m.writerId) != 0 {
-		return
+		return false
 	}
 	panic.OnNotOk(extraBuffer >= 0, "extra buffer must be >=0: %s", extraBuffer)
 	m.renewedLease = time.Now().Add(extraBuffer)
+	return true
 }
 
 func (m *streamStorage) TailEntries() ([]*walleapi.Entry, error) {
@@ -361,25 +362,26 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) bool {
 		return true
 	}
 
+	entryExists := false
+	needsTrim := false
 	if m.tailEntry.EntryId >= entry.EntryId {
 		existingEntry := m.unsafeReadEntry(entry.EntryId)
-		cmpWriterId := bytes.Compare(existingEntry.WriterId, entry.WriterId)
+		cmpWriterId := bytes.Compare(existingEntry.WriterId, entryWriterId)
 		if cmpWriterId > 0 {
 			return false
 		}
-		if cmpWriterId == 0 {
-			return true
-		}
 		// Truncate entries, because rest of the uncommitted entries are no longer valid, since a new writer
-		// is writing a new entry.
-		panic.OnErr(m.sess.TxBegin())
-		m.unsafeRemoveAllEntriesFrom(entry.EntryId, entry)
-	} else {
-		panic.OnErr(m.sess.TxBegin())
+		// is writing a previous entry.
+		needsTrim = (cmpWriterId < 0)
+		entryExists = (cmpWriterId == 0) && (bytes.Compare(existingEntry.ChecksumMd5, entry.ChecksumMd5) == 0)
 	}
-	// Run this code path in a transaction to reduce overall number of `fsync`-s needed in the
-	// most common/expected case.
-	m.unsafeInsertEntry(entry)
+	panic.OnErr(m.sess.TxBegin())
+	if needsTrim {
+		m.unsafeRemoveAllEntriesFrom(entry.EntryId, entry)
+	}
+	if !entryExists {
+		m.unsafeInsertEntry(entry)
+	}
 	if isCommitted {
 		ok := m.unsafeCommitEntry(entry.EntryId, entry.ChecksumMd5, false, false)
 		panic.OnNotOk(ok, "committing must always succeed in this code path")

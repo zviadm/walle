@@ -127,7 +127,8 @@ func (p *stream) process(ctx context.Context) {
 			maxId = req.R.EntryId
 		}
 		if !ok {
-			req.Res.set(status.Errorf(codes.OutOfRange, "entryId: %d", req.R.EntryId))
+			req.Res.set(status.Errorf(
+				codes.OutOfRange, "entryId: %d (committed: %t)", req.R.EntryId, req.R.Committed))
 		} else {
 			p.flushQ <- req.Res
 		}

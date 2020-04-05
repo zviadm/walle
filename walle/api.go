@@ -6,6 +6,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/golang/protobuf/proto"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/storage"
@@ -80,7 +81,7 @@ func (s *Server) ClaimWriter(
 			entries[serverId] = rEntries
 		}
 		committed, err := s.commitMaxEntry(
-			ctx, req.StreamUri, ssTopology.Version, entries, writerId)
+			ctx, req.StreamUri, ssTopology.Version, entries)
 		if err != nil {
 			return nil, err
 		}
@@ -91,10 +92,9 @@ func (s *Server) ClaimWriter(
 
 	var maxWriterServerId string
 	var maxEntry *walleapi.Entry
+	var committedEntryId int64
+	var committedEntryMd5 []byte
 	for serverId, es := range entries {
-		if len(es) <= 1 {
-			continue
-		}
 		e := es[len(es)-1]
 		cmpWriterId := bytes.Compare(e.WriterId, maxEntry.GetWriterId())
 		if maxEntry == nil || cmpWriterId > 0 ||
@@ -102,29 +102,24 @@ func (s *Server) ClaimWriter(
 			maxWriterServerId = serverId
 			maxEntry = e
 		}
-	}
-	if maxEntry == nil {
-		// Entries are all fully committed. There is no need to reconcile anything,
-		// claiming writer can just succeed.
-		for _, es := range entries {
-			return &walleapi.ClaimWriterResponse{
-				WriterId:  writerId.Encode(),
-				TailEntry: es[0],
-			}, nil
-		}
+		committedEntryId = es[0].EntryId
+		committedEntryMd5 = es[0].ChecksumMd5
 	}
 
-	maxEntry.WriterId = writerId.Encode()
 	c, err := s.c.ForServer(maxWriterServerId)
 	if err != nil {
 		return nil, err
 	}
+	maxEntry = proto.Clone(maxEntry).(*walleapi.Entry)
+	maxEntry.WriterId = writerId.Encode()
 	_, err = c.PutEntryInternal(ctx, &walle_pb.PutEntryInternalRequest{
-		ServerId:      maxWriterServerId,
-		StreamUri:     req.StreamUri,
-		StreamVersion: ssTopology.Version,
-		FromServerId:  s.s.ServerId(),
-		Entry:         maxEntry,
+		ServerId:          maxWriterServerId,
+		StreamUri:         req.StreamUri,
+		StreamVersion:     ssTopology.Version,
+		FromServerId:      s.s.ServerId(),
+		Entry:             maxEntry,
+		CommittedEntryId:  committedEntryId,
+		CommittedEntryMd5: committedEntryMd5,
 	})
 	if err != nil {
 		return nil, err
@@ -138,22 +133,28 @@ func (s *Server) ClaimWriter(
 		if err != nil {
 			return nil, err
 		}
-		startIdx := len(es)
-		for idx, entry := range es {
+		esLen := len(es)
+		if len(maxEntries) < esLen {
+			esLen = len(maxEntries)
+		}
+		startIdx := esLen
+		for idx, entry := range es[:esLen] {
 			if bytes.Compare(entry.ChecksumMd5, maxEntries[idx].ChecksumMd5) != 0 {
 				startIdx = idx
 				break
 			}
 		}
 		for idx := startIdx; idx < len(maxEntries); idx++ {
-			entry := maxEntries[idx]
+			entry := proto.Clone(maxEntries[idx]).(*walleapi.Entry)
 			entry.WriterId = writerId.Encode()
 			_, err = c.PutEntryInternal(ctx, &walle_pb.PutEntryInternalRequest{
-				ServerId:      serverId,
-				StreamUri:     req.StreamUri,
-				StreamVersion: ssTopology.Version,
-				FromServerId:  s.s.ServerId(),
-				Entry:         entry,
+				ServerId:          serverId,
+				StreamUri:         req.StreamUri,
+				StreamVersion:     ssTopology.Version,
+				FromServerId:      s.s.ServerId(),
+				Entry:             entry,
+				CommittedEntryId:  committedEntryId,
+				CommittedEntryMd5: committedEntryMd5,
 			})
 			if err != nil {
 				return nil, err
@@ -185,8 +186,7 @@ func (s *Server) commitMaxEntry(
 	ctx context.Context,
 	streamURI string,
 	streamVersion int64,
-	entries map[string][]*walleapi.Entry,
-	writerId storage.WriterId) (bool, error) {
+	entries map[string][]*walleapi.Entry) (bool, error) {
 	var maxEntry *walleapi.Entry
 	committed := false
 	for _, es := range entries {
@@ -195,7 +195,6 @@ func (s *Server) commitMaxEntry(
 			maxEntry = es[0]
 		}
 	}
-	maxEntry.WriterId = writerId.Encode()
 	for serverId, es := range entries {
 		if es[0].EntryId < maxEntry.EntryId {
 			committed = true
@@ -211,6 +210,7 @@ func (s *Server) commitMaxEntry(
 				Entry:             maxEntry,
 				CommittedEntryId:  maxEntry.EntryId,
 				CommittedEntryMd5: maxEntry.ChecksumMd5,
+				IgnoreLeaseRenew:  true,
 			})
 			if err != nil {
 				return false, err
