@@ -75,10 +75,10 @@ func (s *Server) writerInfoWatcher(ctx context.Context) {
 			}
 			_, writerAddr, _, remainingLease := ss.WriterInfo()
 			timeoutToResolve := writerTimeoutToResolve
-			if strings.HasPrefix(writerAddr, writerInternalAddrPrefix) {
+			if isInternalWriter(writerAddr) {
 				timeoutToResolve = writerTimeoutToReResolve
 			}
-			if writerAddr == "" || remainingLease >= -timeoutToResolve {
+			if remainingLease >= -timeoutToResolve {
 				continue // Quick shortcut, requiring no i/o for most common case.
 			}
 			wInfo, err := s.broadcastWriterInfo(ctx, ss)
@@ -90,11 +90,14 @@ func (s *Server) writerInfoWatcher(ctx context.Context) {
 				continue
 			}
 			writerAddr = writerInternalAddrPrefix + s.s.ServerId()
-			zlog.Infof(
-				"[ww] resolving stream %s (prev: %s, %dms) ",
-				streamURI, wInfo.WriterAddr, wInfo.RemainingLeaseMs)
-			if _, err = s.ClaimWriter(ctx,
-				&walleapi.ClaimWriterRequest{StreamUri: streamURI, WriterAddr: writerAddr}); err != nil {
+			if !isInternalWriter(wInfo.WriterAddr) {
+				zlog.Infof(
+					"[ww] resolving stream %s (prev: %s, %dms) ",
+					streamURI, wInfo.WriterAddr, wInfo.RemainingLeaseMs)
+			}
+			_, err = s.ClaimWriter(ctx,
+				&walleapi.ClaimWriterRequest{StreamUri: streamURI, WriterAddr: writerAddr})
+			if err != nil && !isInternalWriter(wInfo.WriterAddr) {
 				zlog.Warningf(
 					"[ww] err resolving %s, (prev: %s, %dms) -- %s",
 					streamURI, wInfo.WriterAddr, wInfo.RemainingLeaseMs, err)

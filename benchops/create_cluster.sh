@@ -19,7 +19,7 @@ for i in {0..2}; do
 sudo apt-get install -y --no-install-recommends libsnappy-dev
 sudo mkfs.ext4 -F /dev/nvme0n1
 sudo mkdir -p /mnt/disks/w0
-sudo mount /dev/nvme0n1 /mnt/disks/w0
+sudo mount -o discard,defaults,nobarrier /dev/nvme0n1 /mnt/disks/w0
 sudo chmod a+w /mnt/disks/w0
 "
 done

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"strings"
 	"time"
 
 	walle_pb "github.com/zviadm/walle/proto/walle"
@@ -301,8 +300,11 @@ func (s *Server) StreamEntries(
 			break
 		}
 		_, writerAddr, _, remainingLease := ss.WriterInfo()
-		if remainingLease < 0 && writerAddr != "" &&
-			!strings.HasPrefix(writerAddr, writerInternalAddrPrefix) {
+		minimumLease := time.Duration(0)
+		if isInternalWriter(writerAddr) {
+			minimumLease = -2 * writerTimeoutToReResolve
+		}
+		if remainingLease < minimumLease {
 			return status.Errorf(codes.Unavailable,
 				"writer: %s lease expired for streamURI: %s", writerAddr, req.StreamUri)
 		}

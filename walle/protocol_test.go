@@ -29,7 +29,7 @@ var cluster3Node = &walleapi.Topology{
 	},
 }
 
-func TestProtocolClaimWriter(t *testing.T) {
+func TestProtocolClaim00(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	_, c := newMockSystem(ctx, cluster3Node, storage.TestTmpDir())
@@ -84,8 +84,49 @@ func TestProtocolClaimWriter(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, strings.HasPrefix(writerStatus.WriterAddr, "_internal:"), "writerStatus: %s", writerStatus)
 	require.LessOrEqual(t, writerStatus.RemainingLeaseMs, int64(0))
+}
 
-	// TODO(zviad): Test at least few edgecases of claim writer reconciliations.
+func TestProtocolClaim01(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	m, c := newMockSystem(ctx, cluster3Node, storage.TestTmpDir())
+
+	w, err := wallelib.WaitAndClaim(
+		ctx, c, "/mock/1", "testhost:1001", wallelib.LeaseMinimum)
+	require.NoError(t, err)
+	m.Toggle("03", false)
+	_ = w.PutEntry([]byte("e1"))
+	pCtx := w.PutEntry([]byte("e2"))
+	<-pCtx.Done()
+	require.NoError(t, pCtx.Err())
+	m.Toggle("02", false)
+	pCtx = w.PutEntry([]byte("e3"))
+	select {
+	case <-pCtx.Done():
+		t.Fatal("put mustn't succed")
+	case <-time.After(100 * time.Millisecond):
+		// Makes sure put happens in server: 01.
+	}
+
+	w.Close()
+	m.Toggle("01", false)
+	m.Toggle("02", true)
+	m.Toggle("03", true)
+	w, err = wallelib.WaitAndClaim(
+		ctx, c, "/mock/1", "testhost:1001", wallelib.LeaseMinimum)
+	require.NoError(t, err)
+	require.EqualValues(t, []byte("e2"), w.Committed().Data)
+	w.Close()
+	m.Toggle("01", true)
+	m.Toggle("03", false)
+	w, err = wallelib.WaitAndClaim(
+		ctx, c, "/mock/1", "testhost:1001", wallelib.LeaseMinimum)
+	require.NoError(t, err)
+	require.EqualValues(t, []byte("e2"), w.Committed().Data)
+	pCtx = w.PutEntry([]byte("e3_2"))
+	<-pCtx.Done()
+	require.NoError(t, pCtx.Err())
+	require.EqualValues(t, 3, pCtx.Entry.EntryId)
 }
 
 func TestProtocolClaimBarrage(t *testing.T) {

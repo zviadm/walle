@@ -10,7 +10,7 @@ RestartSec=1
 User=zviad
 ExecStart=/bin/bash -ce "exec /home/zviad/walle -walle.storage_dir=/mnt/disks/w0/walle -walle.port=5005 \
 	-walle.cluster_uri=/cluster/bench \
-	-walle.target_mem_mb=1700 -walle.max_local_streams=120 &>> /home/zviad/walle.log"
+	-walle.target_mem_mb=1700 -walle.max_local_streams=120 &>> /mnt/disks/w0/walle.log"
 
 [Install]
 WantedBy=multi-user.target

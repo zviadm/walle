@@ -1,0 +1,17 @@
+# 2020/04/05
+# Bugs with 3 nodes. Running only 2 out of 3 nodes.
+I0405 16:14:21.400017 bench.go:65] Bench: processed: 1000 writers: 1 inflight: 1  p50: 969.649µs p95: 1.370114ms p99: 2.208661ms p999: 5.515282ms total: 1.034319039s
+I0405 16:14:22.414575 bench.go:65] Bench: processed: 1000 writers: 1 inflight: 1  p50: 940.425µs p95: 1.315508ms p99: 2.494494ms p999: 5.026211ms total: 1.014514643s
+I0405 16:14:23.422080 bench.go:65] Bench: processed: 1000 writers: 1 inflight: 1  p50: 931.493µs p95: 1.285893ms p99: 2.572211ms p999: 5.990373ms total: 1.007458031s
+I0405 16:14:24.463712 bench.go:65] Bench: processed: 1000 writers: 1 inflight: 1  p50: 956.427µs p95: 1.377952ms p99: 2.339546ms p999: 5.931006ms total: 1.041572657s
+
+I0405 16:19:45.112803 bench.go:65] Bench: processed: 10000 writers: 10 inflight: 100  p50: 11.644214ms p95: 32.817611ms p99: 42.182892ms p999: 44.46267ms total: 1.408179849s
+I0405 16:19:46.507578 bench.go:65] Bench: processed: 10000 writers: 10 inflight: 100  p50: 11.966192ms p95: 28.853683ms p99: 39.09557ms p999: 45.570851ms total: 1.39468528s
+I0405 16:19:47.956801 bench.go:65] Bench: processed: 10000 writers: 10 inflight: 100  p50: 12.517394ms p95: 34.026405ms p99: 38.199206ms p999: 46.018053ms total: 1.449168023s
+I0405 16:19:49.375750 bench.go:65] Bench: processed: 10000 writers: 10 inflight: 100  p50: 12.007367ms p95: 34.647725ms p99: 40.711392ms p999: 41.771451ms total: 1.418858486s
+I0405 16:19:50.790972 bench.go:65] Bench: processed: 10000 writers: 10 inflight: 100  p50: 12.195458ms p95: 34.286877ms p99: 39.579595ms p999: 41.127532ms total: 1.415165389s
+
+I0405 16:20:43.058268 bench.go:65] Bench: processed: 1000 writers: 1 inflight: 10  p50: 2.177512ms p95: 4.939777ms p99: 6.614984ms p999: 7.013045ms total: 251.918913ms
+I0405 16:20:43.300429 bench.go:65] Bench: processed: 1000 writers: 1 inflight: 10  p50: 2.120462ms p95: 4.766957ms p99: 5.750932ms p999: 6.378694ms total: 242.110437ms
+I0405 16:20:43.554826 bench.go:65] Bench: processed: 1000 writers: 1 inflight: 10  p50: 2.221789ms p95: 4.943815ms p99: 7.09569ms p999: 10.986587ms total: 254.338559ms
+I0405 16:20:43.792962 bench.go:65] Bench: processed: 1000 writers: 1 inflight: 10  p50: 1.999739ms p95: 4.470805ms p99: 13.141325ms p999: 18.32882ms total: 238.03717ms

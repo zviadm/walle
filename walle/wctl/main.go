@@ -16,13 +16,6 @@ import (
 func main() {
 	clusterName := flag.String("c", "", "Cluster to operate on.")
 	flag.Parse()
-	args := flag.Args()
-	if len(args) == 0 {
-		fmt.Println("must provide command to run")
-		os.Exit(1)
-	}
-	cmd, args := args[0], args[1:]
-
 	rootPb, err := wallelib.RootPbFromEnv()
 	exitOnErr(err)
 	ctx := context.Background()
@@ -32,9 +25,16 @@ func main() {
 	} else {
 		clusterURI = topomgr.Prefix + *clusterName
 	}
-	c, err := wallelib.NewClientFromRootPb(ctx, rootPb, clusterURI)
+	root, err := wallelib.NewClientFromRootPb(ctx, rootPb, rootPb.RootUri)
 	exitOnErr(err)
-	topoMgr := topomgr.NewClient(c)
+	topoMgr := topomgr.NewClient(root)
+
+	args := flag.Args()
+	if len(args) == 0 {
+		fmt.Println("must provide command to run")
+		os.Exit(1)
+	}
+	cmd, args := args[0], args[1:]
 	switch cmd {
 	case "streams":
 		t, err := topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{ClusterUri: clusterURI})
@@ -67,6 +67,8 @@ func main() {
 			})
 		exitOnErr(err)
 		fmt.Printf("stream: %s, members: %s\n", streamURI, serverIds)
+	case "bench":
+		cmdBench(ctx, rootPb, clusterURI, args)
 	default:
 		exitOnErr(errors.Errorf("unknown command: %s", cmd))
 	}
