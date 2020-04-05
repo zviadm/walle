@@ -5,6 +5,8 @@ import (
 	"context"
 	"sort"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
@@ -21,7 +23,7 @@ func (s *Server) broadcastWriterInfo(
 	var respMax *walle_pb.WriterInfoResponse
 	var remainingMs []int64
 	var streamVersions []int64
-	_, err := s.broadcastRequest(ctx, ssTopology.ServerIds,
+	_, err := s.broadcastRequest(ctx, ssTopology.ServerIds, 0,
 		func(c walle_pb.WalleClient, ctx context.Context, serverId string) error {
 			resp, err := c.WriterInfo(ctx, &walle_pb.WriterInfoRequest{
 				ServerId:      serverId,
@@ -57,35 +59,48 @@ func (s *Server) broadcastWriterInfo(
 func (s *Server) broadcastRequest(
 	ctx context.Context,
 	serverIds []string,
+	waitAfterSuccess time.Duration,
 	call func(
 		c walle_pb.WalleClient,
 		ctx context.Context,
 		serverId string) error) (successIds []string, err error) {
-	callCtx := ctx
-	deadline, ok := ctx.Deadline()
-	if ok {
-		var cancel context.CancelFunc
-		callCtx, cancel = context.WithDeadline(context.Background(), deadline)
-		defer func() {
-			if err != nil {
-				cancel()
+	callCtx, cancelCalls := context.WithCancel(ctx)
+	callStart := time.Now()
+	defer func() {
+		sleepTime := time.Now().Add(waitAfterSuccess).Sub(callStart)
+		if err != nil || sleepTime < 0 || callCtx.Err() != nil {
+			cancelCalls()
+			return
+		}
+		go func() {
+			select {
+			case <-callCtx.Done():
+			case <-time.After(sleepTime):
+				cancelCalls()
 			}
 		}()
-	}
+	}()
 	type callErr struct {
 		ServerId string
 		Err      error
 	}
 	errsC := make(chan *callErr, len(serverIds))
+	callsInFlight := int64(len(serverIds))
 	for _, serverId := range serverIds {
 		c, err := s.c.ForServer(serverId)
 		if err != nil {
 			errsC <- &callErr{ServerId: serverId, Err: err}
+			if atomic.AddInt64(&callsInFlight, -1) == 0 {
+				cancelCalls()
+			}
 			continue
 		}
 		go func(c walle_pb.WalleClient, serverId string) {
 			err := call(c, callCtx, serverId)
 			errsC <- &callErr{ServerId: serverId, Err: err}
+			if atomic.AddInt64(&callsInFlight, -1) == 0 {
+				cancelCalls()
+			}
 		}(c, serverId)
 	}
 	var errCodeFinal codes.Code

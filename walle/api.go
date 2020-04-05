@@ -31,7 +31,7 @@ func (s *Server) ClaimWriter(
 	}
 	writerId := storage.MakeWriterId()
 	ssTopology := ss.Topology()
-	serverIds, err := s.broadcastRequest(ctx, ssTopology.ServerIds,
+	serverIds, err := s.broadcastRequest(ctx, ssTopology.ServerIds, 0,
 		func(c walle_pb.WalleClient, ctx context.Context, serverId string) error {
 			_, err := c.NewWriter(ctx, &walle_pb.NewWriterRequest{
 				ServerId:      serverId,
@@ -254,7 +254,10 @@ func (s *Server) PutEntry(
 		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found locally", req.GetStreamUri())
 	}
 	ssTopology := ss.Topology()
-	_, err := s.broadcastRequest(ctx, ssTopology.ServerIds,
+	// Broadcast will wait in a separate go routine up to ~100ms for all PutEntryInternal calls to finish.
+	// This is useful to make sure all nodes are more or less keeping up with the live traffic. It does
+	// have added cost of keepings extra go routines that will be waiting on context and timer channels.
+	_, err := s.broadcastRequest(ctx, ssTopology.ServerIds, 100*time.Millisecond,
 		func(c walle_pb.WalleClient, ctx context.Context, serverId string) error {
 			_, err := c.PutEntryInternal(ctx, &walle_pb.PutEntryInternalRequest{
 				ServerId:          serverId,
