@@ -22,6 +22,6 @@ mkdir -p /mnt/disks/w0/walle
 mv ./root.pb /mnt/disks/w0/walle
 sudo mv ./walle.service /etc/systemd/system
 sudo systemctl daemon-reload
-sudo systemctl start walle
+sudo systemctl restart walle
 "
 done
