@@ -66,7 +66,7 @@ func (m *Manager) FetchTopology(
 
 func (m *Manager) UpdateServerIds(
 	ctx context.Context,
-	req *topomgr.UpdateServerIdsRequest) (*topomgr.UpdateServerIdsResponse, error) {
+	req *topomgr.UpdateServerIdsRequest) (*empty.Empty, error) {
 	if err := storage.ValidateStreamURI(req.StreamUri); err != nil {
 		return nil, err
 	}
@@ -103,7 +103,7 @@ func (m *Manager) UpdateServerIds(
 			return nil, err
 		}
 	}
-	return &topomgr.UpdateServerIdsResponse{}, nil
+	return &empty.Empty{}, nil
 }
 
 func (m *Manager) waitForStreamVersion(

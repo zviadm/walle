@@ -18,5 +18,9 @@ func TestWCTL(t *testing.T) {
 
 	s := servicelib.RunGoService(t, ctx, "../../wctl", []string{"servers"}, "")
 	s.Wait(t)
-	_ = rootPb
+	serverIds := itest.ServerIdsSlice(rootPb.Servers)
+	s = servicelib.RunGoService(t, ctx, "../../wctl", []string{"create", "/cluster/t1", serverIds[0]}, "")
+	s.Wait(t)
+	s = servicelib.RunGoService(t, ctx, "../../wctl", []string{"streams"}, "")
+	s.Wait(t)
 }

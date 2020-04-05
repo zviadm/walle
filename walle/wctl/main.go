@@ -15,11 +15,12 @@ import (
 func main() {
 	clusterName := flag.String("c", "", "Cluster to operate on.")
 	flag.Parse()
-	if len(flag.Args()) == 0 {
-		flag.Usage()
+	args := flag.Args()
+	if len(args) == 0 {
+		fmt.Println("must provide command to run")
 		os.Exit(1)
 	}
-	cmd := flag.Args()[0]
+	cmd, args := args[0], args[1:]
 
 	rootPb, err := wallelib.RootPbFromEnv()
 	exitOnErr(err)
@@ -46,8 +47,19 @@ func main() {
 		for serverId, sInfo := range t.Servers {
 			fmt.Printf("%s - %s\n", serverId, sInfo.Address)
 		}
-	//case "create":
-
+	case "create":
+		if len(args) < 1 {
+			fmt.Println("need to provide stream URI to create")
+		}
+		streamURI, args := args[0], args[1:]
+		serverIds := args
+		_, err := topoMgr.UpdateServerIds(
+			ctx, &topomgr_pb.UpdateServerIdsRequest{
+				ClusterUri: clusterURI,
+				StreamUri:  streamURI,
+				ServerIds:  serverIds,
+			})
+		exitOnErr(err)
 	default:
 		exitOnErr(errors.Errorf("unknown command: %s", cmd))
 	}

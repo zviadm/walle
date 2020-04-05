@@ -77,7 +77,7 @@ func (t *client) RegisterServer(
 	return r, err
 }
 func (t *client) UpdateServerIds(
-	ctx context.Context, in *topomgr.UpdateServerIdsRequest, opts ...grpc.CallOption) (r *topomgr.UpdateServerIdsResponse, err error) {
+	ctx context.Context, in *topomgr.UpdateServerIdsRequest, opts ...grpc.CallOption) (r *empty.Empty, err error) {
 	err = t.connectAndDo(ctx, in.ClusterUri,
 		func(ctx context.Context, c topomgr.TopoManagerClient) error {
 			r, err = c.UpdateServerIds(ctx, in, opts...)
