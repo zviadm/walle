@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/walle/walle/broadcast"
 	"github.com/zviadm/walle/walle/topomgr"
 	"github.com/zviadm/walle/wallelib"
 	"github.com/zviadm/zlog"
@@ -81,7 +82,8 @@ func (s *Server) writerInfoWatcher(ctx context.Context) {
 			if remainingLease >= -timeoutToResolve {
 				continue // Quick shortcut, requiring no i/o for most common case.
 			}
-			wInfo, err := s.broadcastWriterInfo(ctx, ss)
+			wInfo, err := broadcast.WriterInfo(
+				ctx, s.c, s.s.ServerId(), ss.StreamURI(), ss.Topology())
 			if err != nil {
 				zlog.Warningf("[ww] err fetching writerInfo %s: %s", streamURI, err)
 				continue

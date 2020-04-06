@@ -8,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/walle/walle/broadcast"
 	"github.com/zviadm/walle/walle/pipeline"
 	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/walle/walle/topomgr"
@@ -304,7 +305,7 @@ func (s *Server) checkAndUpdateWriterId(
 			return status.Errorf(
 				codes.FailedPrecondition, "writer no longer active: %s - %s < %s", writerAddr, writerId, ssWriterId)
 		}
-		resp, err := s.broadcastWriterInfo(ctx, ss)
+		resp, err := broadcast.WriterInfo(ctx, s.c, s.s.ServerId(), ss.StreamURI(), ss.Topology())
 		if err != nil {
 			return err
 		}

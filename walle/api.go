@@ -9,6 +9,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/walle/walle/broadcast"
 	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/walle/wallelib"
 	"google.golang.org/grpc/codes"
@@ -39,7 +40,7 @@ func (s *Server) ClaimWriter(
 	}
 	writerId := storage.MakeWriterId()
 	ssTopology := ss.Topology()
-	serverIds, err := s.broadcastRequest(ctx, ssTopology.ServerIds, 0, 0,
+	serverIds, err := broadcast.Call(ctx, s.c, ssTopology.ServerIds, 0, 0,
 		func(c walle_pb.WalleClient, ctx context.Context, serverId string) error {
 			_, err := c.NewWriter(ctx, &walle_pb.NewWriterRequest{
 				ServerId:      serverId,
@@ -235,7 +236,9 @@ func (s *Server) WriterStatus(
 	if !ok {
 		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found locally", req.GetStreamUri())
 	}
-	writerInfo, err := s.broadcastWriterInfo(ctx, ss)
+
+	writerInfo, err := broadcast.WriterInfo(
+		ctx, s.c, s.s.ServerId(), ss.StreamURI(), ss.Topology())
 	if err != nil {
 		return nil, err
 	}
@@ -262,7 +265,7 @@ func (s *Server) PutEntry(
 		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found locally", req.GetStreamUri())
 	}
 	ssTopology := ss.Topology()
-	_, err := s.broadcastRequest(ctx, ssTopology.ServerIds, putEntryLiveWait, putEntryBgWait,
+	_, err := broadcast.Call(ctx, s.c, ssTopology.ServerIds, putEntryLiveWait, putEntryBgWait,
 		func(c walle_pb.WalleClient, ctx context.Context, serverId string) error {
 			_, err := c.PutEntryInternal(ctx, &walle_pb.PutEntryInternalRequest{
 				ServerId:          serverId,

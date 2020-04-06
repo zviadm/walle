@@ -9,6 +9,7 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/zviadm/walle/proto/topomgr"
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/walle/walle/broadcast"
 	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/walle/wallelib"
 	"github.com/zviadm/zlog"
@@ -113,21 +114,20 @@ func (m *Manager) waitForStreamVersion(
 	if streamVersion == 0 || nServerIds == 0 {
 		return nil
 	}
+	serverId := t.Streams[streamURI].ServerIds[0]
 	c := wallelib.NewClient(ctx, &wallelib.StaticDiscovery{T: t})
 	return wallelib.KeepTryingWithBackoff(ctx, wallelib.LeaseMinimum, time.Second,
 		func(retryN uint) (bool, bool, error) {
-			streamC, err := c.ForStream(streamURI)
-			if err != nil {
-				return true, false, err
-			}
-			wStatus, err := streamC.WriterStatus(ctx, &walleapi.WriterStatusRequest{StreamUri: streamURI})
+			// It is important to directly make broadcast request to make sure request is
+			// made at latest stream topology version.
+			wInfo, err := broadcast.WriterInfo(ctx, c, serverId, streamURI, t.Streams[streamURI])
 			if err != nil {
 				return (retryN >= 2), false, err
 			}
-			if wStatus.StreamVersion != streamVersion {
+			if wInfo.StreamVersion != streamVersion {
 				return (retryN >= 2), false, status.Errorf(codes.Unavailable,
 					"servers for %s don't have up-to-date stream version: %d < %d",
-					streamURI, wStatus.StreamVersion, streamVersion)
+					streamURI, wInfo.StreamVersion, streamVersion)
 			}
 			return true, false, nil
 		})

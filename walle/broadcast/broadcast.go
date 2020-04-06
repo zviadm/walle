@@ -1,63 +1,26 @@
-package walle
+package broadcast
 
 import (
-	"bytes"
 	"context"
-	"sort"
-	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
-	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/walle/wallelib"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-func (s *Server) broadcastWriterInfo(
-	ctx context.Context, ss storage.Metadata) (*walle_pb.WriterInfoResponse, error) {
-	ssTopology := ss.Topology()
-	respMx := sync.Mutex{}
-	var respMax *walle_pb.WriterInfoResponse
-	var remainingMs []int64
-	var streamVersions []int64
-	_, err := s.broadcastRequest(ctx, ssTopology.ServerIds, 0, 0,
-		func(c walle_pb.WalleClient, ctx context.Context, serverId string) error {
-			resp, err := c.WriterInfo(ctx, &walle_pb.WriterInfoRequest{
-				ServerId:      serverId,
-				StreamUri:     ss.StreamURI(),
-				StreamVersion: ssTopology.Version,
-				FromServerId:  s.s.ServerId(),
-			})
-			respMx.Lock()
-			defer respMx.Unlock()
-			if bytes.Compare(resp.GetWriterId(), respMax.GetWriterId()) > 0 {
-				respMax = resp
-			}
-			remainingMs = append(remainingMs, resp.GetRemainingLeaseMs())
-			streamVersions = append(streamVersions, resp.GetStreamVersion())
-			return err
-		})
-	if err != nil {
-		return nil, err
-	}
-	respMx.Lock()
-	defer respMx.Unlock()
-	// Sort responses by (writerId, remainingLeaseMs) and choose one that majority is
-	// greather than or equal to.
-	sort.Slice(remainingMs, func(i, j int) bool { return remainingMs[i] < remainingMs[j] })
-	sort.Slice(streamVersions, func(i, j int) bool { return streamVersions[i] < streamVersions[j] })
-	respMax.RemainingLeaseMs = remainingMs[len(ssTopology.ServerIds)/2]
-	respMax.StreamVersion = streamVersions[len(ssTopology.ServerIds)/2]
-	return respMax, nil
+type Client interface {
+	ForServer(serverId string) (walle_pb.WalleClient, error)
 }
 
 // Broadcasts requests to all serverIds and returns list of serverIds that have succeeded.
 // Returns an error if majority didn't succeed.
-func (s *Server) broadcastRequest(
+func Call(
 	ctx context.Context,
+	cli Client,
 	serverIds []string,
 	waitLive time.Duration,
 	waitBG time.Duration,
@@ -99,7 +62,7 @@ func (s *Server) broadcastRequest(
 	errsC := make(chan *callErr, len(serverIds))
 	callsInFlight := int64(len(serverIds))
 	for _, serverId := range serverIds {
-		c, err := s.c.ForServer(serverId)
+		c, err := cli.ForServer(serverId)
 		if err != nil {
 			errsC <- &callErr{ServerId: serverId, Err: err}
 			if atomic.AddInt64(&callsInFlight, -1) == 0 {
