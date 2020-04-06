@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
 
 	"github.com/zviadm/walle/proto/walleapi"
@@ -37,10 +38,13 @@ func TestStreamStorage(t *testing.T) {
 
 	var entries []*walleapi.Entry
 	entries = append(entries, Entry0)
+	writerId := MakeWriterId()
+	ok, _ = ss.UpdateWriter(writerId, "", 0)
+	require.True(t, ok)
 	for idx := 1; idx <= 5; idx++ {
 		entry := &walleapi.Entry{
 			EntryId:  int64(idx),
-			WriterId: Entry0.WriterId,
+			WriterId: writerId,
 			Data:     []byte("entry " + strconv.Itoa(idx)),
 		}
 		entry.ChecksumMd5 = wallelib.CalculateChecksumMd5(entries[idx-1].ChecksumMd5, entry.Data)
@@ -104,6 +108,18 @@ func TestStreamStorage(t *testing.T) {
 	c0.Close()
 	c0.Close() // check to make sure it is safe to close closed cursor
 	c1.Close()
+
+	// Make sure putting last committed entry again with new WriterId,
+	// causes WriterId to update.
+	entry5new := proto.Clone(entries[5]).(*walleapi.Entry)
+	entry5new.WriterId = MakeWriterId().Encode()
+	ok, _ = ss.UpdateWriter(entry5new.WriterId, "", 0)
+	require.True(t, ok)
+	ok = ss.PutEntry(entry5new, true)
+	require.True(t, ok)
+	entriesR = streamReadAll(t, ss, 5)
+	require.Len(t, entriesR, 1)
+	require.EqualValues(t, entry5new.WriterId, entriesR[0].WriterId)
 }
 
 func TestStreamStorageRaces(t *testing.T) {

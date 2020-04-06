@@ -14,6 +14,10 @@ import (
 	"github.com/zviadm/zlog"
 )
 
+const (
+	maxGapBatch = 10000 // Maximum GAP entries processed in one batch.
+)
+
 // Gap handler detects and fills gaps in streams in background.
 func (s *Server) gapHandler(ctx context.Context) {
 	for {
@@ -26,6 +30,9 @@ func (s *Server) gapHandler(ctx context.Context) {
 				gapStart, gapEnd := ss.GapRange()
 				if gapStart >= gapEnd {
 					break
+				}
+				if gapEnd > gapStart+maxGapBatch {
+					gapEnd = gapStart + maxGapBatch
 				}
 				err := s.gapHandlerForStream(ctx, ss, gapStart, gapEnd)
 				if err != nil {
@@ -74,32 +81,35 @@ func (s *Server) readAndProcessEntries(
 	entryId := startId
 	for entryId < endId {
 		var ok bool
-		var nextEntryId int64
-		var nextEntry *walleapi.Entry
+		var entryIdLocal int64
+		var entry *walleapi.Entry
 		if processEntry != nil {
-			nextEntry, ok = cursor.Next()
-			nextEntryId = nextEntry.GetEntryId()
+			entry, ok = cursor.Next()
+			entryIdLocal = entry.GetEntryId()
 		} else {
-			nextEntryId, ok = cursor.Skip()
+			entryIdLocal, ok = cursor.Skip()
 		}
-		if !ok || nextEntryId > endId {
+		if !ok {
 			return errors.Errorf(
 				"ERR_FATAL; committed entry wasn't found by cursor: %d > %d (from: %d)!",
-				nextEntryId, endId, entryId)
+				entryIdLocal, endId, entryId)
 		}
-		if nextEntryId > entryId+1 {
+		if entryIdLocal > entryId {
+			if entryIdLocal > endId {
+				entryIdLocal = endId // This ends processing.
+			}
 			err := s.fetchAndStoreEntries(
-				ctx, ss, entryId, nextEntryId, processEntry)
+				ctx, ss, entryId, entryIdLocal, processEntry)
 			if err != nil {
 				return err
 			}
 		}
 		if processEntry != nil {
-			if err := processEntry(nextEntry); err != nil {
+			if err := processEntry(entry); err != nil {
 				return err
 			}
 		}
-		entryId = nextEntryId
+		entryId = entryIdLocal + 1
 	}
 	return nil
 }

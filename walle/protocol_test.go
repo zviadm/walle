@@ -99,11 +99,12 @@ func TestProtocolClaim01(t *testing.T) {
 	pCtx := w.PutEntry([]byte("e2"))
 	<-pCtx.Done()
 	require.NoError(t, pCtx.Err())
+	time.Sleep(wallelib.LeaseMinimum) // make sure e2 commit is sent to both s01, s02.
 	m.Toggle("02", false)
 	pCtx = w.PutEntry([]byte("e3"))
 	select {
 	case <-pCtx.Done():
-		t.Fatal("put mustn't succed")
+		t.Fatal("put mustn't succeed")
 	case <-time.After(100 * time.Millisecond):
 		// Makes sure put happens in server: 01.
 	}
@@ -117,8 +118,8 @@ func TestProtocolClaim01(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, []byte("e2"), w.Committed().Data)
 	w.Close()
-	m.Toggle("01", true)
 	m.Toggle("03", false)
+	m.Toggle("01", true)
 	w, err = wallelib.WaitAndClaim(
 		ctx, c, "/mock/1", "testhost:1001", wallelib.LeaseMinimum)
 	require.NoError(t, err)

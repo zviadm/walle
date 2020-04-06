@@ -334,18 +334,16 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) bool {
 		if !isCommitted {
 			return false
 		}
-		if entry.EntryId <= m.gapStartId {
-			return true
+		if entry.EntryId < m.gapStartId {
+			return true // not missing, and not last committed entry.
 		}
-		e := m.unsafeReadEntry(entry.EntryId)
-		if e == nil {
-			m.unsafeInsertEntry(entry)
-			return true
+		if entry.EntryId == m.committed {
+			e := m.unsafeReadEntry(entry.EntryId)
+			if e != nil && bytes.Compare(e.WriterId, entry.WriterId) >= 0 {
+				return true // entry exists and is written by same or newer writerId.
+			}
 		}
-		panic.OnNotOk(
-			bytes.Compare(e.ChecksumMd5, entry.ChecksumMd5) == 0,
-			"committed entry md5 mimstach at: %d, %s vs %s",
-			entry.EntryId, hex.EncodeToString(entry.ChecksumMd5), hex.EncodeToString(e.ChecksumMd5))
+		m.unsafeInsertEntry(entry)
 		return true
 	}
 

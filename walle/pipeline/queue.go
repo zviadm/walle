@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"sync"
 
-	"github.com/zviadm/zlog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -48,7 +47,7 @@ func (q *queue) notify() {
 func (q *queue) CanSkip() bool {
 	q.mx.Lock()
 	defer q.mx.Unlock()
-	return q.maxReadyCommittedId > q.tailId
+	return q.maxCommittedId > q.tailId
 }
 
 func (q *queue) PopReady(tailId int64, forceSkip bool) ([]*queueItem, chan struct{}) {
@@ -83,7 +82,6 @@ func (q *queue) PopReady(tailId int64, forceSkip bool) ([]*queueItem, chan struc
 }
 func (q *queue) popTillTail(r []*queueItem, prevTailId int64) []*queueItem {
 	if q.tailId-prevTailId > int64(len(q.v)) {
-		rLen := len(r)
 		for entryId, i := range q.v {
 			if entryId > q.tailId {
 				continue
@@ -91,7 +89,6 @@ func (q *queue) popTillTail(r []*queueItem, prevTailId int64) []*queueItem {
 			delete(q.v, entryId)
 			r = append(r, i)
 		}
-		zlog.Info("DEBUG: popTillTail ", prevTailId, " ", q.tailId, " ", len(q.v)+len(r)-rLen, " ", len(r)-rLen)
 	} else {
 		for entryId := prevTailId + 1; entryId <= q.tailId; entryId++ {
 			item, ok := q.v[entryId]
