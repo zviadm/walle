@@ -114,7 +114,7 @@ func (s *Server) PutEntryInternal(
 	writerId := storage.WriterId(req.Entry.WriterId)
 	isCommitted := req.CommittedEntryId >= req.Entry.EntryId
 	err = s.checkAndUpdateWriterId(ctx, ss, writerId)
-	if !isCommitted && err != nil {
+	if err != nil && (!req.IgnoreLeaseRenew || !isCommitted) {
 		return nil, err
 	}
 	if !ss.RenewLease(writerId, 0) && !req.IgnoreLeaseRenew {
@@ -303,7 +303,7 @@ func (s *Server) checkAndUpdateWriterId(
 		}
 		if cmpWriterId < 0 {
 			return status.Errorf(
-				codes.FailedPrecondition, "writer no longer active: %s - %s < %s", writerAddr, writerId, ssWriterId)
+				codes.FailedPrecondition, "writer no longer active: %s < %s (%s)", writerId, ssWriterId, writerAddr)
 		}
 		resp, err := broadcast.WriterInfo(ctx, s.c, s.s.ServerId(), ss.StreamURI(), ss.Topology())
 		if err != nil {

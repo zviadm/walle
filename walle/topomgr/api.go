@@ -115,11 +115,11 @@ func (m *Manager) waitForStreamVersion(
 		return nil
 	}
 	serverId := t.Streams[streamURI].ServerIds[0]
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	c := wallelib.NewClient(ctx, &wallelib.StaticDiscovery{T: t})
 	return wallelib.KeepTryingWithBackoff(ctx, wallelib.LeaseMinimum, time.Second,
 		func(retryN uint) (bool, bool, error) {
-			// It is important to directly make broadcast request to make sure request is
-			// made at latest stream topology version.
 			wInfo, err := broadcast.WriterInfo(ctx, c, serverId, streamURI, t.Streams[streamURI])
 			if err != nil {
 				return (retryN >= 2), false, err
