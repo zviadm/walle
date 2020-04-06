@@ -27,22 +27,25 @@ func cmdBench(
 	c, err := wallelib.NewClientFromRootPb(ctx, rootPb, clusterURI)
 	exitOnErr(err)
 
-	w := make([]*wallelib.Writer, *nStreams)
-	for idx := range w {
-		w[idx], err = wallelib.WaitAndClaim(
+	ws := make([]*wallelib.Writer, *nStreams)
+	for idx := range ws {
+		ws[idx], err = wallelib.WaitAndClaim(
 			ctx, c, *uriPrefix+"/"+strconv.Itoa(idx), "bench:0000", time.Second)
 		exitOnErr(err)
 	}
 	fmt.Println("writers claimed, starting benchmark...")
-	putBatch(*nInflight, w...)
+	for idx, w := range ws[1:] {
+		go putBatch(*nInflight, idx, w)
+	}
+	putBatch(*nInflight, 0, ws[0])
 }
 
 func putBatch(
 	maxInFlight int,
-	ws ...*wallelib.Writer) time.Duration {
+	wIdx int,
+	w *wallelib.Writer) time.Duration {
 
-	nBatch := 1000 * len(ws)
-	maxInFlight *= len(ws)
+	nBatch := 1000
 	puts := make([]*wallelib.PutCtx, 0, nBatch+maxInFlight)
 	putT0 := make([]time.Time, 0, nBatch+maxInFlight)
 	latencies := make([]time.Duration, 0, nBatch)
@@ -50,7 +53,7 @@ func putBatch(
 
 	t0 := time.Now()
 	for i := 0; ; i++ {
-		putCtx := ws[i%len(ws)].PutEntry([]byte("testingoooo " + strconv.Itoa(i)))
+		putCtx := w.PutEntry([]byte("testingoooo " + strconv.Itoa(i)))
 		puts = append(puts, putCtx)
 		putT0 = append(putT0, time.Now())
 
@@ -63,8 +66,8 @@ func putBatch(
 		if putIdx == nBatch {
 			sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
 			zlog.Info(
-				"Bench: processed: ", putIdx, " (entryId: ", puts[putIdx-1].Entry.EntryId, ")",
-				" writers: ", len(ws), " inflight: ", maxInFlight, " ",
+				"Bench[", wIdx, "]: processed: ", putIdx, " (entryId: ", puts[putIdx-1].Entry.EntryId, ")",
+				" inflight: ", maxInFlight, " ",
 				" p50: ", latencies[len(latencies)*50/100],
 				" p95: ", latencies[len(latencies)*95/100],
 				" p99: ", latencies[len(latencies)*99/100],
