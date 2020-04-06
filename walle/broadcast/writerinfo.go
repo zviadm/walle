@@ -5,6 +5,7 @@ import (
 	"context"
 	"sort"
 	"sync"
+	"time"
 
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
@@ -20,7 +21,15 @@ func WriterInfo(
 	var respMax *walle_pb.WriterInfoResponse
 	var remainingMs []int64
 	var streamVersions []int64
-	_, err := Call(ctx, cli, topology.ServerIds, 0, 0,
+
+	waitLive := time.Second
+	if deadline, ok := ctx.Deadline(); ok {
+		deadlineTimeout := deadline.Sub(time.Now()) * 4 / 5
+		if deadlineTimeout < waitLive {
+			waitLive = deadlineTimeout
+		}
+	}
+	_, err := Call(ctx, cli, topology.ServerIds, waitLive, 0,
 		func(c walle_pb.WalleClient, ctx context.Context, serverId string) error {
 			resp, err := c.WriterInfo(ctx, &walle_pb.WriterInfoRequest{
 				ServerId:      serverId,
@@ -45,11 +54,14 @@ func WriterInfo(
 	}
 	respMx.Lock()
 	defer respMx.Unlock()
-	// Sort responses by (writerId, remainingLeaseMs) and choose one that majority is
-	// greather than or equal to.
-	sort.Slice(remainingMs, func(i, j int) bool { return remainingMs[i] < remainingMs[j] })
+	// Find streamVersion that is smallest in majority. Smallest version in majority is considered as the
+	// current version.
 	sort.Slice(streamVersions, func(i, j int) bool { return streamVersions[i] > streamVersions[j] })
-	respMax.RemainingLeaseMs = remainingMs[len(topology.ServerIds)/2]
+	// Find largest remainingMs in majority. Since broadcast call waits a bit to get responses from all
+	// servers, it should be able to get responses from all live servers. Choosing largest, errs more
+	// on the side of keeping current writer stable.
+	sort.Slice(remainingMs, func(i, j int) bool { return remainingMs[i] < remainingMs[j] })
 	respMax.StreamVersion = streamVersions[len(topology.ServerIds)/2]
+	respMax.RemainingLeaseMs = remainingMs[len(topology.ServerIds)/2]
 	return respMax, nil
 }
