@@ -5,7 +5,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path"
 	"sort"
+	"strings"
 
 	"github.com/pkg/errors"
 	topomgr_pb "github.com/zviadm/walle/proto/topomgr"
@@ -14,7 +16,7 @@ import (
 )
 
 func main() {
-	clusterName := flag.String("c", "", "Cluster to operate on.")
+	clusterName := flag.String("c", "", "Cluster to operate on. Can be just the name or full /cluster/<name> URI.")
 	flag.Parse()
 	rootPb, err := wallelib.RootPbFromEnv()
 	exitOnErr(err)
@@ -23,7 +25,10 @@ func main() {
 	if *clusterName == "" {
 		clusterURI = rootPb.RootUri
 	} else {
-		clusterURI = topomgr.Prefix + *clusterName
+		clusterURI = *clusterName
+		if !strings.HasPrefix(clusterURI, topomgr.Prefix) {
+			clusterURI = path.Join(topomgr.Prefix, clusterURI)
+		}
 	}
 	root, err := wallelib.NewClientFromRootPb(ctx, rootPb, rootPb.RootUri)
 	exitOnErr(err)

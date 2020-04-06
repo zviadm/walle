@@ -2,15 +2,15 @@ package stream_blast
 
 import (
 	"context"
+	"path"
 	"strconv"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"github.com/zviadm/tt/servicelib"
 	"github.com/zviadm/walle/walle/itest"
 	"github.com/zviadm/walle/walle/topomgr"
-	"github.com/zviadm/walle/wallelib"
+	"github.com/zviadm/zlog"
 )
 
 func TestStreamBlast(t *testing.T) {
@@ -19,38 +19,44 @@ func TestStreamBlast(t *testing.T) {
 	defer servicelib.KillAll(t)
 
 	_, rootPb, rootCli := itest.SetupRootNodes(t, ctx, 1)
-	clusterURI := topomgr.Prefix + "blast"
+	clusterURI := path.Join(topomgr.Prefix, "bench")
 	s, serverIds := itest.SetupClusterNodes(t, ctx, rootPb, rootCli, clusterURI, 3)
 
-	blastURIPrefix := "/blast/"
-	blastURIs := 4
-	for i := 0; i < blastURIs; i++ {
-		itest.CreateStream(t, ctx, rootCli, clusterURI, blastURIPrefix+strconv.Itoa(i), serverIds)
+	benchURIPrefix := "/bench"
+	benchURIs := 4
+	for i := 0; i < benchURIs; i++ {
+		servicelib.RunGoService(
+			t, ctx, "../../wctl", append(
+				[]string{"-c", clusterURI, "create", path.Join(benchURIPrefix, strconv.Itoa(i))}, serverIds...),
+			"").Wait(t)
 	}
-	cli, err := wallelib.NewClientFromRootPb(ctx, rootPb, clusterURI)
-	require.NoError(t, err)
 
-	w := make([]*wallelib.Writer, blastURIs)
-	for i := 0; i < blastURIs; i++ {
-		var err error
-		// use higher lease since this test is very CPU intensive.
-		w[i], err = wallelib.WaitAndClaim(
-			ctx, cli, blastURIPrefix+strconv.Itoa(i), "blastwriter:1001", 4*time.Second)
-		require.NoError(t, err)
-		defer w[i].Close()
-	}
 	// Test with full quorum.
-	itest.PutBatch(t, 2000, 10, w[0])
-	itest.PutBatch(t, 2000, 100, w[0])
-	itest.PutBatch(t, 2000, 1000, w[0])
-	itest.PutBatch(t, 2000, 1000, w...)
+	zlog.Info("TEST: ---------- FULL QUORUM")
+	benchAll(t, ctx, clusterURI, benchURIPrefix)
 
 	// Test with one node down.
+	zlog.Info("TEST: ---------- NODES 2 / 3")
 	defer servicelib.IptablesClearAll(t)
 	servicelib.IptablesBlockPort(t, itest.RootDefaultPort+2)
 	s[2].Kill(t)
-	itest.PutBatch(t, 2000, 10, w[0])
-	itest.PutBatch(t, 2000, 100, w[0])
-	itest.PutBatch(t, 2000, 1000, w[0])
-	itest.PutBatch(t, 2000, 1000, w...)
+	benchAll(t, ctx, clusterURI, benchURIPrefix)
+}
+
+func benchAll(t *testing.T, ctx context.Context, clusterURI string, benchURIPrefix string) {
+	servicelib.RunGoService(
+		t, ctx, "../../wctl", []string{
+			"-c", clusterURI, "bench", "-prefix", benchURIPrefix,
+			"-streams", "1", "-qps", "100", "-time", "2s"},
+		"").Wait(t)
+	servicelib.RunGoService(
+		t, ctx, "../../wctl", []string{
+			"-c", clusterURI, "bench", "-prefix", benchURIPrefix,
+			"-streams", "2", "-qps", "100", "-time", "2s"},
+		"").Wait(t)
+	servicelib.RunGoService(
+		t, ctx, "../../wctl", []string{
+			"-c", clusterURI, "bench", "-prefix", benchURIPrefix,
+			"-streams", "4", "-qps", "100", "-time", "2s"},
+		"").Wait(t)
 }
