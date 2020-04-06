@@ -63,8 +63,8 @@ func putBatch(
 		if putIdx == nBatch {
 			sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
 			zlog.Info(
-				"Bench: processed: ",
-				putIdx, " writers: ", len(ws), " inflight: ", maxInFlight, " ",
+				"Bench: processed: ", putIdx, " (entryId: ", puts[putIdx-1].Entry.EntryId, ")",
+				" writers: ", len(ws), " inflight: ", maxInFlight, " ",
 				" p50: ", latencies[len(latencies)*50/100],
 				" p95: ", latencies[len(latencies)*95/100],
 				" p99: ", latencies[len(latencies)*99/100],

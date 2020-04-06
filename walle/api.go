@@ -15,6 +15,14 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const (
+	// Broadcast for PutEntry calls will wait `putEntryLiveWait` amount of time for all calls to finish
+	// within request itself. And will continue waiting upto `putEntryBgWait` amount of time in the background
+	// before canceling context. This is useful to make sure live healthy servers aren't falling too far behind.
+	putEntryLiveWait = 10 * time.Millisecond
+	putEntryBgWait   = time.Second
+)
+
 func (s *Server) ClaimWriter(
 	ctx context.Context,
 	req *walleapi.ClaimWriterRequest) (*walleapi.ClaimWriterResponse, error) {
@@ -31,7 +39,7 @@ func (s *Server) ClaimWriter(
 	}
 	writerId := storage.MakeWriterId()
 	ssTopology := ss.Topology()
-	serverIds, err := s.broadcastRequest(ctx, ssTopology.ServerIds, 0,
+	serverIds, err := s.broadcastRequest(ctx, ssTopology.ServerIds, 0, 0,
 		func(c walle_pb.WalleClient, ctx context.Context, serverId string) error {
 			_, err := c.NewWriter(ctx, &walle_pb.NewWriterRequest{
 				ServerId:      serverId,
@@ -254,10 +262,7 @@ func (s *Server) PutEntry(
 		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found locally", req.GetStreamUri())
 	}
 	ssTopology := ss.Topology()
-	// Broadcast will wait in a separate go routine up to ~100ms for all PutEntryInternal calls to finish.
-	// This is useful to make sure all nodes are more or less keeping up with the live traffic. It does
-	// have added cost of keepings extra go routines that will be waiting on context and timer channels.
-	_, err := s.broadcastRequest(ctx, ssTopology.ServerIds, 100*time.Millisecond,
+	_, err := s.broadcastRequest(ctx, ssTopology.ServerIds, putEntryLiveWait, putEntryBgWait,
 		func(c walle_pb.WalleClient, ctx context.Context, serverId string) error {
 			_, err := c.PutEntryInternal(ctx, &walle_pb.PutEntryInternalRequest{
 				ServerId:          serverId,

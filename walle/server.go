@@ -123,11 +123,7 @@ func (s *Server) PutEntryInternal(
 	p := s.pipeline.ForStream(ss)
 	var res *pipeline.ResultCtx
 	if req.Entry.EntryId == 0 || !isCommitted {
-		if ss.CommitEntry(req.CommittedEntryId, req.CommittedEntryMd5) {
-			res = s.pipeline.QueueFlush()
-		} else {
-			res = p.QueueCommit(req.CommittedEntryId, req.CommittedEntryMd5)
-		}
+		res = p.QueueCommit(req.CommittedEntryId, req.CommittedEntryMd5)
 	}
 	if req.Entry.EntryId > 0 {
 		res = p.QueuePut(req.Entry, isCommitted)
@@ -138,6 +134,12 @@ func (s *Server) PutEntryInternal(
 	case <-res.Done():
 		if err := res.Err(); err != nil {
 			return nil, err
+		}
+		if req.Entry.EntryId > 0 {
+			// Every successful PutEntry call that might have written actual data, requires
+			// flush. Commit only entries don't require flushes because they won't cause
+			// data loss.
+			s.pipeline.Flush()
 		}
 		return &walle_pb.PutEntryInternalResponse{}, nil
 	}

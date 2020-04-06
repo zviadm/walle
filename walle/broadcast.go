@@ -23,7 +23,7 @@ func (s *Server) broadcastWriterInfo(
 	var respMax *walle_pb.WriterInfoResponse
 	var remainingMs []int64
 	var streamVersions []int64
-	_, err := s.broadcastRequest(ctx, ssTopology.ServerIds, 0,
+	_, err := s.broadcastRequest(ctx, ssTopology.ServerIds, 0, 0,
 		func(c walle_pb.WalleClient, ctx context.Context, serverId string) error {
 			resp, err := c.WriterInfo(ctx, &walle_pb.WriterInfoRequest{
 				ServerId:      serverId,
@@ -59,7 +59,8 @@ func (s *Server) broadcastWriterInfo(
 func (s *Server) broadcastRequest(
 	ctx context.Context,
 	serverIds []string,
-	waitAfterSuccess time.Duration,
+	waitLive time.Duration,
+	waitBG time.Duration,
 	call func(
 		c walle_pb.WalleClient,
 		ctx context.Context,
@@ -67,15 +68,26 @@ func (s *Server) broadcastRequest(
 	callCtx, cancelCalls := context.WithCancel(ctx)
 	callStart := time.Now()
 	defer func() {
-		sleepTime := time.Now().Add(waitAfterSuccess).Sub(callStart)
-		if err != nil || sleepTime < 0 || callCtx.Err() != nil {
+		if err != nil || callCtx.Err() != nil {
 			cancelCalls()
+			return
+		}
+		sleepTimeLive := time.Now().Add(waitLive).Sub(callStart)
+		if sleepTimeLive > 0 {
+			select {
+			case <-callCtx.Done():
+				return
+			case <-time.After(sleepTimeLive):
+			}
+		}
+		sleepTimeBG := time.Now().Add(waitBG).Sub(callStart)
+		if sleepTimeBG <= 0 || callCtx.Err() != nil {
 			return
 		}
 		go func() {
 			select {
 			case <-callCtx.Done():
-			case <-time.After(sleepTime):
+			case <-time.After(sleepTimeBG):
 				cancelCalls()
 			}
 		}()

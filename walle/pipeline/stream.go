@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/panic"
 	"github.com/zviadm/walle/walle/storage"
@@ -14,8 +13,8 @@ import (
 )
 
 type stream struct {
-	ss                  storage.Stream
-	flushQ              chan<- *ResultCtx
+	ss storage.Stream
+	// flushQ              chan<- *ResultCtx
 	fetchCommittedEntry fetchFunc
 
 	q *queue
@@ -28,58 +27,13 @@ func newStream(
 	flushQ chan<- *ResultCtx,
 	fetchCommittedEntry fetchFunc) *stream {
 	r := &stream{
-		ss:                  ss,
-		flushQ:              flushQ,
+		ss: ss,
+		// flushQ:              flushQ,
 		fetchCommittedEntry: fetchCommittedEntry,
 		q:                   newQueue(maxStreamQueueSize),
 	}
 	go r.process(ctx)
 	return r
-}
-
-func (p *stream) waitForReady(
-	ctx context.Context) (int64, error) {
-	waitStart := time.Now()
-	maxId, tailNotify := p.ss.TailEntryId()
-	for ctx.Err() == nil && !p.ss.IsClosed() {
-		if p.q.IsOverflowing() {
-			zlog.Warningf(
-				"[sp] pipeline queue is overflowing %s: maxId: %d",
-				p.ss.StreamURI(), maxId)
-			return maxId, nil
-		}
-
-		head, queueNotify := p.q.Peek()
-		if head == nil {
-			select {
-			case <-ctx.Done():
-				return 0, ctx.Err()
-			case <-tailNotify:
-			case <-queueNotify:
-			}
-			waitStart = time.Now()
-			continue
-		}
-		if head.IsReady(maxId) {
-			return maxId, nil
-		}
-		maxId, tailNotify = p.ss.TailEntryId()
-		if head.IsReady(maxId) {
-			return maxId, nil
-		}
-		timeout := waitStart.Add(p.timeoutAdjusted()).Sub(time.Now())
-		select {
-		case <-ctx.Done():
-			return 0, ctx.Err()
-		case <-tailNotify:
-		case <-queueNotify:
-		case <-time.After(timeout):
-			if p.q.MaxCommittedId() > maxId {
-				return maxId, nil
-			}
-		}
-	}
-	return 0, errors.Errorf("stream/pipeline is closed")
 }
 
 func (p *stream) timeoutAdjusted() time.Duration {
@@ -108,45 +62,75 @@ func (p *stream) backfillEntry(
 }
 
 func (p *stream) process(ctx context.Context) {
+	forceSkip := false
+	var skipTimeout <-chan time.Time
 	for ctx.Err() == nil && !p.ss.IsClosed() {
-		maxId, err := p.waitForReady(ctx)
-		if err != nil {
-			return
-		}
-		req := p.q.PopReady(maxId)
-		var ok bool
-		if req.R.Entry == nil {
-			ok = p.ss.CommitEntry(req.R.EntryId, req.R.EntryMd5)
-			if !ok {
-				ok = p.backfillEntry(ctx, req.R.EntryId, req.R.EntryMd5)
+		tailId, tailNotify := p.ss.TailEntryId()
+		reqs, qNotify := p.q.PopReady(tailId, forceSkip)
+		if len(reqs) == 0 {
+			if skipTimeout == nil && p.q.CanSkip() {
+				skipTimeout = time.After(p.timeoutAdjusted())
 			}
-		} else {
-			ok = p.ss.PutEntry(req.R.Entry, req.R.Committed)
+			select {
+			case <-ctx.Done():
+				return
+			case <-qNotify:
+			case <-tailNotify:
+			case <-skipTimeout:
+				forceSkip = true
+				skipTimeout = nil
+			}
+			continue
 		}
-		if ok && req.R.EntryId > maxId {
-			maxId = req.R.EntryId
-		}
-		if !ok {
-			req.Res.set(status.Errorf(
-				codes.OutOfRange, "entryId: %d (committed: %t)", req.R.EntryId, req.R.Committed))
-		} else {
-			p.flushQ <- req.Res
+		forceSkip = false
+		skipTimeout = nil
+		for _, req := range reqs {
+			var ok bool
+			if req.R.Entry == nil {
+				ok = p.ss.CommitEntry(req.R.EntryId, req.R.EntryMd5)
+				if !ok {
+					ok = p.backfillEntry(ctx, req.R.EntryId, req.R.EntryMd5)
+				}
+			} else {
+				ok = p.ss.PutEntry(req.R.Entry, req.R.Committed)
+			}
+			resolveWithOk(req.Res, ok, req.R.EntryId, req.R.Committed)
 		}
 	}
 }
 
 func (p *stream) QueueCommit(entryId int64, entryMd5 []byte) *ResultCtx {
-	return p.q.Queue(&Request{
+	res, ok := p.q.Queue(&Request{
 		EntryId:   entryId,
 		EntryMd5:  entryMd5,
 		Committed: true,
 	})
+	if !ok {
+		res = newResult()
+		ok = p.ss.CommitEntry(entryId, entryMd5)
+		resolveWithOk(res, ok, entryId, true)
+	}
+	return res
 }
 func (p *stream) QueuePut(e *walleapi.Entry, isCommitted bool) *ResultCtx {
-	return p.q.Queue(&Request{
+	res, ok := p.q.Queue(&Request{
 		EntryId:   e.EntryId,
 		EntryMd5:  e.ChecksumMd5,
 		Committed: isCommitted,
 		Entry:     e,
 	})
+	if !ok {
+		res = newResult()
+		ok = p.ss.PutEntry(e, isCommitted)
+		resolveWithOk(res, ok, e.EntryId, isCommitted)
+	}
+	return res
+}
+
+func resolveWithOk(res *ResultCtx, ok bool, entryId int64, isCommitted bool) {
+	if !ok {
+		res.set(status.Errorf(codes.OutOfRange, "entryId: %d (committed: %t)", entryId, isCommitted))
+	} else {
+		res.set(nil)
+	}
 }

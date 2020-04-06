@@ -67,6 +67,13 @@ func (s *Pipeline) QueueFlush() *ResultCtx {
 	return r
 }
 
+func (s *Pipeline) Flush() {
+	r := newResult()
+	s.flushQ <- r
+	<-r.Done()
+	return
+}
+
 func (s *Pipeline) flusher(ctx context.Context) {
 	q := make([]*ResultCtx, 0, storageFlushQ)
 	for {
