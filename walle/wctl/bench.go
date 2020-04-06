@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"flag"
 	"fmt"
 	"path"
@@ -15,6 +16,10 @@ import (
 	"github.com/zviadm/zlog"
 )
 
+var (
+	benchData = make([]byte, wallelib.MaxEntrySize)
+)
+
 func cmdBench(
 	ctx context.Context,
 	rootPb *walleapi.Topology,
@@ -24,6 +29,7 @@ func cmdBench(
 	uriPrefix := f.String("prefix", "/bench", "Stream URI prefix for streams to write to.")
 	nStreams := f.Int("streams", 1, "Total streams to use for benchmarking. Streams are zero indexed: <prefix>/<idx>")
 	qps := f.Int("qps", 10, "Target QPS for each stream.")
+	throughputKBs := f.Int("kbs", 10, "Target throughput for each stream in KB per second.")
 	totalTime := f.Duration("time", 0, "Total bench duration. If 0, will run forever.")
 	f.Parse(args)
 
@@ -43,11 +49,13 @@ func cmdBench(
 		ctx, cancel = context.WithTimeout(ctx, *totalTime)
 		defer cancel()
 	}
+	_, err = rand.Read(benchData)
+	exitOnErr(err)
 	wg := sync.WaitGroup{}
 	wg.Add(len(ws))
 	for idx, w := range ws {
 		go func(idx int, w *wallelib.Writer) {
-			putBatch(ctx, idx, w, *qps)
+			putBatch(ctx, idx, w, *qps, (*throughputKBs)*1024)
 			wg.Done()
 		}(idx, w)
 	}
@@ -58,14 +66,20 @@ func putBatch(
 	ctx context.Context,
 	wIdx int,
 	w *wallelib.Writer,
-	qps int) {
+	qps int,
+	tps int) {
 
 	maxInFlight := 10000
 	progressN := 1000
+
 	puts := make([]*wallelib.PutCtx, 0, maxInFlight)
 	putT0 := make([]time.Time, 0, maxInFlight)
 	latencies := make([]time.Duration, 0, maxInFlight)
 	putIdx := 0
+	putTotalSize := 0
+
+	// TODO(zviad): It would be better if this was random
+	dataSize := (tps + qps - 1) / qps
 	ticker := time.NewTicker(time.Second / time.Duration(qps))
 	defer ticker.Stop()
 
@@ -74,13 +88,14 @@ func putBatch(
 		tDelta := time.Now().Sub(t0)
 		sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
 		zlog.Infof(
-			"Bench[%d]: processed: %d, (entryId: %d) p50: %s p95: %s p99: %s p999: %s, QPS: %.2f (Target: %d)",
+			"Bench[%d]: processed: %d, (entryId: %d) p50: %s p95: %s p99: %s p999: %s, QPS: %.2f (Target: %d), KB/s: %.1f",
 			wIdx, putIdx, puts[putIdx-1].Entry.EntryId,
 			latencies[len(latencies)*50/100],
 			latencies[len(latencies)*95/100],
 			latencies[len(latencies)*99/100],
 			latencies[len(latencies)*999/1000],
 			float64(putIdx)/tDelta.Seconds(), qps,
+			float64(putTotalSize)/1024.0/tDelta.Seconds(),
 		)
 	}
 	for i := 0; ctx.Err() == nil; i++ {
@@ -90,7 +105,8 @@ func putBatch(
 		}
 		select {
 		case <-ticker.C:
-			putCtx := w.PutEntry([]byte("testingoooo " + strconv.Itoa(i)))
+			dataIdx := i % (wallelib.MaxEntrySize - dataSize)
+			putCtx := w.PutEntry(benchData[dataIdx : dataIdx+dataSize])
 			puts = append(puts, putCtx)
 			putT0 = append(putT0, time.Now())
 		case <-putDone:
@@ -98,6 +114,7 @@ func putBatch(
 		ok, l := resolvePutCtx(puts[putIdx], putT0[putIdx], len(puts) >= maxInFlight)
 		if ok {
 			latencies = append(latencies, l)
+			putTotalSize += len(puts[putIdx].Entry.Data)
 			putIdx += 1
 		}
 
@@ -109,12 +126,14 @@ func putBatch(
 			putT0 = putT0[:len(putT0)-putIdx]
 			latencies = latencies[:0]
 			putIdx = 0
+			putTotalSize = 0
 			t0 = time.Now()
 		}
 	}
 	for ; putIdx < len(puts); putIdx++ {
 		_, l := resolvePutCtx(puts[putIdx], putT0[putIdx], true)
 		latencies = append(latencies, l)
+		putTotalSize += len(puts[putIdx].Entry.Data)
 	}
 	printProgress()
 	return

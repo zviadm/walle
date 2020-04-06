@@ -47,16 +47,16 @@ func benchAll(t *testing.T, ctx context.Context, clusterURI string, benchURIPref
 	servicelib.RunGoService(
 		t, ctx, "../../wctl", []string{
 			"-c", clusterURI, "bench", "-prefix", benchURIPrefix,
-			"-streams", "1", "-qps", "100", "-time", "2s"},
+			"-streams", "1", "-qps", "100", "-kbs", "100", "-time", "2s"},
 		"").Wait(t)
 	servicelib.RunGoService(
 		t, ctx, "../../wctl", []string{
 			"-c", clusterURI, "bench", "-prefix", benchURIPrefix,
-			"-streams", "2", "-qps", "100", "-time", "2s"},
+			"-streams", "2", "-qps", "100", "-kbs", "100", "-time", "2s"},
 		"").Wait(t)
 	servicelib.RunGoService(
 		t, ctx, "../../wctl", []string{
 			"-c", clusterURI, "bench", "-prefix", benchURIPrefix,
-			"-streams", "4", "-qps", "100", "-time", "2s"},
+			"-streams", "4", "-qps", "100", "-kbs", "100", "-time", "2s"},
 		"").Wait(t)
 }
