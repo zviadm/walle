@@ -256,7 +256,7 @@ func (m *streamStorage) UpdateGapStart(entryId int64) {
 	}
 	m.gapStartId = entryId
 	if m.gapStartId >= m.gapEndId {
-		m.gapStartId = m.committed + 1 // caught up with committed.
+		m.gapStartId = m.committed // caught up with committed.
 	}
 	binary.BigEndian.PutUint64(m.buf8, uint64(m.gapStartId))
 	panic.OnErr(m.metaW.Update([]byte(m.streamURI+sfxGapStartId), m.buf8))
@@ -294,8 +294,8 @@ func (m *streamStorage) unsafeCommitEntry(entryId int64, entryMd5 []byte, newGap
 	}
 	if newGap {
 		m.gapEndId = entryId
-	} else if m.gapStartId == m.committed+1 {
-		m.gapStartId = entryId + 1
+	} else if m.gapStartId >= m.committed {
+		m.gapStartId = entryId
 		binary.BigEndian.PutUint64(m.buf8, uint64(m.gapStartId))
 		panic.OnErr(m.metaW.Update([]byte(m.streamURI+sfxGapStartId), m.buf8))
 	}
