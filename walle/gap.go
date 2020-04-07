@@ -8,7 +8,6 @@ import (
 	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
-	"github.com/zviadm/walle/walle/panic"
 	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/walle/wallelib"
 	"github.com/zviadm/zlog"
@@ -172,8 +171,10 @@ Main:
 				continue Main
 			}
 			startId += 1
-			ok := ss.PutEntry(entry, true)
-			panic.OnNotOk(ok, "putting committed entry must always succeed!")
+			err = ss.PutEntry(entry, true)
+			if err != nil {
+				return err
+			}
 			if processEntry != nil {
 				if err := processEntry(entry); err != nil {
 					return err

@@ -288,7 +288,7 @@ func (m *streamStorage) unsafeCommitEntry(entryId int64, entryMd5 []byte, newGap
 		return status.Errorf(
 			codes.OutOfRange, "commit checksum mismatch for entry: %d, %s != %s, %s vs %s",
 			entryId, hex.EncodeToString(entryMd5), hex.EncodeToString(existingEntry.ChecksumMd5),
-			m.writerId, existingEntry.WriterId)
+			m.writerId, WriterId(existingEntry.WriterId))
 	}
 	panic.OnNotOk(useTx || m.sess.InTx(), "commit must happen inside a transaction")
 	if useTx {
@@ -312,41 +312,41 @@ func (m *streamStorage) unsafeCommitEntry(entryId int64, entryMd5 []byte, newGap
 	return nil
 }
 
-func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) bool {
+func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	if m.sess.Closed() {
-		return false
+		return status.Errorf(codes.NotFound, "stream: %s not found locally", m.streamURI)
 	}
 
 	entryWriterId := WriterId(entry.WriterId)
 	panic.OnNotOk(len(entryWriterId) > 0, "writerId must always be set")
 	// NOTE(zviad): if !isCommitted, writerId needs to be checked here again atomically, in the lock.
-	if !isCommitted && bytes.Compare(entryWriterId, m.writerId) != 0 {
-		return false
+	if !isCommitted && bytes.Compare(entryWriterId, m.writerId) < 0 {
+		return status.Errorf(codes.FailedPrecondition, "%s < %s", entryWriterId, m.writerId)
 	}
 	if entry.EntryId > m.tailEntry.EntryId+1 {
 		if !isCommitted {
-			return false
+			return status.Errorf(codes.OutOfRange, "put entryId: %d > %d + 1", entry.EntryId, m.tailEntry.EntryId)
 		}
 		m.unsafeMakeGapCommit(entry)
-		return true
+		return nil
 	}
 	if entry.EntryId <= m.committed {
 		if !isCommitted {
-			return false
+			return status.Errorf(codes.OutOfRange, "put entryId: %d <= %d", entry.EntryId, m.committed)
 		}
 		if entry.EntryId < m.gapStartId {
-			return true // not missing, and not last committed entry.
+			return nil // not missing, and not last committed entry.
 		}
 		if entry.EntryId == m.committed {
 			e := m.unsafeReadEntry(entry.EntryId)
 			if e != nil && bytes.Compare(e.WriterId, entry.WriterId) >= 0 {
-				return true // entry exists and is written by same or newer writerId.
+				return nil
 			}
 		}
 		m.unsafeInsertEntry(entry)
-		return true
+		return nil
 	}
 
 	prevEntry := m.unsafeReadEntry(entry.EntryId - 1)
@@ -354,12 +354,21 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) bool {
 	expectedMd5 := wallelib.CalculateChecksumMd5(prevEntry.ChecksumMd5, entry.Data)
 	if bytes.Compare(expectedMd5, entry.ChecksumMd5) != 0 {
 		if !isCommitted {
-			return false
+			return status.Errorf(
+				codes.OutOfRange, "put checksum mismatch for entry: %d, %s != %s, %s vs %s",
+				entry.EntryId, hex.EncodeToString(entry.ChecksumMd5), hex.EncodeToString(expectedMd5),
+				entryWriterId, WriterId(prevEntry.WriterId))
 		}
-		panic.OnNotOk(
-			prevEntry.EntryId > m.committed, "committed entry checksum mismatch!")
+		if prevEntry.EntryId <= m.committed {
+			// This mustn't happen. Otherwise probalby a sign of data corruption or serious data
+			// consistency bugs.
+			return status.Errorf(
+				codes.Internal, "put checksum mismatch for committed entry: %d, %s != %s, %s vs %s",
+				entry.EntryId, hex.EncodeToString(entry.ChecksumMd5), hex.EncodeToString(expectedMd5),
+				entryWriterId, WriterId(prevEntry.WriterId))
+		}
 		m.unsafeMakeGapCommit(entry)
-		return true
+		return nil
 	}
 
 	entryExists := false
@@ -368,7 +377,9 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) bool {
 		existingEntry := m.unsafeReadEntry(entry.EntryId)
 		cmpWriterId := bytes.Compare(existingEntry.WriterId, entryWriterId)
 		if cmpWriterId > 0 {
-			return false
+			return status.Errorf(
+				codes.OutOfRange, "put entry writer too old: %d, %s < %s",
+				entry.EntryId, entryWriterId, WriterId(existingEntry.WriterId))
 		}
 		// Truncate entries, because rest of the uncommitted entries are no longer valid, since a new writer
 		// is writing a previous entry.
@@ -384,10 +395,10 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) bool {
 	}
 	if isCommitted {
 		err := m.unsafeCommitEntry(entry.EntryId, entry.ChecksumMd5, false, false)
-		panic.OnErr(err)
+		panic.OnErr(err) // This commit entry mustn't fail. Failure would mean data corrution.
 	}
 	panic.OnErr(m.sess.TxCommit())
-	return true
+	return nil
 }
 
 func (m *streamStorage) unsafeMakeGapCommit(entry *walleapi.Entry) {
@@ -396,7 +407,7 @@ func (m *streamStorage) unsafeMakeGapCommit(entry *walleapi.Entry) {
 	m.unsafeRemoveAllEntriesFrom(m.committed+1, entry)
 	m.unsafeInsertEntry(entry)
 	err := m.unsafeCommitEntry(entry.EntryId, entry.ChecksumMd5, true, false)
-	panic.OnErr(err)
+	panic.OnErr(err) // This commit entry mustn't fail. Failure would mean data corrution.
 	panic.OnErr(m.sess.TxCommit())
 }
 

@@ -8,6 +8,8 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/wallelib"
@@ -51,8 +53,8 @@ func TestStreamStorage(t *testing.T) {
 		entries = append(entries, entry)
 	}
 
-	ok = ss.PutEntry(entries[1], false)
-	require.True(t, ok)
+	err = ss.PutEntry(entries[1], false)
+	require.NoError(t, err)
 	committed, _ := ss.CommittedEntryId()
 	require.EqualValues(t, 0, committed)
 	gapStart, gapEnd := ss.GapRange()
@@ -63,11 +65,11 @@ func TestStreamStorage(t *testing.T) {
 	require.EqualValues(t, 1, len(entriesR)) // entry1 shouldn't be visible yet.
 	require.EqualValues(t, 0, entriesR[0].EntryId)
 
-	ok = ss.PutEntry(entries[3], false)
-	require.False(t, ok)
+	err = ss.PutEntry(entries[3], false)
+	require.EqualValues(t, codes.OutOfRange, status.Convert(err).Code())
 
-	ok = ss.PutEntry(entries[3], true)
-	require.True(t, ok)
+	err = ss.PutEntry(entries[3], true)
+	require.NoError(t, err)
 	committed, _ = ss.CommittedEntryId()
 	require.EqualValues(t, 3, committed)
 	gapStart, gapEnd = ss.GapRange()
@@ -88,8 +90,8 @@ func TestStreamStorage(t *testing.T) {
 
 	c0, err := ss.ReadFrom(1)
 	require.NoError(t, err)
-	ok = ss.PutEntry(entries[5], true)
-	require.True(t, ok)
+	err = ss.PutEntry(entries[5], true)
+	require.NoError(t, err)
 	entry, ok := c0.Next()
 	require.True(t, ok)
 	require.EqualValues(t, 3, entry.EntryId)
@@ -115,8 +117,8 @@ func TestStreamStorage(t *testing.T) {
 	entry5new.WriterId = MakeWriterId().Encode()
 	ok, _ = ss.UpdateWriter(entry5new.WriterId, "", 0)
 	require.True(t, ok)
-	ok = ss.PutEntry(entry5new, true)
-	require.True(t, ok)
+	err = ss.PutEntry(entry5new, true)
+	require.NoError(t, err)
 	entriesR = streamReadAll(t, ss, 5)
 	require.Len(t, entriesR, 1)
 	require.EqualValues(t, entry5new.WriterId, entriesR[0].WriterId)
@@ -153,8 +155,8 @@ func TestStreamStorageRaces(t *testing.T) {
 			Data:        data,
 			ChecksumMd5: checksum,
 		}
-		ok := ss.PutEntry(entry, true)
-		require.True(t, ok)
+		err := ss.PutEntry(entry, true)
+		require.NoError(t, err)
 	}
 	cancel()
 	for i := 0; i < nReaders; i++ {

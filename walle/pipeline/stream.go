@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/zviadm/walle/proto/walleapi"
-	"github.com/zviadm/walle/walle/panic"
 	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/zlog"
 	"google.golang.org/grpc/codes"
@@ -54,8 +53,10 @@ func (p *stream) backfillEntry(
 	if err != nil {
 		return err
 	}
-	ok := p.ss.PutEntry(entry, true)
-	panic.OnNotOk(ok, "committed putEntry must always succeed")
+	err = p.ss.PutEntry(entry, true)
+	if err != nil {
+		return err
+	}
 	zlog.Infof("[sp] stream: %s caught up to: %d (might have created a gap)", p.ss.StreamURI(), entryId)
 	return nil
 }
@@ -86,15 +87,12 @@ func (p *stream) process(ctx context.Context) {
 		for _, req := range reqs {
 			var err error
 			if req.R.Entry == nil {
-				err := p.ss.CommitEntry(req.R.EntryId, req.R.EntryMd5)
+				err = p.ss.CommitEntry(req.R.EntryId, req.R.EntryMd5)
 				if err != nil && status.Convert(err).Code() == codes.OutOfRange {
 					err = p.backfillEntry(ctx, req.R.EntryId, req.R.EntryMd5)
 				}
 			} else {
-				ok := p.ss.PutEntry(req.R.Entry, req.R.Committed)
-				if !ok {
-					err = status.Errorf(codes.OutOfRange, "entryId: %d (committed: %t)", req.R.EntryId, req.R.Committed)
-				}
+				err = p.ss.PutEntry(req.R.Entry, req.R.Committed)
 			}
 			req.Res.set(err)
 		}
@@ -123,16 +121,8 @@ func (p *stream) QueuePut(e *walleapi.Entry, isCommitted bool) *ResultCtx {
 	})
 	if !ok {
 		res = newResult()
-		ok = p.ss.PutEntry(e, isCommitted)
-		resolveWithOk(res, ok, e.EntryId, isCommitted)
+		err := p.ss.PutEntry(e, isCommitted)
+		res.set(err)
 	}
 	return res
-}
-
-func resolveWithOk(res *ResultCtx, ok bool, entryId int64, isCommitted bool) {
-	if !ok {
-		res.set(status.Errorf(codes.OutOfRange, "entryId: %d (committed: %t)", entryId, isCommitted))
-	} else {
-		res.set(nil)
-	}
 }

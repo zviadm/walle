@@ -51,8 +51,5 @@ func BootstrapRoot(s storage.Storage, rootURI string, rootFile string, rootInfo 
 		return err
 	}
 	ss, _ := s.Stream(rootURI)
-	if !ss.PutEntry(entry, true) {
-		return errors.Errorf("couldn't initialize rootURI with initial entry: %s -- %+v", rootURI, entry)
-	}
-	return nil
+	return ss.PutEntry(entry, true)
 }

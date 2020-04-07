@@ -44,7 +44,7 @@ type Stream interface {
 	ReadFrom(entryId int64) (Cursor, error)
 
 	CommitEntry(entryId int64, entryMd5 []byte) error
-	PutEntry(entry *walleapi.Entry, isCommitted bool) (success bool)
+	PutEntry(entry *walleapi.Entry, isCommitted bool) error
 	UpdateGapStart(entryId int64)
 }
 
