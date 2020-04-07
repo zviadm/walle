@@ -209,19 +209,19 @@ func TestStreamOpenClose(t *testing.T) {
 	defer s.Close()
 
 	streamURI := "/test1"
-	err = s.Update(streamURI, &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
+	err = s.Update(streamURI, &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId(), "s2"}})
 	require.NoError(t, err)
 	ss, ok := s.Stream(streamURI)
 	require.True(t, ok)
 	require.False(t, ss.IsClosed())
 
-	err = s.Update(streamURI, &walleapi.StreamTopology{Version: 2, ServerIds: []string{}})
+	err = s.Update(streamURI, &walleapi.StreamTopology{Version: 2, ServerIds: []string{"s2"}})
 	require.NoError(t, err)
 	require.True(t, ss.IsClosed())
 	_, ok = s.Stream(streamURI)
 	require.False(t, ok)
 
-	err = s.Update(streamURI, &walleapi.StreamTopology{Version: 3, ServerIds: []string{s.ServerId()}})
+	err = s.Update(streamURI, &walleapi.StreamTopology{Version: 3, ServerIds: []string{s.ServerId(), "s2"}})
 	require.NoError(t, err)
 	require.True(t, ss.IsClosed())
 	ss2, ok := s.Stream(streamURI)

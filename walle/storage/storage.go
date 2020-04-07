@@ -142,7 +142,7 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 		panic.OnErr(err)
 		r.streams[streamURI] = openStreamStorage(r.serverId, streamURI, sess, sessRO)
 		r.streams[streamURI].setTopology(topology)
-		zlog.Infof("stream (local): %s", streamURI)
+		zlog.Infof("stream (local): %s %s (v: %d)", streamURI, topology.ServerIds, topology.Version)
 	}
 	return r, nil
 }

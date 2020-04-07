@@ -84,8 +84,8 @@ func TestTmpDir() string {
 }
 
 func IsMember(t *walleapi.StreamTopology, serverId string) bool {
-	for _, serverId := range t.ServerIds {
-		if serverId == serverId {
+	for _, sId := range t.ServerIds {
+		if serverId == sId {
 			return true
 		}
 	}

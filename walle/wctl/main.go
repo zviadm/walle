@@ -50,7 +50,7 @@ func main() {
 		}
 		streamURIs.Sort()
 		for _, streamURI := range streamURIs {
-			fmt.Printf("%s - %s\n", streamURI, t.Streams[streamURI].ServerIds)
+			fmt.Printf("%s - %s - v:%d\n", streamURI, t.Streams[streamURI].ServerIds, t.Streams[streamURI].Version)
 		}
 	case "servers":
 		t, err := topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{ClusterUri: clusterURI})
