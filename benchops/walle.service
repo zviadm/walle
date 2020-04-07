@@ -5,7 +5,7 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-Restart=always
+Restart=no
 RestartSec=1
 User=zviad
 ExecStart=/bin/bash -ce "exec /home/zviad/walle -walle.storage_dir=/mnt/disks/w0/walle -walle.port=5005 \
