@@ -12,8 +12,7 @@ import (
 )
 
 type stream struct {
-	ss storage.Stream
-	// flushQ              chan<- *ResultCtx
+	ss                  storage.Stream
 	fetchCommittedEntry fetchFunc
 
 	q *queue
@@ -23,11 +22,9 @@ func newStream(
 	ctx context.Context,
 	ss storage.Stream,
 	maxStreamQueueSize int,
-	flushQ chan<- *ResultCtx,
 	fetchCommittedEntry fetchFunc) *stream {
 	r := &stream{
-		ss: ss,
-		// flushQ:              flushQ,
+		ss:                  ss,
 		fetchCommittedEntry: fetchCommittedEntry,
 		q:                   newQueue(maxStreamQueueSize),
 	}

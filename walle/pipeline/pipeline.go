@@ -54,8 +54,7 @@ func (s *Pipeline) ForStream(ss storage.Stream) *stream {
 	defer s.mx.Unlock()
 	p, ok := s.p[ss]
 	if !ok {
-		p = newStream(
-			s.rootCtx, ss, s.maxStreamQueueSize, s.flushQ, s.fetchCommittedEntry)
+		p = newStream(s.rootCtx, ss, s.maxStreamQueueSize, s.fetchCommittedEntry)
 		s.p[ss] = p
 	}
 	return p
