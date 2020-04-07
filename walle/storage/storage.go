@@ -64,7 +64,7 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 	panic.OnErr(err)
 
 	var serverId string
-	serverIdB, err := metaR.ReadUnsafeValue([]byte(glbServerId))
+	serverIdB, err := metaR.ReadValue([]byte(glbServerId))
 	if err != nil {
 		if wt.ErrCode(err) != wt.ErrNotFound {
 			panic.OnErr(err)
@@ -119,13 +119,13 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 			}
 			break
 		}
-		metaKeyB, err := metaR.UnsafeKey()
+		metaKeyB, err := metaR.Key()
 		panic.OnErr(err)
 		metaKey := string(metaKeyB)
 		if !strings.HasSuffix(metaKey, sfxTopology) {
 			continue
 		}
-		v, err := metaR.UnsafeValue()
+		v, err := metaR.Value()
 		panic.OnErr(err)
 		topology := &walleapi.StreamTopology{}
 		panic.OnErr(topology.Unmarshal(v))
