@@ -74,6 +74,8 @@ func main() {
 		fmt.Printf("stream: %s, members: %s\n", streamURI, serverIds)
 	case "bench":
 		cmdBench(ctx, rootPb, clusterURI, args)
+	case "read":
+		cmdRead(ctx, rootPb, clusterURI, args)
 	default:
 		exitOnErr(errors.Errorf("unknown command: %s", cmd))
 	}

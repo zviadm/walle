@@ -93,7 +93,7 @@ func openStreamStorage(
 		committedNotify: make(chan struct{}),
 
 		buf8:            make([]byte, 8),
-		tailEntry:       &walleapi.Entry{},
+		tailEntry:       new(walleapi.Entry),
 		tailEntryNotify: make(chan struct{}),
 	}
 	v, err := metaR.ReadValue([]byte(streamURI + sfxWriterId))
@@ -441,6 +441,8 @@ func (m *streamStorage) unsafeInsertEntry(entry *walleapi.Entry) {
 	binary.BigEndian.PutUint64(m.buf8, uint64(entry.EntryId))
 	entryB, err := entry.Marshal()
 	panic.OnErr(err)
+	entryTest := new(walleapi.Entry)
+	panic.OnErr(entryTest.Unmarshal(entryB))
 	panic.OnErr(m.streamW.Insert(m.buf8, entryB))
 }
 
@@ -554,14 +556,14 @@ func (m *streamCursor) Next() (*walleapi.Entry, bool) {
 func unmarshalValue(streamURI string, committedId int64, c *wt.Scanner) *walleapi.Entry {
 	unsafeV, err := c.UnsafeValue() // This is safe because Unmarshal call makes a copy.
 	panic.OnErr(err)
-	entry := &walleapi.Entry{}
+	entry := new(walleapi.Entry)
 	if err := entry.Unmarshal(unsafeV); err != nil {
 		unsafeK, errK := c.UnsafeKey()
 		panic.OnErr(errK)
 		entryId := int64(binary.BigEndian.Uint64(unsafeK))
 		panic.OnNotOk(false, fmt.Sprintf(
-			"unmarshall %s: c%d, err: %s\nk: %v (%d)\nv: %v",
-			streamURI, committedId, err, unsafeK, entryId, unsafeV))
+			"unmarshall %s: c%d, err: %s\nk: %v (%d)\nv (%d): %v",
+			streamURI, committedId, err, unsafeK, entryId, len(unsafeV), unsafeV))
 	}
 	return entry
 }

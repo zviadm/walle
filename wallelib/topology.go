@@ -9,6 +9,8 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/zviadm/walle/proto/walleapi"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type discovery struct {
@@ -40,7 +42,14 @@ func NewRootDiscovery(
 	}
 	d := newDiscovery(nil, rootPb.RootUri, rootPb)
 	d.root = NewClient(ctx, d)
+	_, notify := d.Topology()
 	go d.watcher(ctx)
+	initCtx, cancel := context.WithTimeout(ctx, 2*watchTimeout)
+	defer cancel()
+	select {
+	case <-notify:
+	case <-initCtx.Done():
+	}
 	return d, nil
 }
 
@@ -49,28 +58,18 @@ func NewDiscovery(
 	root Client,
 	clusterURI string,
 	topology *walleapi.Topology) (Discovery, error) {
-	if topology.GetVersion() == 0 {
-		retryCtx, cancel := context.WithTimeout(ctx, 2*watchTimeout) // retry at least 2x.
-		defer cancel()
-		err := KeepTryingWithBackoff(
-			retryCtx, connectTimeout, watchTimeout,
-			func(retryN uint) (bool, bool, error) {
-				cli, err := root.ForStream(clusterURI)
-				if err != nil {
-					return false, false, err
-				}
-				topology, err = streamUpdates(retryCtx, cli, clusterURI, -1)
-				if err != nil {
-					return false, false, err
-				}
-				return true, false, nil
-			})
-		if err != nil {
-			return nil, err
+	d := newDiscovery(root, clusterURI, topology)
+	_, notify := d.Topology()
+	go d.watcher(ctx)
+	initCtx, cancel := context.WithTimeout(ctx, 2*watchTimeout)
+	defer cancel()
+	select {
+	case <-notify:
+	case <-initCtx.Done():
+		if topology.GetVersion() == 0 {
+			return nil, status.Errorf(codes.Unavailable, "err initializing topology: %s", clusterURI)
 		}
 	}
-	d := newDiscovery(root, clusterURI, topology)
-	go d.watcher(ctx)
 	return d, nil
 }
 
@@ -88,7 +87,7 @@ func newDiscovery(
 }
 
 func (d *discovery) watcher(ctx context.Context) {
-	topology := d.topology
+	var version int64 = -1
 	for {
 		err := KeepTryingWithBackoff(
 			ctx, connectTimeout, watchTimeout,
@@ -97,7 +96,7 @@ func (d *discovery) watcher(ctx context.Context) {
 				if err != nil {
 					return false, false, err
 				}
-				topology, err = streamUpdates(ctx, cli, d.clusterURI, d.topology.Version+1)
+				topology, err := streamUpdates(ctx, cli, d.clusterURI, version)
 				if err != nil {
 					if err == io.EOF {
 						return true, false, nil
@@ -105,6 +104,7 @@ func (d *discovery) watcher(ctx context.Context) {
 					return false, false, err
 				}
 				d.updateTopology(topology)
+				version = topology.Version + 1
 				return true, false, nil
 			})
 		if err != nil {
@@ -116,6 +116,9 @@ func (d *discovery) watcher(ctx context.Context) {
 func (d *discovery) updateTopology(topology *walleapi.Topology) {
 	d.mx.Lock()
 	defer d.mx.Unlock()
+	if topology.Version <= d.topology.Version {
+		return
+	}
 	d.topology = topology
 	close(d.notify)
 	d.notify = make(chan struct{})

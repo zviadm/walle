@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
 	"flag"
 	"fmt"
 	"path"
@@ -49,8 +48,9 @@ func cmdBench(
 		ctx, cancel = context.WithTimeout(ctx, *totalTime)
 		defer cancel()
 	}
-	_, err = rand.Read(benchData)
-	exitOnErr(err)
+	for i := range benchData {
+		benchData[i] = byte(i)
+	}
 	wg := sync.WaitGroup{}
 	wg.Add(len(ws))
 	for idx, w := range ws {
