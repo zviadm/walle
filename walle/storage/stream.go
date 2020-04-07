@@ -95,23 +95,23 @@ func openStreamStorage(
 		tailEntry:       &walleapi.Entry{},
 		tailEntryNotify: make(chan struct{}),
 	}
-	v, err := metaR.ReadValue([]byte(streamURI + sfxWriterId))
+	v, err := metaR.ReadUnsafeValue([]byte(streamURI + sfxWriterId))
 	panic.OnErr(err)
 	r.writerId = WriterId(v)
-	v, err = metaR.ReadValue([]byte(streamURI + sfxWriterAddr))
+	v, err = metaR.ReadUnsafeValue([]byte(streamURI + sfxWriterAddr))
 	panic.OnErr(err)
 	r.writerAddr = string(v)
-	v, err = metaR.ReadValue([]byte(streamURI + sfxWriterLeaseNs))
+	v, err = metaR.ReadUnsafeValue([]byte(streamURI + sfxWriterLeaseNs))
 	panic.OnErr(err)
 	r.writerLease = time.Duration(binary.BigEndian.Uint64(v))
 
-	v, err = metaR.ReadValue([]byte(streamURI + sfxCommittedId))
+	v, err = metaR.ReadUnsafeValue([]byte(streamURI + sfxCommittedId))
 	panic.OnErr(err)
 	r.committed = int64(binary.BigEndian.Uint64(v))
-	v, err = metaR.ReadValue([]byte(streamURI + sfxGapStartId))
+	v, err = metaR.ReadUnsafeValue([]byte(streamURI + sfxGapStartId))
 	panic.OnErr(err)
 	r.gapStartId = int64(binary.BigEndian.Uint64(v))
-	v, err = metaR.ReadValue([]byte(streamURI + sfxGapEndId))
+	v, err = metaR.ReadUnsafeValue([]byte(streamURI + sfxGapEndId))
 	panic.OnErr(err)
 	r.gapEndId = int64(binary.BigEndian.Uint64(v))
 
@@ -123,7 +123,7 @@ func openStreamStorage(
 	nearType, err := r.streamR.SearchNear(maxEntryIdKey)
 	panic.OnErr(err)
 	panic.OnNotOk(nearType == wt.MatchedSmaller, "must return SmallerMatch when searching with maxEntryIdKey")
-	v, err = r.streamR.Value()
+	v, err = r.streamR.UnsafeValue()
 	panic.OnErr(err)
 	panic.OnErr(r.tailEntry.Unmarshal(v))
 	return r
@@ -218,10 +218,11 @@ func (m *streamStorage) TailEntries() ([]*walleapi.Entry, error) {
 	panic.OnNotOk(mType == wt.MatchedExact, "committed entries mustn't have any gaps")
 	r := make([]*walleapi.Entry, int(m.tailEntry.EntryId-m.committed+1))
 	for idx := range r {
-		v, err := m.streamR.Value()
+		v, err := m.streamR.UnsafeValue()
 		panic.OnErr(err)
 		entry := &walleapi.Entry{}
-		panic.OnErr(entry.Unmarshal(v))
+		panic.OnErr(
+			entry.Unmarshal(v))
 		r[idx] = entry
 		if idx != len(r)-1 {
 			panic.OnErr(m.streamR.Next())
@@ -404,13 +405,14 @@ func (m *streamStorage) unsafeReadEntry(entryId int64) *walleapi.Entry {
 		return m.tailEntry
 	}
 	binary.BigEndian.PutUint64(m.buf8, uint64(entryId))
-	v, err := m.streamR.ReadValue(m.buf8)
+	v, err := m.streamR.ReadUnsafeValue(m.buf8)
 	if err != nil && wt.ErrCode(err) == wt.ErrNotFound {
 		return nil
 	}
 	panic.OnErr(err)
 	entry := &walleapi.Entry{}
 	panic.OnErr(entry.Unmarshal(v))
+	panic.OnErr(m.streamR.Reset())
 	return entry
 }
 func (m *streamStorage) unsafeInsertEntry(entry *walleapi.Entry) {
@@ -493,7 +495,7 @@ func (m *streamCursor) skip() (int64, bool) {
 	if m.sess.Closed() || m.finished {
 		return 0, false
 	}
-	v, err := m.cursor.UnsafeKey() // This is safe since Key gets copied to uint64 right away.
+	v, err := m.cursor.UnsafeKey()
 	panic.OnErr(err)
 	entryId := int64(binary.BigEndian.Uint64(v))
 	if entryId > m.committedId {
@@ -514,7 +516,7 @@ func (m *streamCursor) Next() (*walleapi.Entry, bool) {
 	if m.sess.Closed() || m.finished {
 		return nil, false
 	}
-	v, err := m.cursor.Value()
+	v, err := m.cursor.UnsafeValue()
 	panic.OnErr(err)
 	entry := &walleapi.Entry{}
 	panic.OnErr(entry.Unmarshal(v))
