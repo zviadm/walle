@@ -514,7 +514,7 @@ func (m *streamCursor) skip() (int64, bool) {
 	if m.sess.Closed() || m.finished {
 		return 0, false
 	}
-	unsafeKey, err := m.cursor.UnsafeKey()
+	unsafeKey, err := m.cursor.UnsafeKey() // This is safe because it is copied to entryId.
 	panic.OnErr(err)
 	entryId := int64(binary.BigEndian.Uint64(unsafeKey))
 	if entryId > m.committedId {
