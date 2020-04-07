@@ -28,8 +28,8 @@ func cmdBench(
 	f := flag.NewFlagSet("cmd.bench", flag.ExitOnError)
 	uriPrefix := f.String("prefix", "/bench", "Stream URI prefix for streams to write to.")
 	nStreams := f.Int("streams", 1, "Total streams to use for benchmarking. Streams are zero indexed: <prefix>/<idx>")
-	qps := f.Int("qps", 10, "Target QPS for each stream.")
-	throughputKBs := f.Int("kbs", 10, "Target throughput for each stream in KB per second.")
+	qps := f.Int("qps", 10, "Target total QPS.")
+	throughputKBs := f.Int("kbs", 10, "Target total throughput in KB per second.")
 	totalTime := f.Duration("time", 0, "Total bench duration. If 0, will run forever.")
 	f.Parse(args)
 
@@ -55,7 +55,7 @@ func cmdBench(
 	wg.Add(len(ws))
 	for idx, w := range ws {
 		go func(idx int, w *wallelib.Writer) {
-			putBatch(ctx, idx, w, *qps, (*throughputKBs)*1024)
+			putBatch(ctx, idx, w, *qps/len(ws), (*throughputKBs)*1024/len(ws))
 			wg.Done()
 		}(idx, w)
 	}
