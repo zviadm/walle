@@ -119,16 +119,16 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 			}
 			break
 		}
-		unsafeKey, err := metaR.UnsafeKey()
+		metaKeyB, err := metaR.Key()
 		panic.OnErr(err)
-		metaKey := string(unsafeKey)
+		metaKey := string(metaKeyB)
 		if !strings.HasSuffix(metaKey, sfxTopology) {
 			continue
 		}
-		unsafeV, err := metaR.UnsafeValue()
+		v, err := metaR.Value()
 		panic.OnErr(err)
 		topology := &walleapi.StreamTopology{}
-		panic.OnErr(topology.Unmarshal(unsafeV))
+		panic.OnErr(topology.Unmarshal(v))
 
 		streamURI := strings.Split(metaKey, ":")[0]
 		r.streamT[streamURI] = topology
