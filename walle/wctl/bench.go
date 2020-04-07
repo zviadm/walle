@@ -80,6 +80,9 @@ func putBatch(
 
 	// TODO(zviad): It would be better if this was random
 	dataSize := (tps + qps - 1) / qps
+	if dataSize > wallelib.MaxEntrySize {
+		dataSize = wallelib.MaxEntrySize
+	}
 	ticker := time.NewTicker(time.Second / time.Duration(qps))
 	defer ticker.Stop()
 
@@ -105,7 +108,7 @@ func putBatch(
 		}
 		select {
 		case <-ticker.C:
-			dataIdx := i % (wallelib.MaxEntrySize - dataSize)
+			dataIdx := i % (wallelib.MaxEntrySize - dataSize + 1)
 			putCtx := w.PutEntry(benchData[dataIdx : dataIdx+dataSize])
 			puts = append(puts, putCtx)
 			putT0 = append(putT0, time.Now())
