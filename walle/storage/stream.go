@@ -465,14 +465,15 @@ func (m *streamStorage) ReadFrom(entryId int64) (Cursor, error) {
 	committedId, _ := m.CommittedEntryId()
 	m.roMX.Lock()
 	defer m.roMX.Unlock()
-	if m.sess.Closed() {
+	if m.sessRO.Closed() {
 		return nil, status.Errorf(codes.NotFound, "%s not found", m.streamURI)
 	}
 	cursor, err := m.sessRO.Scan(streamDS(m.streamURI))
 	panic.OnErr(err)
 	r := &streamCursor{
-		mx:          &m.roMX,
-		sess:        m.sessRO,
+		roMX:        &m.roMX,
+		sessRO:      m.sessRO,
+		streamURI:   m.streamURI,
 		cursor:      cursor,
 		committedId: committedId,
 	}
@@ -487,31 +488,32 @@ func (m *streamStorage) ReadFrom(entryId int64) (Cursor, error) {
 }
 
 type streamCursor struct {
-	mx          *sync.Mutex
-	sess        *wt.Session
+	roMX        *sync.Mutex
+	sessRO      *wt.Session
+	streamURI   string
 	cursor      *wt.Scanner
 	finished    bool
 	committedId int64
 }
 
 func (m *streamCursor) Close() {
-	m.mx.Lock()
-	defer m.mx.Unlock()
+	m.roMX.Lock()
+	defer m.roMX.Unlock()
 	m.close()
 }
 func (m *streamCursor) close() {
-	if !m.sess.Closed() && !m.finished {
+	if !m.sessRO.Closed() && !m.finished {
 		panic.OnErr(m.cursor.Close())
 	}
 	m.finished = true
 }
 func (m *streamCursor) Skip() (int64, bool) {
-	m.mx.Lock()
-	defer m.mx.Unlock()
+	m.roMX.Lock()
+	defer m.roMX.Unlock()
 	return m.skip()
 }
 func (m *streamCursor) skip() (int64, bool) {
-	if m.sess.Closed() || m.finished {
+	if m.sessRO.Closed() || m.finished {
 		return 0, false
 	}
 	unsafeKey, err := m.cursor.UnsafeKey() // This is safe because it is copied to entryId.
@@ -528,12 +530,12 @@ func (m *streamCursor) skip() (int64, bool) {
 	return entryId, true
 }
 func (m *streamCursor) Next() (*walleapi.Entry, bool) {
-	m.mx.Lock()
-	defer m.mx.Unlock()
-	if m.sess.Closed() || m.finished {
+	m.roMX.Lock()
+	defer m.roMX.Unlock()
+	if m.sessRO.Closed() || m.finished {
 		return nil, false
 	}
-	entry := unmarshalValue("", m.committedId, m.cursor)
+	entry := unmarshalValue(m.streamURI, m.committedId, m.cursor)
 	if entry.EntryId > m.committedId {
 		m.close()
 		return nil, false
