@@ -84,8 +84,7 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 			zlog.Infof(
 				"initializing new database: %s, with serverId: %s...", dbPath, serverId)
 		}
-		panic.OnErr(
-			metaW.Insert([]byte(glbServerId), []byte(serverId)))
+		panic.OnErr(metaW.Insert([]byte(glbServerId), []byte(serverId)))
 	} else {
 		serverId = string(serverIdB)
 	}

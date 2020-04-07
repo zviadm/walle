@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"fmt"
 	"sync"
 	"time"
 
@@ -123,9 +124,7 @@ func openStreamStorage(
 	nearType, err := r.streamR.SearchNear(maxEntryIdKey)
 	panic.OnErr(err)
 	panic.OnNotOk(nearType == wt.MatchedSmaller, "must return SmallerMatch when searching with maxEntryIdKey")
-	v, err = r.streamR.Value()
-	panic.OnErr(err)
-	panic.OnErr(r.tailEntry.Unmarshal(v))
+	r.tailEntry = unmarshalValue(r.streamURI, r.committed, r.streamR)
 	return r
 }
 
@@ -226,11 +225,11 @@ func (m *streamStorage) TailEntries() ([]*walleapi.Entry, error) {
 	panic.OnNotOk(mType == wt.MatchedExact, "committed entries mustn't have any gaps")
 	r := make([]*walleapi.Entry, int(m.tailEntry.EntryId-m.committed+1))
 	for idx := range r {
-		unsafeV, err := m.streamR.UnsafeValue()
-		panic.OnErr(err)
-		entry := &walleapi.Entry{}
-		panic.OnErr(entry.Unmarshal(unsafeV))
-		r[idx] = entry
+		r[idx] = unmarshalValue(m.streamURI, m.committed, m.streamR)
+		panic.OnNotOk(
+			r[idx].EntryId == m.committed+int64(idx),
+			"tail entry missing: %s [%d..%d] %d",
+			m.streamURI, m.committed, m.tailEntry.EntryId, idx)
 		if idx != len(r)-1 {
 			panic.OnErr(m.streamR.Next())
 		} else {
@@ -426,13 +425,12 @@ func (m *streamStorage) unsafeReadEntry(entryId int64) *walleapi.Entry {
 		return m.tailEntry
 	}
 	binary.BigEndian.PutUint64(m.buf8, uint64(entryId))
-	unsafeV, err := m.streamR.ReadUnsafeValue(m.buf8)
-	if err != nil && wt.ErrCode(err) == wt.ErrNotFound {
+	err := m.streamR.Search(m.buf8)
+	if err != nil {
+		panic.OnNotOk(wt.ErrCode(err) == wt.ErrNotFound, err.Error())
 		return nil
 	}
-	panic.OnErr(err)
-	entry := &walleapi.Entry{}
-	panic.OnErr(entry.Unmarshal(unsafeV))
+	entry := unmarshalValue(m.streamURI, m.committed, m.streamR)
 	panic.OnErr(m.streamR.Reset())
 	return entry
 }
@@ -524,9 +522,7 @@ func (m *streamCursor) skip() (int64, bool) {
 		return 0, false
 	}
 	if err := m.cursor.Next(); err != nil {
-		if wt.ErrCode(err) != wt.ErrNotFound {
-			panic.OnErr(err)
-		}
+		panic.OnNotOk(wt.ErrCode(err) == wt.ErrNotFound, err.Error())
 		m.close()
 	}
 	return entryId, true
@@ -537,19 +533,33 @@ func (m *streamCursor) Next() (*walleapi.Entry, bool) {
 	if m.sess.Closed() || m.finished {
 		return nil, false
 	}
-	unsafeV, err := m.cursor.UnsafeValue()
-	panic.OnErr(err)
-	entry := &walleapi.Entry{}
-	panic.OnErr(entry.Unmarshal(unsafeV))
+	entry := unmarshalValue("", m.committedId, m.cursor)
 	if entry.EntryId > m.committedId {
 		m.close()
 		return nil, false
 	}
 	if err := m.cursor.Next(); err != nil {
-		if wt.ErrCode(err) != wt.ErrNotFound {
-			panic.OnErr(err)
-		}
+		panic.OnNotOk(wt.ErrCode(err) == wt.ErrNotFound, err.Error())
 		m.close()
 	}
 	return entry, true
+}
+
+// Helper function to unmarshal value that scanner is currently pointing at. Scanner
+// must be pointing at a valid record.
+// streamURI & committedId are only needed to produce more detailed `panic` message if
+// bug or data corruption has occured and entry can't be unmarshalled.
+func unmarshalValue(streamURI string, committedId int64, c *wt.Scanner) *walleapi.Entry {
+	unsafeV, err := c.UnsafeValue() // This is safe because Unmarshal call makes a copy.
+	panic.OnErr(err)
+	entry := &walleapi.Entry{}
+	if err := entry.Unmarshal(unsafeV); err != nil {
+		unsafeK, errK := c.UnsafeKey()
+		panic.OnErr(errK)
+		entryId := int64(binary.BigEndian.Uint64(unsafeK))
+		panic.OnNotOk(false, fmt.Sprintf(
+			"unmarshall %s: c%d, err: %s\nk: %v (%d)\nv: %v",
+			streamURI, committedId, err, unsafeK, entryId, unsafeV))
+	}
+	return entry
 }
