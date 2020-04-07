@@ -1,5 +1,32 @@
+# 2020/04/07
+# NOTES: Still some rare sightings of data corruption. Single stream perf looks good. Multi stream throughput is good,
+# but tail latencies can tend to spike sometimes (creating too many GAPs unnecessarily).
+
+# streams: 1, limited by wctl-0 CPU
+zviad@wctl-0:~$ env WALLE_ROOTPB=/home/zviad/root.pb ./wctl bench -qps 10000 -kbs 10000 -streams 1 -time 1m
+I0407 17:17:07.063427 bench.go:93] Bench[0]: processed: 1000, (entryId: 2331390) p50: 11.537955ms p95: 18.302856ms p99: 20.446187ms p999: 21.058679ms, QPS: 7597.18 (Target: 10000), KB/s: 7597.2
+I0407 17:17:07.176031 bench.go:93] Bench[0]: processed: 1000, (entryId: 2332390) p50: 10.966764ms p95: 15.480304ms p99: 17.357931ms p999: 18.771167ms, QPS: 8900.43 (Target: 10000), KB/s: 8900.4
+
+# streams: 10
+zviad@wctl-0:~$ env WALLE_ROOTPB=/home/zviad/root.pb ./wctl bench -qps 10000 -kbs 10000 -streams 10 -time 5m
+I0407 17:13:22.097155 bench.go:93] Bench[5]: processed: 1000, (entryId: 382151) p50: 15.810945ms p95: 25.645037ms p99: 33.165934ms p999: 39.155454ms, QPS: 954.09 (Target: 1000), KB/s: 954.1
+I0407 17:13:23.203241 bench.go:93] Bench[0]: processed: 1000, (entryId: 2038477) p50: 18.043766ms p95: 34.5646ms p99: 46.213008ms p999: 54.191816ms, QPS: 947.92 (Target: 1000), KB/s: 947.9
+I0407 17:13:23.300324 bench.go:93] Bench[1]: processed: 1000, (entryId: 380151) p50: 18.053229ms p95: 35.206575ms p99: 48.45946ms p999: 57.668328ms, QPS: 947.60 (Target: 1000), KB/s: 947.6
+I0407 17:13:23.423113 bench.go:93] Bench[4]: processed: 1000, (entryId: 380152) p50: 18.137691ms p95: 35.695631ms p99: 46.655762ms p999: 51.20194ms, QPS: 937.35 (Target: 1000), KB/s: 937.4
+I0407 17:13:23.480233 bench.go:93] Bench[6]: processed: 1000, (entryId: 380152) p50: 18.632476ms p95: 34.675905ms p99: 46.587099ms p999: 53.520882ms, QPS: 934.75 (Target: 1000), KB/s: 934.8
+I0407 17:13:23.564840 bench.go:93] Bench[7]: processed: 1000, (entryId: 382152) p50: 18.403795ms p95: 36.713642ms p99: 47.78039ms p999: 54.766434ms, QPS: 946.98 (Target: 1000), KB/s: 947.0
+I0407 17:13:23.683656 bench.go:93] Bench[3]: processed: 1000, (entryId: 384151) p50: 17.227855ms p95: 96.552121ms p99: 128.24987ms p999: 135.928792ms, QPS: 957.43 (Target: 1000), KB/s: 957.4
+I0407 17:13:23.737018 bench.go:93] Bench[8]: processed: 1000, (entryId: 382152) p50: 17.433247ms p95: 95.430316ms p99: 130.425306ms p999: 138.422482ms, QPS: 936.19 (Target: 1000), KB/s: 936.2
+I0407 17:13:23.937767 bench.go:93] Bench[9]: processed: 1000, (entryId: 384152) p50: 18.783249ms p95: 87.847328ms p99: 129.793387ms p999: 137.464416ms, QPS: 973.25 (Target: 1000), KB/s: 973.2
+I0407 17:13:24.013038 bench.go:93] Bench[2]: processed: 1000, (entryId: 381152) p50: 17.903104ms p95: 91.475713ms p99: 122.671179ms p999: 131.332282ms, QPS: 957.29 (Target: 1000), KB/s: 957.3
+
+# streams: 20
+zviad@wctl-0:~$ env WALLE_ROOTPB=/home/zviad/root.pb ./wctl bench -qps 10000 -kbs 10000 -streams 20 -time 5m
+
+
+
 # 2020/04/05
-# Bugs with 3 nodes. Running only 2 out of 3 nodes.
+# NOTES: Bugs with 3 nodes. Running only 2 out of 3 nodes.
 I0405 16:14:21.400017 bench.go:65] Bench: processed: 1000 writers: 1 inflight: 1  p50: 969.649µs p95: 1.370114ms p99: 2.208661ms p999: 5.515282ms total: 1.034319039s
 I0405 16:14:22.414575 bench.go:65] Bench: processed: 1000 writers: 1 inflight: 1  p50: 940.425µs p95: 1.315508ms p99: 2.494494ms p999: 5.026211ms total: 1.014514643s
 I0405 16:14:23.422080 bench.go:65] Bench: processed: 1000 writers: 1 inflight: 1  p50: 931.493µs p95: 1.285893ms p99: 2.572211ms p999: 5.990373ms total: 1.007458031s
