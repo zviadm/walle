@@ -46,19 +46,18 @@ func (p *stream) timeoutAdjusted() time.Duration {
 }
 
 func (p *stream) backfillEntry(
-	ctx context.Context, entryId int64, entryMd5 []byte) bool {
+	ctx context.Context, entryId int64, entryMd5 []byte) error {
 	ctx, cancel := context.WithTimeout(ctx, p.timeoutAdjusted())
 	defer cancel()
 	entry, err := p.fetchCommittedEntry(
 		ctx, p.ss.StreamURI(), entryId, entryMd5)
 	if err != nil {
-		zlog.Warningf("[sp] err fetching: %s:%d - %s", p.ss.StreamURI(), entryId, err)
-		return false
+		return err
 	}
 	ok := p.ss.PutEntry(entry, true)
 	panic.OnNotOk(ok, "committed putEntry must always succeed")
 	zlog.Infof("[sp] stream: %s caught up to: %d (might have created a gap)", p.ss.StreamURI(), entryId)
-	return true
+	return nil
 }
 
 func (p *stream) process(ctx context.Context) {
@@ -85,16 +84,19 @@ func (p *stream) process(ctx context.Context) {
 		forceSkip = false
 		skipTimeout = nil
 		for _, req := range reqs {
-			var ok bool
+			var err error
 			if req.R.Entry == nil {
-				ok = p.ss.CommitEntry(req.R.EntryId, req.R.EntryMd5)
-				if !ok {
-					ok = p.backfillEntry(ctx, req.R.EntryId, req.R.EntryMd5)
+				err := p.ss.CommitEntry(req.R.EntryId, req.R.EntryMd5)
+				if err != nil && status.Convert(err).Code() == codes.OutOfRange {
+					err = p.backfillEntry(ctx, req.R.EntryId, req.R.EntryMd5)
 				}
 			} else {
-				ok = p.ss.PutEntry(req.R.Entry, req.R.Committed)
+				ok := p.ss.PutEntry(req.R.Entry, req.R.Committed)
+				if !ok {
+					err = status.Errorf(codes.OutOfRange, "entryId: %d (committed: %t)", req.R.EntryId, req.R.Committed)
+				}
 			}
-			resolveWithOk(req.Res, ok, req.R.EntryId, req.R.Committed)
+			req.Res.set(err)
 		}
 	}
 }
@@ -107,8 +109,8 @@ func (p *stream) QueueCommit(entryId int64, entryMd5 []byte) *ResultCtx {
 	})
 	if !ok {
 		res = newResult()
-		ok = p.ss.CommitEntry(entryId, entryMd5)
-		resolveWithOk(res, ok, entryId, true)
+		err := p.ss.CommitEntry(entryId, entryMd5)
+		res.set(err)
 	}
 	return res
 }

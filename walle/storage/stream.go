@@ -261,32 +261,35 @@ func (m *streamStorage) UpdateGapStart(entryId int64) {
 	panic.OnErr(m.metaW.Update([]byte(m.streamURI+sfxGapStartId), m.buf8))
 }
 
-func (m *streamStorage) CommitEntry(entryId int64, entryMd5 []byte) bool {
+func (m *streamStorage) CommitEntry(entryId int64, entryMd5 []byte) error {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	if m.sess.Closed() {
-		return false
+		return status.Errorf(codes.NotFound, "stream: %s not found locally", m.streamURI)
 	}
 	return m.unsafeCommitEntry(entryId, entryMd5, false, true)
 }
 
 // Updates committedEntry, assuming m.mx is acquired. Returns False, if entryId is too far in the future
 // and local storage doesn't yet know about missing entries in between.
-func (m *streamStorage) unsafeCommitEntry(entryId int64, entryMd5 []byte, newGap bool, useTx bool) bool {
+func (m *streamStorage) unsafeCommitEntry(entryId int64, entryMd5 []byte, newGap bool, useTx bool) error {
 	if entryId <= m.committed {
-		return true
+		return nil
 	}
 	if entryId > m.tailEntry.EntryId {
-		return false
+		return status.Errorf(codes.OutOfRange, "commit entryId: %d > %d", entryId, m.tailEntry.EntryId)
 	}
 	existingEntry := m.unsafeReadEntry(entryId)
 	if existingEntry == nil {
-		return false
+		return status.Errorf(
+			codes.Internal, "uncommitted entry %d: missing [%d..%d]", entryId, m.committed, m.tailEntry.EntryId)
 	}
-	panic.OnNotOk(
-		bytes.Compare(existingEntry.ChecksumMd5, entryMd5) == 0,
-		"committed entry md5 mimstach at: %d, %s vs %s",
-		entryId, hex.EncodeToString(entryMd5), hex.EncodeToString(existingEntry.ChecksumMd5))
+	if bytes.Compare(existingEntry.ChecksumMd5, entryMd5) != 0 {
+		return status.Errorf(
+			codes.OutOfRange, "commit checksum mismatch for entry: %d, %s != %s, %s vs %s",
+			entryId, hex.EncodeToString(entryMd5), hex.EncodeToString(existingEntry.ChecksumMd5),
+			m.writerId, existingEntry.WriterId)
+	}
 	panic.OnNotOk(useTx || m.sess.InTx(), "commit must happen inside a transaction")
 	if useTx {
 		panic.OnErr(m.sess.TxBegin())
@@ -306,7 +309,7 @@ func (m *streamStorage) unsafeCommitEntry(entryId int64, entryMd5 []byte, newGap
 	if useTx {
 		panic.OnErr(m.sess.TxCommit())
 	}
-	return true
+	return nil
 }
 
 func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) bool {
@@ -380,8 +383,8 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) bool {
 		m.unsafeInsertEntry(entry)
 	}
 	if isCommitted {
-		ok := m.unsafeCommitEntry(entry.EntryId, entry.ChecksumMd5, false, false)
-		panic.OnNotOk(ok, "committing must always succeed in this code path")
+		err := m.unsafeCommitEntry(entry.EntryId, entry.ChecksumMd5, false, false)
+		panic.OnErr(err)
 	}
 	panic.OnErr(m.sess.TxCommit())
 	return true
@@ -392,8 +395,8 @@ func (m *streamStorage) unsafeMakeGapCommit(entry *walleapi.Entry) {
 	panic.OnErr(m.sess.TxBegin())
 	m.unsafeRemoveAllEntriesFrom(m.committed+1, entry)
 	m.unsafeInsertEntry(entry)
-	ok := m.unsafeCommitEntry(entry.EntryId, entry.ChecksumMd5, true, false)
-	panic.OnNotOk(ok, "committing must always succeed in this code path")
+	err := m.unsafeCommitEntry(entry.EntryId, entry.ChecksumMd5, true, false)
+	panic.OnErr(err)
 	panic.OnErr(m.sess.TxCommit())
 }
 
