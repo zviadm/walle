@@ -36,7 +36,8 @@ func (d *StaticDiscovery) Topology() (*walleapi.Topology, <-chan struct{}) {
 
 func NewRootDiscovery(
 	ctx context.Context,
-	rootPb *walleapi.Topology) (Discovery, error) {
+	rootPb *walleapi.Topology,
+	waitForRefresh bool) (Discovery, error) {
 	if rootPb.GetVersion() == 0 {
 		return nil, errors.Errorf("must provide valid root topology: %+v", rootPb)
 	}
@@ -44,11 +45,13 @@ func NewRootDiscovery(
 	d.root = NewClient(ctx, d)
 	_, notify := d.Topology()
 	go d.watcher(ctx)
-	initCtx, cancel := context.WithTimeout(ctx, 2*watchTimeout)
-	defer cancel()
-	select {
-	case <-notify:
-	case <-initCtx.Done():
+	if waitForRefresh {
+		initCtx, cancel := context.WithTimeout(ctx, 2*watchTimeout)
+		defer cancel()
+		select {
+		case <-notify:
+		case <-initCtx.Done():
+		}
 	}
 	return d, nil
 }
@@ -116,7 +119,7 @@ func (d *discovery) watcher(ctx context.Context) {
 func (d *discovery) updateTopology(topology *walleapi.Topology) {
 	d.mx.Lock()
 	defer d.mx.Unlock()
-	if topology.Version <= d.topology.Version {
+	if topology.Version <= d.topology.GetVersion() {
 		return
 	}
 	d.topology = topology

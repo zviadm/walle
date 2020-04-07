@@ -50,7 +50,7 @@ func NewClientFromRootPb(
 	ctx context.Context,
 	rootPb *walleapi.Topology,
 	clusterURI string) (*client, error) {
-	rootD, err := NewRootDiscovery(ctx, rootPb)
+	rootD, err := NewRootDiscovery(ctx, rootPb, true)
 	if err != nil {
 		return nil, err
 	}

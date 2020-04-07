@@ -111,7 +111,8 @@ func main() {
 	if err != nil {
 		zlog.Fatal(err)
 	}
-	rootD, err := wallelib.NewRootDiscovery(ctx, rootPb)
+	servingRootURI := *clusterURI == rootPb.RootUri
+	rootD, err := wallelib.NewRootDiscovery(ctx, rootPb, !servingRootURI)
 	if err != nil {
 		zlog.Fatal(err)
 	}
@@ -119,7 +120,7 @@ func main() {
 	go watchTopologyAndSave(ctx, rootD, rootFile)
 	var d wallelib.Discovery
 	var c walle.Client
-	if *clusterURI == rootPb.RootUri {
+	if servingRootURI {
 		d = rootD
 		c = rootCli
 	} else {
@@ -140,7 +141,7 @@ func main() {
 	}
 
 	var topoMgr *topomgr.Manager
-	if rootPb.RootUri == *clusterURI {
+	if servingRootURI {
 		topoMgr = topomgr.NewManager(rootCli, serverInfo.Address)
 	}
 	ws := walle.NewServer(ctx, ss, c, d, streamQueueMB*1024*1024, topoMgr)
