@@ -36,7 +36,7 @@ func (s *Server) ClaimWriter(
 
 	ss, ok := s.s.Stream(req.GetStreamUri())
 	if !ok {
-		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found locally", req.GetStreamUri())
+		return nil, status.Errorf(codes.NotFound, "%s not found", req.GetStreamUri())
 	}
 	writerId := storage.MakeWriterId()
 	ssTopology := ss.Topology()
@@ -234,7 +234,7 @@ func (s *Server) WriterStatus(
 	req *walleapi.WriterStatusRequest) (*walleapi.WriterStatusResponse, error) {
 	ss, ok := s.s.Stream(req.GetStreamUri())
 	if !ok {
-		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found locally", req.GetStreamUri())
+		return nil, status.Errorf(codes.NotFound, "%s not found", req.GetStreamUri())
 	}
 
 	writerInfo, err := broadcast.WriterInfo(
@@ -262,7 +262,7 @@ func (s *Server) PutEntry(
 
 	ss, ok := s.s.Stream(req.GetStreamUri())
 	if !ok {
-		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found locally", req.GetStreamUri())
+		return nil, status.Errorf(codes.NotFound, "%s not found", req.GetStreamUri())
 	}
 	ssTopology := ss.Topology()
 	_, err := broadcast.Call(ctx, s.c, ssTopology.ServerIds, putEntryLiveWait, putEntryBgWait,
@@ -289,7 +289,7 @@ func (s *Server) StreamEntries(
 	stream walleapi.WalleApi_StreamEntriesServer) error {
 	ss, ok := s.s.Stream(req.GetStreamUri())
 	if !ok {
-		return status.Errorf(codes.NotFound, "streamURI: %s not found locally", req.GetStreamUri())
+		return status.Errorf(codes.NotFound, "%s not found", req.GetStreamUri())
 	}
 	entryId := req.FromEntryId
 	internalCtx := stream.Context()

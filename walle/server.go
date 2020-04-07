@@ -72,15 +72,16 @@ func (s *Server) NewWriter(
 		return nil, err
 	}
 	reqWriterId := storage.WriterId(req.WriterId)
-	ok, remainingLease := ss.UpdateWriter(reqWriterId, req.WriterAddr, time.Duration(req.LeaseMs)*time.Millisecond)
-	if !ok {
-		return nil, status.Errorf(codes.FailedPrecondition, "there is already another new writer")
+	remainingLease, err := ss.UpdateWriter(reqWriterId, req.WriterAddr, time.Duration(req.LeaseMs)*time.Millisecond)
+	if err != nil {
+		return nil, err
 	}
 	// Need to wait `remainingLease` duration before returning. However, we also need to make sure new
 	// lease doesn't expire since writer client can't heartbeat until this call succeeds.
 	if remainingLease > 0 {
-		if !ss.RenewLease(reqWriterId, remainingLease) {
-			return nil, status.Errorf(codes.FailedPrecondition, "there is already another new writer")
+		err := ss.RenewLease(reqWriterId, remainingLease)
+		if err != nil {
+			return nil, err
 		}
 		time.Sleep(remainingLease)
 	}
@@ -117,8 +118,9 @@ func (s *Server) PutEntryInternal(
 	if err != nil && (!req.IgnoreLeaseRenew || !isCommitted) {
 		return nil, err
 	}
-	if !ss.RenewLease(writerId, 0) && !req.IgnoreLeaseRenew {
-		return nil, status.Errorf(codes.FailedPrecondition, "writer_id lease renew failed, claim is lost")
+	err = ss.RenewLease(writerId, 0)
+	if err != nil && !req.IgnoreLeaseRenew {
+		return nil, err
 	}
 
 	p := s.pipeline.ForStream(ss)
@@ -153,7 +155,7 @@ func (s *Server) fetchCommittedEntry(
 	committedEntryMd5 []byte) (*walleapi.Entry, error) {
 	ss, ok := s.s.Stream(streamURI)
 	if !ok {
-		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found locally", streamURI)
+		return nil, status.Errorf(codes.NotFound, "%s not found", streamURI)
 	}
 	ssTopology := ss.Topology()
 	fetchCtx, cancel := context.WithCancel(ctx)
@@ -260,14 +262,14 @@ type requestHeader interface {
 
 func (s *Server) processRequestHeader(req requestHeader) (ss storage.Stream, err error) {
 	if req.GetServerId() != s.s.ServerId() {
-		return nil, status.Errorf(codes.NotFound, "invalid server_id: %s", req.GetServerId())
+		return nil, status.Errorf(codes.NotFound, "server_id: %s not found", req.GetServerId())
 	}
 	if req.GetFromServerId() == "" {
-		return nil, status.Errorf(codes.NotFound, "invalid from_server_id: %s", req.GetFromServerId())
+		return nil, status.Errorf(codes.NotFound, "from_server_id: %s not found", req.GetFromServerId())
 	}
 	ss, ok := s.s.Stream(req.GetStreamUri())
 	if !ok {
-		return nil, status.Errorf(codes.NotFound, "streamURI: %s not found locally", req.GetStreamUri())
+		return nil, status.Errorf(codes.NotFound, "%s not found", req.GetStreamUri())
 	}
 	if err := s.checkStreamVersion(
 		ss, req.GetStreamVersion(), req.GetFromServerId()); err != nil {
@@ -285,7 +287,7 @@ func (s *Server) checkStreamVersion(
 		return nil
 	}
 	return status.Errorf(
-		codes.NotFound, "stream[%s] incompatible version: %d vs %d (from: %s)",
+		codes.NotFound, "%s incompatible version: %d vs %d (from: %s)",
 		ss.StreamURI(), reqStreamVersion, ssTopology.Version, fromServerId)
 }
 

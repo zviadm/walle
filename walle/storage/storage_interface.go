@@ -54,8 +54,8 @@ type Metadata interface {
 	// WriterId() string // Perf sensitive. Needs to be in-memory.
 	WriterInfo() (writerId WriterId, writerAddr string, lease time.Duration, remainingLease time.Duration)
 	// Update call is expected to have an internal check to make sure stored writerId never decreases.
-	UpdateWriter(writerId WriterId, writerAddr string, lease time.Duration) (success bool, remainingLease time.Duration)
-	RenewLease(writerId WriterId, extraBuffer time.Duration) bool
+	UpdateWriter(writerId WriterId, writerAddr string, lease time.Duration) (remainingLease time.Duration, err error)
+	RenewLease(writerId WriterId, extraBuffer time.Duration) error
 
 	setTopology(topology *walleapi.StreamTopology)
 	Topology() *walleapi.StreamTopology

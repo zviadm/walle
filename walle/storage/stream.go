@@ -167,15 +167,18 @@ func (m *streamStorage) WriterInfo() (WriterId, string, time.Duration, time.Dura
 	return m.writerId, m.writerAddr, m.writerLease, m.unsafeRemainingLease()
 }
 func (m *streamStorage) UpdateWriter(
-	writerId WriterId, writerAddr string, lease time.Duration) (bool, time.Duration) {
+	writerId WriterId, writerAddr string, lease time.Duration) (time.Duration, error) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	if m.sess.Closed() {
-		return false, 0
+		return 0, status.Errorf(codes.NotFound, "%s not found", m.streamURI)
 	}
 	cmpWriterId := bytes.Compare(writerId, m.writerId)
-	if cmpWriterId <= 0 {
-		return cmpWriterId == 0, 0
+	if cmpWriterId < 0 {
+		return 0, status.Errorf(codes.FailedPrecondition, "%s < %s", writerId, m.writerId)
+	}
+	if cmpWriterId == 0 {
+		return 0, nil
 	}
 	remainingLease := m.unsafeRemainingLease()
 	m.writerId = writerId
@@ -189,28 +192,33 @@ func (m *streamStorage) UpdateWriter(
 	binary.BigEndian.PutUint64(m.buf8, uint64(lease.Nanoseconds()))
 	panic.OnErr(m.metaW.Update([]byte(m.streamURI+sfxWriterLeaseNs), []byte(m.buf8)))
 	panic.OnErr(m.sess.TxCommit())
-	return true, remainingLease
+	return remainingLease, nil
 }
 func (m *streamStorage) unsafeRemainingLease() time.Duration {
 	return m.renewedLease.Add(m.writerLease).Sub(time.Now())
 }
 func (m *streamStorage) RenewLease(
-	writerId WriterId, extraBuffer time.Duration) bool {
+	writerId WriterId, extraBuffer time.Duration) error {
 	m.mx.Lock()
 	defer m.mx.Unlock()
-	if bytes.Compare(writerId, m.writerId) != 0 {
-		return false
+	cmpWriterId := bytes.Compare(writerId, m.writerId)
+	if cmpWriterId < 0 {
+		return status.Errorf(codes.FailedPrecondition, "%s < %s", writerId, m.writerId)
+	}
+	if cmpWriterId > 0 {
+		// RenewLease should never be called with newer writerId.
+		return status.Errorf(codes.Internal, "renew lease: %s > %s", writerId, m.writerId)
 	}
 	panic.OnNotOk(extraBuffer >= 0, "extra buffer must be >=0: %s", extraBuffer)
 	m.renewedLease = time.Now().Add(extraBuffer)
-	return true
+	return nil
 }
 
 func (m *streamStorage) TailEntries() ([]*walleapi.Entry, error) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	if m.sess.Closed() {
-		return nil, status.Errorf(codes.NotFound, "stream: %s not found locally", m.streamURI)
+		return nil, status.Errorf(codes.NotFound, "%s not found", m.streamURI)
 	}
 	binary.BigEndian.PutUint64(m.buf8, uint64(m.committed))
 	mType, err := m.streamR.SearchNear(m.buf8)
@@ -265,7 +273,7 @@ func (m *streamStorage) CommitEntry(entryId int64, entryMd5 []byte) error {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	if m.sess.Closed() {
-		return status.Errorf(codes.NotFound, "stream: %s not found locally", m.streamURI)
+		return status.Errorf(codes.NotFound, "%s not found", m.streamURI)
 	}
 	return m.unsafeCommitEntry(entryId, entryMd5, false, true)
 }
@@ -316,7 +324,7 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error 
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	if m.sess.Closed() {
-		return status.Errorf(codes.NotFound, "stream: %s not found locally", m.streamURI)
+		return status.Errorf(codes.NotFound, "%s not found", m.streamURI)
 	}
 
 	entryWriterId := WriterId(entry.WriterId)
@@ -460,7 +468,7 @@ func (m *streamStorage) ReadFrom(entryId int64) (Cursor, error) {
 	m.roMX.Lock()
 	defer m.roMX.Unlock()
 	if m.sess.Closed() {
-		return nil, status.Errorf(codes.NotFound, "stream: %s not found locally", m.streamURI)
+		return nil, status.Errorf(codes.NotFound, "%s not found", m.streamURI)
 	}
 	cursor, err := m.sessRO.Scan(streamDS(m.streamURI))
 	panic.OnErr(err)

@@ -41,8 +41,8 @@ func TestStreamStorage(t *testing.T) {
 	var entries []*walleapi.Entry
 	entries = append(entries, Entry0)
 	writerId := MakeWriterId()
-	ok, _ = ss.UpdateWriter(writerId, "", 0)
-	require.True(t, ok)
+	_, err = ss.UpdateWriter(writerId, "", 0)
+	require.NoError(t, err)
 	for idx := 1; idx <= 5; idx++ {
 		entry := &walleapi.Entry{
 			EntryId:  int64(idx),
@@ -115,8 +115,8 @@ func TestStreamStorage(t *testing.T) {
 	// causes WriterId to update.
 	entry5new := proto.Clone(entries[5]).(*walleapi.Entry)
 	entry5new.WriterId = MakeWriterId().Encode()
-	ok, _ = ss.UpdateWriter(entry5new.WriterId, "", 0)
-	require.True(t, ok)
+	_, err = ss.UpdateWriter(entry5new.WriterId, "", 0)
+	require.NoError(t, err)
 	err = ss.PutEntry(entry5new, true)
 	require.NoError(t, err)
 	entriesR = streamReadAll(t, ss, 5)

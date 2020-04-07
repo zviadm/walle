@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"sync"
 
+	"github.com/zviadm/walle/walle/storage"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -121,13 +122,15 @@ func (q *queue) Queue(r *Request) (*ResultCtx, bool) {
 			} else {
 				writerIdCmp := bytes.Compare(qItem.R.Entry.WriterId, r.Entry.WriterId)
 				if writerIdCmp < 0 {
-					qItem.Res.set(status.Errorf(codes.FailedPrecondition, "TODO: new writer"))
+					qItem.Res.set(status.Errorf(codes.FailedPrecondition,
+						"%s < %s", storage.WriterId(qItem.R.Entry.WriterId), storage.WriterId(r.Entry.WriterId)))
 					q.sizeDataB += len(r.Entry.Data) - len(qItem.R.Entry.Data)
 					qItem.Res = newResult()
 					qItem.R.Entry = r.Entry
 				} else if writerIdCmp > 0 {
 					res := newResult()
-					res.set(status.Errorf(codes.FailedPrecondition, "TODO: new writer"))
+					res.set(status.Errorf(codes.FailedPrecondition,
+						"%s < %s", storage.WriterId(r.Entry.WriterId), storage.WriterId(qItem.R.Entry.WriterId)))
 					return res, true
 				}
 			}
