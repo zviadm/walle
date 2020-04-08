@@ -95,6 +95,7 @@ func (m *Manager) UpdateServerIds(
 		return nil, err
 	}
 	if changed {
+		prevServerIds := topology.Streams[req.StreamUri].GetServerIds()
 		putCtx, topology, err := m.updateServerIds(
 			ctx, req, topology.Streams[req.StreamUri].GetVersion())
 		if err := resolvePutCtx(ctx, putCtx, err); err != nil {
@@ -103,6 +104,8 @@ func (m *Manager) UpdateServerIds(
 		if err := m.waitForStreamVersion(ctx, topology, req.StreamUri); err != nil {
 			return nil, err
 		}
+		zlog.Infof(
+			"[tm] updated members: %s : %s -> %s", req.ClusterUri, prevServerIds, req.ServerIds)
 	}
 	return &empty.Empty{}, nil
 }

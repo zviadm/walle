@@ -2,7 +2,6 @@ package crashing_quorum
 
 import (
 	"context"
-	"sync"
 	"testing"
 	"time"
 
@@ -16,8 +15,8 @@ import (
 func TestCrashingQuorum(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	defer servicelib.KillAll(t)
-	defer servicelib.IptablesClearAll(t)
+	defer servicelib.KillAll()
+	defer require.NoError(t, servicelib.IptablesClearAll())
 
 	s, rootPb, rootCli := itest.SetupRootNodes(t, ctx, 3)
 
@@ -26,13 +25,13 @@ func TestCrashingQuorum(t *testing.T) {
 		t, ctx, rootCli, rootPb.RootUri, streamURI,
 		rootPb.Streams[rootPb.RootUri].ServerIds)
 
-	crashWG := sync.WaitGroup{}
-	crashWG.Add(1)
 	crashC := make(chan time.Duration)
-	go crashLoop(t, s, crashC, &crashWG)
+	crashErr := make(chan error, 1)
+	go crashLoop(ctx, s, crashC, crashErr)
 	defer func() {
 		close(crashC)
-		crashWG.Wait()
+		err, _ := <-crashErr
+		require.NoError(t, err)
 	}()
 
 	w, err := wallelib.WaitAndClaim(
@@ -44,35 +43,56 @@ func TestCrashingQuorum(t *testing.T) {
 
 	for i := 0; i < 4; i++ {
 		zlog.Info("TEST: CRASH ITERATION --- ", i)
-		crashC <- 100 * time.Millisecond
+		select {
+		case crashC <- 100 * time.Millisecond:
+		case err := <-crashErr:
+			require.NoError(t, err)
+		}
 		itest.PutBatch(t, 1000, 100, w)
-		crashC <- 0
-		<-crashC
+		select {
+		case crashC <- 0:
+		case err := <-crashErr:
+			require.NoError(t, err)
+		}
+		select {
+		case <-crashC:
+		case err := <-crashErr:
+			require.NoError(t, err)
+		}
 	}
 }
 
-func crashLoop(t *testing.T, s []*servicelib.Service, crashC chan time.Duration, wg *sync.WaitGroup) {
-	defer wg.Done()
-	ctx := context.Background()
+func crashLoop(
+	ctx context.Context,
+	s []*servicelib.Service,
+	crashC chan time.Duration,
+	crashErr chan error) (err error) {
+	defer func() {
+		crashErr <- err
+		close(crashErr)
+	}()
 	for i := 0; ; i++ {
 		delay, ok := <-crashC
 		if !ok {
-			return
+			return nil
 		}
 		idx := i % len(s)
 		time.Sleep(delay)
-		servicelib.IptablesBlockPort(t, itest.RootDefaultPort+idx)
+		if err := servicelib.IptablesBlockPort(
+			itest.RootDefaultPort + idx); err != nil {
+			return err
+		}
 		zlog.Infof("TEST: killing s[%d] process", idx)
-		s[idx].Kill(t)
+		s[idx].Kill()
 
 		_, ok = <-crashC
 		if !ok {
-			return
+			return nil
 		}
-		servicelib.IptablesClearAll(t)
+		servicelib.IptablesClearAll()
 		// servicelib.IptablesUnblockPort(t, itest.RootDefaultPort+idx)
 		zlog.Infof("TEST: starting s[%d] process", idx)
-		s[idx].Start(t, ctx)
+		s[idx].Start(ctx)
 		crashC <- 0
 	}
 }

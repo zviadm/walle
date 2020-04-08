@@ -37,8 +37,7 @@ type Writer struct {
 	longBeat    time.Duration
 
 	cliMX     sync.Mutex
-	cliIdx    int // Used for sticky load balancing of the Client
-	cachedCli walleapi.WalleApiClient
+	cachedCli ApiClient
 
 	tailEntry *walleapi.Entry
 	reqQ      chan *PutCtx
@@ -171,8 +170,14 @@ func (w *Writer) processor(ctx context.Context) {
 	}
 }
 
-func (w *Writer) cli() (walleapi.WalleApiClient, error) {
-	return w.c.ForStream(w.streamURI)
+func (w *Writer) cli(refresh bool) (walleapi.WalleApiClient, error) {
+	w.cliMX.Lock()
+	defer w.cliMX.Unlock()
+	var err error
+	if w.cachedCli == nil || refresh || !w.cachedCli.IsPreferred() {
+		w.cachedCli, err = w.c.ForStream(w.streamURI)
+	}
+	return w.cachedCli, err
 }
 
 // Heartbeater makes requests to the server if there are no active PutEntry calls happening.
@@ -194,7 +199,7 @@ func (w *Writer) heartbeater(ctx context.Context) {
 		err := KeepTryingWithBackoff(
 			ctx, w.longBeat, w.writerLease/4,
 			func(retryN uint) (bool, bool, error) {
-				cli, err := w.cli()
+				cli, err := w.cli(retryN >= 1)
 				if err != nil {
 					return false, false, err
 				}
@@ -233,7 +238,7 @@ func (w *Writer) process(ctx context.Context, req *PutCtx) {
 			if toCommit.EntryId >= req.Entry.EntryId {
 				return true, false, nil
 			}
-			cli, err := w.cli()
+			cli, err := w.cli(false)
 			if err != nil {
 				silentErr := (req.Entry.EntryId > toCommit.EntryId+1)
 				return false, silentErr, err

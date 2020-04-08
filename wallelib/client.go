@@ -19,7 +19,12 @@ import (
 
 type Client interface {
 	// Returns gRPC client to talk to specific streamURI within a cluster.
-	ForStream(streamURI string) (walleapi.WalleApiClient, error)
+	ForStream(streamURI string) (ApiClient, error)
+}
+
+type ApiClient interface {
+	walleapi.WalleApiClient
+	IsPreferred() bool
 }
 
 type client struct {
@@ -123,7 +128,7 @@ func (c *client) update(topology *walleapi.Topology) {
 	}
 }
 
-func (c *client) ForStream(streamURI string) (walleapi.WalleApiClient, error) {
+func (c *client) ForStream(streamURI string) (ApiClient, error) {
 	c.mx.Lock()
 	defer c.mx.Unlock()
 	preferredIds, ok := c.preferred[streamURI]
@@ -153,10 +158,22 @@ func (c *client) ForStream(streamURI string) (walleapi.WalleApiClient, error) {
 				(tryN == 1 && notReady && connState != connectivity.Connecting) {
 				continue
 			}
-			return walleapi.NewWalleApiClient(conn), nil
+			return &wrapClient{
+				WalleApiClient: walleapi.NewWalleApiClient(conn),
+				isPreferred:    i < majorityN,
+			}, nil
 		}
 	}
 	return nil, ErrConnUnavailable
+}
+
+type wrapClient struct {
+	walleapi.WalleApiClient
+	isPreferred bool
+}
+
+func (w *wrapClient) IsPreferred() bool {
+	return w.isPreferred
 }
 
 func (c *client) ForServer(serverId string) (walle_pb.WalleClient, error) {

@@ -19,7 +19,7 @@ import (
 func TestResizeQuorum(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	defer servicelib.KillAll(t)
+	defer servicelib.KillAll()
 
 	services, rootPb, cli := itest.SetupRootNodes(t, ctx, 1)
 	topoMgr := topomgr.NewClient(cli)
@@ -42,7 +42,8 @@ func expandTopology(
 
 	rootPb, err := topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{ClusterUri: rootURI})
 	require.NoError(t, err)
-	s := itest.RunWalle(t, ctx, rootPb, rootPb.RootUri, storage.TestTmpDir(), port)
+	s, err := itest.RunWalle(ctx, rootPb, rootPb.RootUri, storage.TestTmpDir(), port)
+	require.NoError(t, err)
 
 	rootPb, err = topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{ClusterUri: rootURI})
 	require.NoError(t, err)
@@ -91,7 +92,7 @@ func shrinkTopology(
 		ServerIds:  serverIds,
 	})
 	require.NoError(t, err)
-	s.Stop(t) // Make sure graceful stop is working.
+	require.EqualValues(t, 0, s.Stop()) // Make sure graceful stop is working.
 }
 
 func serverAddrs(servers map[string]*walleapi.ServerInfo, serverIds []string) []string {

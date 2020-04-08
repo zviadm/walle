@@ -25,6 +25,8 @@ import (
 	"github.com/zviadm/walle/wallelib"
 )
 
+var memBallast []byte
+
 func main() {
 	var storageDir = flag.String("walle.storage_dir", "", "Path where database and discovery data will be stored.")
 	var host = flag.String(
@@ -79,6 +81,9 @@ func main() {
 		// TODO(zviad): Produce a warning that target memory might not be enough for
 		// all queues.
 	}
+	// Create memory ballast. TODO(zviad): Adjust this in future to be more dynamic if more
+	// space is needed for queues.
+	memBallast = make([]byte, *targetMemMB*1024*1024/8)
 
 	zlog.Infof("initializing storage: %s...", dbPath)
 	ss, err := storage.Init(dbPath, storage.InitOpts{
@@ -132,10 +137,8 @@ func main() {
 		go watchTopologyAndSave(ctx, d, topoFile)
 		c = wallelib.NewClient(ctx, d)
 	}
-	err = registerServerInfo(
-		ctx,
-		rootCli, *clusterURI, d,
-		ss.ServerId(), serverInfo)
+	topology, _ := d.Topology()
+	err = registerServerInfo(ctx, rootCli, *clusterURI, topology, ss.ServerId(), serverInfo)
 	if err != nil {
 		zlog.Fatal(err)
 	}
@@ -189,17 +192,16 @@ func registerServerInfo(
 	ctx context.Context,
 	root wallelib.Client,
 	clusterURI string,
-	topologyD wallelib.Discovery,
+	topology *walleapi.Topology,
 	serverId string,
 	serverInfo *walleapi.ServerInfo) error {
-	topology, _ := topologyD.Topology()
 	existingServerInfo, ok := topology.GetServers()[serverId]
 	if ok && proto.Equal(existingServerInfo, serverInfo) {
 		return nil
 	}
 	// Must register new server before it can start serving anything.
 	// If registration fails, there is no point in starting up.
-	zlog.Infof("updating serverInfo: %s -> %s ...", existingServerInfo, serverInfo)
+	zlog.Infof("updating serverInfo: %s -> %s (%s)...", existingServerInfo, serverInfo, clusterURI)
 	topoMgr := topomgr.NewClient(root)
 	_, err := topoMgr.RegisterServer(ctx, &topomgr_pb.RegisterServerRequest{
 		ClusterUri: clusterURI,

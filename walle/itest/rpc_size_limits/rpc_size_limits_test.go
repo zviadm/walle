@@ -18,7 +18,7 @@ import (
 func TestRpcSizeLimits(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	defer servicelib.KillAll(t)
+	defer servicelib.KillAll()
 	_, rootPb, rootCli := itest.SetupRootNodes(t, ctx, 3)
 
 	streamURI := "/t1/size_limits"

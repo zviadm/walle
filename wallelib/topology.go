@@ -71,7 +71,7 @@ func NewDiscovery(
 	select {
 	case <-notify:
 	case <-initCtx.Done():
-		if topology.GetVersion() == 0 {
+		if topology == nil {
 			return nil, status.Errorf(codes.Unavailable, "err initializing topology: %s", clusterURI)
 		}
 		zlog.Warningf("refreshing topology for: %s timedout", clusterURI)
@@ -122,7 +122,7 @@ func (d *discovery) watcher(ctx context.Context) {
 func (d *discovery) updateTopology(topology *walleapi.Topology) {
 	d.mx.Lock()
 	defer d.mx.Unlock()
-	if topology.Version > d.topology.GetVersion() {
+	if d.topology == nil || topology.Version > d.topology.Version {
 		d.topology = topology
 	}
 	close(d.notify)

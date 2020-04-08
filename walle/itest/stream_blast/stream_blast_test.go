@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"github.com/zviadm/tt/servicelib"
 	"github.com/zviadm/walle/walle/itest"
 	"github.com/zviadm/walle/walle/topomgr"
@@ -16,7 +17,7 @@ import (
 func TestStreamBlast(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	defer servicelib.KillAll(t)
+	defer servicelib.KillAll()
 
 	_, rootPb, rootCli := itest.SetupRootNodes(t, ctx, 1)
 	clusterURI := path.Join(topomgr.Prefix, "bench")
@@ -25,10 +26,12 @@ func TestStreamBlast(t *testing.T) {
 	benchURIPrefix := "/bench"
 	benchURIs := 4
 	for i := 0; i < benchURIs; i++ {
-		servicelib.RunGoService(
-			t, ctx, "../../wctl", append(
+		ww, err := servicelib.RunGoService(
+			ctx, "../../wctl", append(
 				[]string{"-c", clusterURI, "create", path.Join(benchURIPrefix, strconv.Itoa(i))}, serverIds...),
-			"").Wait(t)
+			"")
+		require.NoError(t, err)
+		require.EqualValues(t, 0, ww.Wait())
 	}
 
 	// Test with full quorum.
@@ -37,26 +40,32 @@ func TestStreamBlast(t *testing.T) {
 
 	// Test with one node down.
 	zlog.Info("TEST: ---------- NODES 2 / 3")
-	defer servicelib.IptablesClearAll(t)
-	servicelib.IptablesBlockPort(t, itest.RootDefaultPort+2)
-	s[2].Kill(t)
+	defer require.NoError(t, servicelib.IptablesClearAll())
+	require.NoError(t, servicelib.IptablesBlockPort(itest.RootDefaultPort+2))
+	s[2].Kill()
 	benchAll(t, ctx, clusterURI, benchURIPrefix)
 }
 
 func benchAll(t *testing.T, ctx context.Context, clusterURI string, benchURIPrefix string) {
-	servicelib.RunGoService(
-		t, ctx, "../../wctl", []string{
+	ww, err := servicelib.RunGoService(
+		ctx, "../../wctl", []string{
 			"-c", clusterURI, "bench", "-prefix", benchURIPrefix,
 			"-streams", "1", "-qps", "500", "-kbs", "500", "-time", "2s"},
-		"").Wait(t)
-	servicelib.RunGoService(
-		t, ctx, "../../wctl", []string{
+		"")
+	require.NoError(t, err)
+	require.EqualValues(t, 0, ww.Wait())
+	ww, err = servicelib.RunGoService(
+		ctx, "../../wctl", []string{
 			"-c", clusterURI, "bench", "-prefix", benchURIPrefix,
 			"-streams", "2", "-qps", "500", "-kbs", "500", "-time", "2s"},
-		"").Wait(t)
-	servicelib.RunGoService(
-		t, ctx, "../../wctl", []string{
+		"")
+	require.NoError(t, err)
+	require.EqualValues(t, 0, ww.Wait())
+	ww, err = servicelib.RunGoService(
+		ctx, "../../wctl", []string{
 			"-c", clusterURI, "bench", "-prefix", benchURIPrefix,
 			"-streams", "4", "-qps", "500", "-kbs", "500", "-time", "2s"},
-		"").Wait(t)
+		"")
+	require.NoError(t, err)
+	require.EqualValues(t, 0, ww.Wait())
 }

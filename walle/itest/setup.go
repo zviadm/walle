@@ -20,8 +20,9 @@ func SetupRootNodes(
 	rootURI := topomgr.Prefix + "itest"
 	wDir0 := storage.TestTmpDir()
 	rootPb = BootstrapDeployment(t, ctx, rootURI, wDir0, RootDefaultPort)
-	s = make([]*servicelib.Service, rootN)
 	mx := sync.Mutex{}
+	var runErr error
+	s = make([]*servicelib.Service, rootN)
 	wg := sync.WaitGroup{}
 	wg.Add(len(s))
 	for idx := range s {
@@ -31,13 +32,18 @@ func SetupRootNodes(
 			if idx > 0 {
 				wDir = storage.TestTmpDir()
 			}
-			ss := RunWalle(t, ctx, rootPb, rootURI, wDir, RootDefaultPort+idx)
+			ss, err := RunWalle(ctx, rootPb, rootURI, wDir, RootDefaultPort+idx)
 			mx.Lock()
 			defer mx.Unlock()
+			if err != nil {
+				runErr = err
+				return
+			}
 			s[idx] = ss
 		}(idx)
 	}
 	wg.Wait()
+	require.NoError(t, runErr)
 
 	var err error
 	rootCli, err = wallelib.NewClientFromRootPb(ctx, rootPb, "")
@@ -81,20 +87,26 @@ func SetupClusterNodes(
 
 	CreateStream(
 		t, ctx, rootCli, rootPb.RootUri, clusterURI, rootPb.Streams[rootPb.RootUri].ServerIds)
-	s = make([]*servicelib.Service, clusterN)
 	mx := sync.Mutex{}
+	var runErr error
+	s = make([]*servicelib.Service, clusterN)
 	wg := sync.WaitGroup{}
 	wg.Add(len(s))
 	for idx := range s {
 		go func(idx int) {
 			defer wg.Done()
-			ss := RunWalle(t, ctx, rootPb, clusterURI, storage.TestTmpDir(), ClusterDefaultPort+idx)
+			ss, err := RunWalle(ctx, rootPb, clusterURI, storage.TestTmpDir(), ClusterDefaultPort+idx)
 			mx.Lock()
 			defer mx.Unlock()
+			if err != nil {
+				runErr = err
+				return
+			}
 			s[idx] = ss
 		}(idx)
 	}
 	wg.Wait()
+	require.NoError(t, runErr)
 	topoMgr := topomgr.NewClient(rootCli)
 	clusterPb, err := topoMgr.FetchTopology(
 		ctx, &topomgr_pb.FetchTopologyRequest{ClusterUri: clusterURI})

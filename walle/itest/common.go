@@ -27,6 +27,7 @@ const (
 	ClusterDefaultPort = 5055
 )
 
+// Must be called in main test function.
 func BootstrapDeployment(
 	t *testing.T,
 	ctx context.Context,
@@ -37,14 +38,16 @@ func BootstrapDeployment(
 		t.SkipNow()
 	}
 	// Bootstrap WALLE `itest` deployment.
-	sBootstrap := servicelib.RunGoService(
-		t, ctx, WallePkg, []string{
+	sBootstrap, err := servicelib.RunGoService(
+		ctx, WallePkg, []string{
 			"-walle.bootstrap_uri", rootURI,
 			"-walle.storage_dir", storageDir,
 			"-walle.port", strconv.Itoa(port),
 		},
 		"")
-	sBootstrap.Wait(t)
+	require.NoError(t, err)
+	eCode := sBootstrap.Wait()
+	require.EqualValues(t, 0, eCode)
 
 	rootPbFile := path.Join(storageDir, "root.pb")
 	rootTopology, err := wallelib.TopologyFromFile(rootPbFile)
@@ -54,16 +57,17 @@ func BootstrapDeployment(
 }
 
 func RunWalle(
-	t *testing.T,
 	ctx context.Context,
 	rootPb *walleapi.Topology,
 	clusterURI string,
 	storageDir string,
-	port int) *servicelib.Service {
-	err := wallelib.TopologyToFile(rootPb, path.Join(storageDir, "root.pb"))
-	require.NoError(t, err)
-	s := servicelib.RunGoService(
-		t, ctx, WallePkg, []string{
+	port int) (*servicelib.Service, error) {
+	if err := wallelib.TopologyToFile(
+		rootPb, path.Join(storageDir, "root.pb")); err != nil {
+		return nil, err
+	}
+	return servicelib.RunGoService(
+		ctx, WallePkg, []string{
 			"-walle.cluster_uri", clusterURI,
 			"-walle.storage_dir", storageDir,
 			"-walle.port", strconv.Itoa(port),
@@ -72,7 +76,6 @@ func RunWalle(
 			"-walle.topomgr_lease", "1s",
 		},
 		strconv.Itoa(port))
-	return s
 }
 
 func ServerIdsSlice(servers map[string]*walleapi.ServerInfo) []string {

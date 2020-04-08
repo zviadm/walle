@@ -44,23 +44,27 @@ func cmdScan(
 	if *count == 0 {
 		*count = math.MaxInt64
 	}
+	var finalEntry *walleapi.Entry
 	for i := 0; i < *count; i++ {
 		entry, err := stream.Recv()
 		if err == io.EOF {
-			return
+			break
 		}
 		exitOnErr(err)
-		entryB, err := entry.Marshal()
-		exitOnErr(err)
-		if *count == 1 {
-			fmt.Printf(
-				"%d: w:%s checksum:%s\nDATA (%d): %v\nENCODED (%d): %v\n",
-				entry.EntryId, hex.EncodeToString(entry.WriterId), hex.EncodeToString(entry.ChecksumMd5),
-				len(entry.Data), entry.Data, len(entryB), entryB)
-		} else {
+		if i%10000 == 0 {
 			fmt.Printf(
 				"%d: w:%s checksum:%s\n",
 				entry.EntryId, hex.EncodeToString(entry.WriterId), hex.EncodeToString(entry.ChecksumMd5))
 		}
+		finalEntry = entry
 	}
+	if finalEntry == nil {
+		return
+	}
+	entryB, err := finalEntry.Marshal()
+	exitOnErr(err)
+	fmt.Printf(
+		"%d: w:%s checksum:%s\nDATA (%d): %v\nENCODED (%d): %v\n",
+		finalEntry.EntryId, hex.EncodeToString(finalEntry.WriterId), hex.EncodeToString(finalEntry.ChecksumMd5),
+		len(finalEntry.Data), finalEntry.Data, len(entryB), entryB)
 }
