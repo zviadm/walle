@@ -20,7 +20,8 @@ func main() {
 	flag.Parse()
 	rootPb, err := wallelib.RootPbFromEnv()
 	exitOnErr(err)
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	var clusterURI string
 	if *clusterName == "" {
 		clusterURI = rootPb.RootUri

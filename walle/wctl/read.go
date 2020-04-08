@@ -20,7 +20,7 @@ func cmdRead(
 	entryId := f.Int("entry_id", -1, "EntryId to read. Can be -1 to read last-ish committed entry.")
 	f.Parse(args)
 	args = f.Args()
-	if len(args) < 1 {
+	if len(args) != 1 {
 		fmt.Println("must provide streamURI to read from.")
 		os.Exit(1)
 	}
