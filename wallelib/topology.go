@@ -9,6 +9,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/zlog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -51,6 +52,7 @@ func NewRootDiscovery(
 		select {
 		case <-notify:
 		case <-initCtx.Done():
+			zlog.Warningf("refreshing topology for: %s timedout", rootPb.RootUri)
 		}
 	}
 	return d, nil
@@ -72,6 +74,7 @@ func NewDiscovery(
 		if topology.GetVersion() == 0 {
 			return nil, status.Errorf(codes.Unavailable, "err initializing topology: %s", clusterURI)
 		}
+		zlog.Warningf("refreshing topology for: %s timedout", clusterURI)
 	}
 	return d, nil
 }
@@ -119,10 +122,9 @@ func (d *discovery) watcher(ctx context.Context) {
 func (d *discovery) updateTopology(topology *walleapi.Topology) {
 	d.mx.Lock()
 	defer d.mx.Unlock()
-	if topology.Version <= d.topology.GetVersion() {
-		return
+	if topology.Version > d.topology.GetVersion() {
+		d.topology = topology
 	}
-	d.topology = topology
 	close(d.notify)
 	d.notify = make(chan struct{})
 }
