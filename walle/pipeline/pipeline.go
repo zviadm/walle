@@ -32,6 +32,7 @@ type Pipeline struct {
 	p  map[storage.Stream]*stream
 }
 
+// New creates new Pipeline object.
 func New(
 	ctx context.Context,
 	maxStreamQueueSize int,
@@ -49,6 +50,7 @@ func New(
 	return r
 }
 
+// ForStream returns pipeline queue for a specific stream.
 func (s *Pipeline) ForStream(ss storage.Stream) *stream {
 	s.mx.Lock()
 	defer s.mx.Unlock()
@@ -60,12 +62,7 @@ func (s *Pipeline) ForStream(ss storage.Stream) *stream {
 	return p
 }
 
-func (s *Pipeline) QueueFlush() *ResultCtx {
-	r := newResult()
-	s.flushQ <- r
-	return r
-}
-
+// Flush schedules and waits for next flushSync operation to succeed.
 func (s *Pipeline) Flush() {
 	r := newResult()
 	s.flushQ <- r

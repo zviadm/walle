@@ -11,19 +11,19 @@ import (
 
 type queue struct {
 	mx      sync.Mutex
-	tailID  int64
+	tailId  int64
 	v       map[int64]queueItem
 	notifyC chan struct{}
 
-	maxReadyCommittedID int64
-	maxCommittedID      int64
+	maxReadyCommittedId int64
+	maxCommittedId      int64
 
 	sizeDataB int
 	maxSizeB  int
 }
 
 type queueItem struct {
-	R   *Request
+	R   *request
 	Res *ResultCtx
 }
 
@@ -48,51 +48,51 @@ func (q *queue) notify() {
 func (q *queue) CanSkip() bool {
 	q.mx.Lock()
 	defer q.mx.Unlock()
-	return q.maxCommittedID > q.tailID
+	return q.maxCommittedId > q.tailId
 }
 
-func (q *queue) PopReady(tailID int64, forceSkip bool) ([]queueItem, chan struct{}) {
+func (q *queue) PopReady(tailId int64, forceSkip bool) ([]queueItem, chan struct{}) {
 	q.mx.Lock()
 	defer q.mx.Unlock()
-	prevTailID := q.tailID
-	q.tailID = tailID
+	prevTailId := q.tailId
+	q.tailId = tailId
 	if len(q.v) == 0 {
 		return nil, q.notifyC
 	}
 	var r []queueItem
-	r = q.popTillTail(r, prevTailID)
-	item, ok := q.v[tailID+1]
-	if ok && item.R.IsReady(tailID) {
+	r = q.popTillTail(r, prevTailId)
+	item, ok := q.v[tailId+1]
+	if ok && item.R.IsReady(tailId) {
 		delete(q.v, item.R.EntryId)
 		r = append(r, item)
 	}
-	if len(r) == 0 && q.maxCommittedID > q.tailID && (forceSkip || q.isOverflowing()) {
-		item, ok := q.v[q.maxReadyCommittedID]
+	if len(r) == 0 && q.maxCommittedId > q.tailId && (forceSkip || q.isOverflowing()) {
+		item, ok := q.v[q.maxReadyCommittedId]
 		if !ok {
-			item, ok = q.v[q.maxCommittedID]
+			item, ok = q.v[q.maxCommittedId]
 		}
 		if ok {
 			delete(q.v, item.R.EntryId)
 			r = append(r, item)
-			prevTailID = q.tailID
-			q.tailID = item.R.EntryId
-			r = q.popTillTail(r, prevTailID)
+			prevTailId = q.tailId
+			q.tailId = item.R.EntryId
+			r = q.popTillTail(r, prevTailId)
 		}
 	}
 	return r, q.notifyC
 }
-func (q *queue) popTillTail(r []queueItem, prevTailID int64) []queueItem {
-	if q.tailID-prevTailID > int64(len(q.v)) {
-		for entryID, i := range q.v {
-			if entryID > q.tailID {
+func (q *queue) popTillTail(r []queueItem, prevTailId int64) []queueItem {
+	if q.tailId-prevTailId > int64(len(q.v)) {
+		for entryId, i := range q.v {
+			if entryId > q.tailId {
 				continue
 			}
-			delete(q.v, entryID)
+			delete(q.v, entryId)
 			r = append(r, i)
 		}
 	} else {
-		for entryID := prevTailID + 1; entryID <= q.tailID; entryID++ {
-			item, ok := q.v[entryID]
+		for entryId := prevTailId + 1; entryId <= q.tailId; entryId++ {
+			item, ok := q.v[entryId]
 			if ok {
 				delete(q.v, item.R.EntryId)
 				r = append(r, item)
@@ -102,10 +102,10 @@ func (q *queue) popTillTail(r []queueItem, prevTailID int64) []queueItem {
 	return r
 }
 
-func (q *queue) Queue(r *Request) (*ResultCtx, bool) {
+func (q *queue) Queue(r *request) (*ResultCtx, bool) {
 	q.mx.Lock()
 	defer q.mx.Unlock()
-	if r.EntryId <= q.tailID {
+	if r.EntryId <= q.tailId {
 		return nil, false
 	}
 	qItem, ok := q.v[r.EntryId]
@@ -136,14 +136,14 @@ func (q *queue) Queue(r *Request) (*ResultCtx, bool) {
 		}
 	}
 	q.v[r.EntryId] = qItem
-	if qItem.R.IsReady(q.tailID) || qItem.R.Committed || q.isOverflowing() {
+	if qItem.R.IsReady(q.tailId) || qItem.R.Committed || q.isOverflowing() {
 		q.notify()
 	}
-	if r.Committed && (r.EntryId > q.maxCommittedID) {
-		q.maxCommittedID = r.EntryId
+	if r.Committed && (r.EntryId > q.maxCommittedId) {
+		q.maxCommittedId = r.EntryId
 	}
-	if r.Committed && r.Entry != nil && (r.EntryId > q.maxReadyCommittedID) {
-		q.maxReadyCommittedID = r.EntryId
+	if r.Committed && r.Entry != nil && (r.EntryId > q.maxReadyCommittedId) {
+		q.maxReadyCommittedId = r.EntryId
 	}
 	return qItem.Res, true
 }

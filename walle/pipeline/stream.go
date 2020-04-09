@@ -97,7 +97,7 @@ func (p *stream) process(ctx context.Context) {
 }
 
 func (p *stream) QueueCommit(entryId int64, entryMd5 []byte) *ResultCtx {
-	res, ok := p.q.Queue(&Request{
+	res, ok := p.q.Queue(&request{
 		EntryId:   entryId,
 		EntryMd5:  entryMd5,
 		Committed: true,
@@ -110,7 +110,7 @@ func (p *stream) QueueCommit(entryId int64, entryMd5 []byte) *ResultCtx {
 	return res
 }
 func (p *stream) QueuePut(e *walleapi.Entry, isCommitted bool) *ResultCtx {
-	res, ok := p.q.Queue(&Request{
+	res, ok := p.q.Queue(&request{
 		EntryId:   e.EntryId,
 		EntryMd5:  e.ChecksumMd5,
 		Committed: isCommitted,

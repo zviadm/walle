@@ -10,14 +10,14 @@ import (
 func TestPipelineQueue(t *testing.T) {
 	q := newQueue(1024 * 1024)
 	for i := 1; i <= 5; i++ {
-		_, ok := q.Queue(&Request{EntryId: int64(i), Committed: true})
+		_, ok := q.Queue(&request{EntryId: int64(i), Committed: true})
 		require.True(t, ok)
 	}
 	r, _ := q.PopReady(5, false)
 	require.Len(t, r, 5)
 	require.EqualValues(t, 0, len(q.v))
 	for i := 10; i >= 6; i-- {
-		_, ok := q.Queue(&Request{EntryId: int64(i), Committed: true})
+		_, ok := q.Queue(&request{EntryId: int64(i), Committed: true})
 		require.True(t, ok)
 	}
 	r, _ = q.PopReady(6, false)
@@ -27,10 +27,10 @@ func TestPipelineQueue(t *testing.T) {
 	require.EqualValues(t, 0, len(q.v))
 
 	for i := 11; i <= 15; i++ {
-		_, ok := q.Queue(&Request{EntryId: int64(i), Entry: &walleapi.Entry{EntryId: int64(i)}})
+		_, ok := q.Queue(&request{EntryId: int64(i), Entry: &walleapi.Entry{EntryId: int64(i)}})
 		require.True(t, ok)
 	}
-	q.Queue(&Request{EntryId: int64(13), Committed: true})
+	q.Queue(&request{EntryId: int64(13), Committed: true})
 	require.EqualValues(t, 5, len(q.v))
 
 	// head, _ := q.Peek()
@@ -55,13 +55,13 @@ func BenchmarkQueue(b *testing.B) {
 	q := newQueue(1024 * 1024)
 	qBuf := maxQueueLen - 1
 	for i := 1; i < qBuf; i++ {
-		_, ok := q.Queue(&Request{EntryId: int64(i), Committed: true})
+		_, ok := q.Queue(&request{EntryId: int64(i), Committed: true})
 		require.True(b, ok, "insert fail: %d", i)
 	}
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_, ok := q.Queue(&Request{EntryId: int64(i + qBuf), Committed: true})
+		_, ok := q.Queue(&request{EntryId: int64(i + qBuf), Committed: true})
 		if !ok {
 			b.Fatalf("insert fail: %d", i)
 		}
