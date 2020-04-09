@@ -313,7 +313,7 @@ func (s *Server) StreamEntries(
 		_, writerAddr, _, remainingLease := ss.WriterInfo()
 		minimumLease := time.Duration(0)
 		if isInternalWriter(writerAddr) {
-			minimumLease = -2 * writerTimeoutToReResolve
+			minimumLease = -reResolveTimeout
 		}
 		if remainingLease < minimumLease {
 			return status.Errorf(codes.Unavailable,

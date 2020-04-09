@@ -7,14 +7,25 @@ import (
 
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/broadcast"
+	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/walle/walle/topomgr"
 	"github.com/zviadm/walle/wallelib"
 	"github.com/zviadm/zlog"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
-	writerTimeoutToResolve   = wallelib.LeaseMinimum
-	writerTimeoutToReResolve = 10 * writerTimeoutToResolve
+	// If there is no active writer for a stream, once writerTimeoutToResolve amount of time
+	// passes after lease is fully expired, one of the stream member nodes will try to claim the
+	// writer to make sure committed entries are resolved in the stream.
+	// Node that resolves the stream will continue to re-resolve it at reResolveFrequency. However
+	// if that node goes down too for some reason, some other node will start re-resolving after
+	// reResolveTimeout.
+	writerTimeoutToResolve = wallelib.LeaseMinimum
+	reResolveFrequency     = time.Second
+	reResolveTimeout       = 10 * time.Second
+
 	writerInternalAddrPrefix = "_internal:"
 )
 
@@ -74,39 +85,57 @@ func (s *Server) writerInfoWatcher(ctx context.Context) {
 			if !ok {
 				continue // can race with topology watcher.
 			}
-			_, writerAddr, _, remainingLease := ss.WriterInfo()
-			timeoutToResolve := writerTimeoutToResolve
-			if isInternalWriter(writerAddr) {
-				timeoutToResolve = writerTimeoutToReResolve
-			}
-			if remainingLease >= -timeoutToResolve {
-				continue // Quick shortcut, requiring no i/o for most common case.
-			}
-			wInfo, err := broadcast.WriterInfo(
-				ctx, s.c, s.s.ServerId(), ss.StreamURI(), ss.Topology())
-			if err != nil {
-				zlog.Warningf("[ww] err fetching writerInfo %s: %s", streamURI, err)
-				continue
-			}
-			if time.Duration(wInfo.RemainingLeaseMs)*time.Millisecond >= -timeoutToResolve {
-				continue
-			}
-			writerAddr = writerInternalAddrPrefix + s.s.ServerId()
-			if !isInternalWriter(wInfo.WriterAddr) {
-				zlog.Infof(
-					"[ww] resolving stream %s (prev: %s, %dms) ",
-					streamURI, wInfo.WriterAddr, wInfo.RemainingLeaseMs)
-			}
-			_, err = s.ClaimWriter(ctx,
-				&walleapi.ClaimWriterRequest{StreamUri: streamURI, WriterAddr: writerAddr})
-			if err != nil && !isInternalWriter(wInfo.WriterAddr) {
-				zlog.Warningf(
-					"[ww] err resolving %s, (prev: %s, %dms) -- %s",
-					streamURI, wInfo.WriterAddr, wInfo.RemainingLeaseMs, err)
-				continue
-			}
+			s.checkAndResolveNoWriterStream(ctx, ss)
 		}
 	}
+}
+
+func (s *Server) checkAndResolveNoWriterStream(ctx context.Context, ss storage.Stream) {
+	_, writerAddr, _, remainingLease := ss.WriterInfo()
+	timeoutToResolve := writerTimeoutToResolve
+	if isInternalWriter(writerAddr) {
+		if strings.HasSuffix(writerAddr, s.s.ServerId()) {
+			timeoutToResolve = reResolveFrequency
+		} else {
+			timeoutToResolve = reResolveTimeout
+		}
+	}
+	if remainingLease >= -timeoutToResolve {
+		return // Quick shortcut, requiring no i/o for most common case.
+	}
+	ctx, cancel := context.WithTimeout(ctx, reResolveTimeout)
+	defer cancel()
+	wInfo, err := broadcast.WriterInfo(
+		ctx, s.c, s.s.ServerId(), ss.StreamURI(), ss.Topology())
+	if err != nil {
+		return // TODO(zviad): Should we log a warning?
+	}
+	if time.Duration(wInfo.RemainingLeaseMs)*time.Millisecond >= -timeoutToResolve {
+		return
+	}
+	err = s.resolveNoWriterStream(ctx, ss, timeoutToResolve)
+	if err != nil && status.Convert(err).Code() != codes.FailedPrecondition {
+		zlog.Warningf(
+			"[ww] err resolving %s, (prev: %s, %dms) -- %s",
+			ss.StreamURI(), wInfo.WriterAddr, wInfo.RemainingLeaseMs, err)
+	}
+}
+
+func (s *Server) resolveNoWriterStream(
+	ctx context.Context, ss storage.Stream, timeoutToResolve time.Duration) error {
+	writerAddr := writerInternalAddrPrefix + s.s.ServerId()
+	resp, err := s.ClaimWriter(ctx,
+		&walleapi.ClaimWriterRequest{StreamUri: ss.StreamURI(), WriterAddr: writerAddr})
+	if err != nil {
+		return err
+	}
+	_, err = s.PutEntry(ctx, &walleapi.PutEntryRequest{
+		StreamUri:         ss.StreamURI(),
+		Entry:             resp.TailEntry,
+		CommittedEntryId:  resp.TailEntry.EntryId,
+		CommittedEntryMd5: resp.TailEntry.ChecksumMd5,
+	})
+	return err
 }
 
 func isInternalWriter(writerAddr string) bool {
