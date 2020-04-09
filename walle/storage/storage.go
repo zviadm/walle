@@ -49,6 +49,9 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 		Log:        "enabled,compressor=snappy",
 		SessionMax: opts.MaxLocalStreams*2 + 2,
 		CacheSize:  opts.CacheSizeMB * 1024 * 1024,
+
+		// Statistics:    []wt.Statistics{wt.StatsFast},
+		// StatisticsLog: "wait=30,source=table:",
 	}
 	c, err := wt.Open(dbPath, cfg)
 	if err != nil {

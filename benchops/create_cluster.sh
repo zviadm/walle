@@ -19,5 +19,6 @@ sudo mkfs.ext4 -F /dev/nvme0n1
 sudo mkdir -p /mnt/disks/w0
 sudo mount -o discard,defaults,nobarrier /dev/nvme0n1 /mnt/disks/w0
 sudo chmod a+w /mnt/disks/w0
+echo never | sudo tee /sys/kernel/mm/transparent_hugepage/enabled
 "
 done
