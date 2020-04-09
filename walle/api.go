@@ -24,6 +24,7 @@ const (
 	putEntryBgWait   = time.Second
 )
 
+// ClaimWriter implements WalleApiServer interface.
 func (s *Server) ClaimWriter(
 	ctx context.Context,
 	req *walleapi.ClaimWriterRequest) (*walleapi.ClaimWriterResponse, error) {
@@ -170,7 +171,7 @@ func (s *Server) ClaimWriter(
 			}
 		}
 	}
-	for serverId, _ := range entries {
+	for serverId := range entries {
 		c, err := s.c.ForServer(serverId)
 		if err != nil {
 			return nil, err
@@ -229,6 +230,7 @@ func (s *Server) commitMaxEntry(
 	return committed, nil
 }
 
+// WriterStatus implements WalleApiServer interface.
 func (s *Server) WriterStatus(
 	ctx context.Context,
 	req *walleapi.WriterStatusRequest) (*walleapi.WriterStatusResponse, error) {
@@ -250,6 +252,7 @@ func (s *Server) WriterStatus(
 	}, nil
 }
 
+// PutEntry implements WalleApiServer interface.
 func (s *Server) PutEntry(
 	ctx context.Context, req *walleapi.PutEntryRequest) (*walleapi.PutEntryResponse, error) {
 	if len(req.Entry.GetWriterId()) == 0 {
@@ -284,6 +287,7 @@ func (s *Server) PutEntry(
 	return &walleapi.PutEntryResponse{}, nil
 }
 
+// StreamEntries implements WalleApiServer interface.
 func (s *Server) StreamEntries(
 	req *walleapi.StreamEntriesRequest,
 	stream walleapi.WalleApi_StreamEntriesServer) error {

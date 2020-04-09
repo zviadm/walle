@@ -248,17 +248,17 @@ func TestProtocolGapRecovery(t *testing.T) {
 
 	ctxTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	waitForCommitConvergence(t, ctxTimeout, m, serverIds[0], "/mock/1", eeD4.Entry.EntryId)
+	waitForCommitConvergence(ctxTimeout, t, m, serverIds[0], "/mock/1", eeD4.Entry.EntryId)
 
 	m.Toggle(serverIds[1], true)
 	// If client heartbeat is working properly, once 'serverIds[1]' is healthy again, it should force
 	// it to catchup with rest of the servers.
-	waitForCommitConvergence(t, ctxTimeout, m, serverIds[1], "/mock/1", eeD4.Entry.EntryId)
+	waitForCommitConvergence(ctxTimeout, t, m, serverIds[1], "/mock/1", eeD4.Entry.EntryId)
 }
 
 func waitForCommitConvergence(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	m *mockSystem,
 	serverId string,
 	streamURI string,

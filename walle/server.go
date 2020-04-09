@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// Server implements both WalleApiServer and WalleServer interfaces.
 type Server struct {
 	rootCtx context.Context
 	s       storage.Storage
@@ -26,11 +27,13 @@ type Server struct {
 	pipeline *pipeline.Pipeline
 }
 
+// Client wraps both Api client and Direct client interfaces.
 type Client interface {
 	wallelib.Client
-	ForServer(serverId string) (walle_pb.WalleClient, error)
+	broadcast.Client
 }
 
+// NewServer creates new Server object.
 func NewServer(
 	ctx context.Context,
 	s storage.Storage,
@@ -64,6 +67,7 @@ func NewServer(
 	return r
 }
 
+// NewWriter implements WalleServer interface.
 func (s *Server) NewWriter(
 	ctx context.Context,
 	req *walle_pb.NewWriterRequest) (*walle_pb.NewWriterResponse, error) {
@@ -88,6 +92,7 @@ func (s *Server) NewWriter(
 	return &walle_pb.NewWriterResponse{}, nil
 }
 
+// WriterInfo implements WalleServer interface.
 func (s *Server) WriterInfo(
 	ctx context.Context,
 	req *walle_pb.WriterInfoRequest) (*walle_pb.WriterInfoResponse, error) {
@@ -105,6 +110,7 @@ func (s *Server) WriterInfo(
 	}, nil
 }
 
+// PutEntryInternal implements WalleServer interface.
 func (s *Server) PutEntryInternal(
 	ctx context.Context,
 	req *walle_pb.PutEntryInternalRequest) (*walle_pb.PutEntryInternalResponse, error) {
@@ -207,6 +213,7 @@ func (s *Server) fetchCommittedEntry(
 	return nil, errors.Errorf("%s", errs)
 }
 
+// TailEntries implements WalleServer interface.
 func (s *Server) TailEntries(
 	req *walle_pb.TailEntriesRequest, stream walle_pb.Walle_TailEntriesServer) error {
 	ss, err := s.processRequestHeader(req)
@@ -225,6 +232,7 @@ func (s *Server) TailEntries(
 	return nil
 }
 
+// ReadEntries implements WalleServer interface.
 func (s *Server) ReadEntries(
 	req *walle_pb.ReadEntriesRequest, stream walle_pb.Walle_ReadEntriesServer) error {
 	ss, err := s.processRequestHeader(req)

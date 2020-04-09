@@ -10,6 +10,8 @@ import (
 	"github.com/zviadm/walle/wallelib"
 )
 
+// BootstrapRoot creates storage with rootURI stream and populates stream with
+// first topology entry for given rootURI and root server information.
 func BootstrapRoot(s storage.Storage, rootURI string, rootFile string, rootInfo *walleapi.ServerInfo) error {
 	if err := storage.ValidateStreamURI(rootURI); err != nil {
 		return err
