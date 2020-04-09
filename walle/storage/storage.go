@@ -28,6 +28,7 @@ type storage struct {
 
 var _ Storage = &storage{}
 
+// InitOpts contains initialization options for Init call.
 type InitOpts struct {
 	Create          bool   // create database if it doesn't exist.
 	ServerId        string // use provided serverId. only needed in testing.
@@ -35,6 +36,7 @@ type InitOpts struct {
 	MaxLocalStreams int // maximum number of local streams supported.
 }
 
+// Init call opens or creates WALLE database.
 func Init(dbPath string, opts InitOpts) (Storage, error) {
 	if opts.Create {
 		if err := os.MkdirAll(dbPath, 0755); err != nil {

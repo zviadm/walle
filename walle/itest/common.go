@@ -1,4 +1,4 @@
-// package `itest` contains large end-to-end tests for WALLE system.
+// Package itest contains large end-to-end tests for WALLE system.
 //
 // End-to-end tests are expected to be large and complex, thus each
 // test is placed in a separate package, making it easier to run them in
@@ -74,6 +74,7 @@ func RunWalle(
 			// use higher lease in integration testing since bunch of servers run
 			// in a single docker container.
 			"-walle.topomgr_lease", "1s",
+			"-walle.storage.extra_validations",
 		},
 		strconv.Itoa(port))
 }

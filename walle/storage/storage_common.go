@@ -16,8 +16,10 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// WriterId provides human readable String() method.
 type WriterId []byte
 
+// Encode casts WriterId back to []byte type to be used in Protobufs.
 func (w WriterId) Encode() []byte {
 	return w
 }
@@ -45,6 +47,7 @@ const (
 )
 
 var (
+	// Entry0 is root entry for every WALLE stream.
 	Entry0 = &walleapi.Entry{
 		EntryId:     0,
 		WriterId:    make([]byte, writerIdLen),
@@ -54,6 +57,8 @@ var (
 	maxEntryIdKey = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
 )
 
+// MakeWriterId creates new WriterId. WriterId is part random, part based on timestamp,
+// so that newer WriterId-s are lexicographically larger.
 func MakeWriterId() WriterId {
 	writerId := make([]byte, writerIdLen)
 	binary.BigEndian.PutUint64(writerId[0:8], uint64(time.Now().UnixNano()))
@@ -67,6 +72,7 @@ func streamDS(streamURI string) string {
 
 var reStreamURI = regexp.MustCompile("/[a-z0-9_/]+")
 
+// ValidateStreamURI validates streamURI.
 func ValidateStreamURI(streamURI string) error {
 	if len(streamURI) > streamURIMaxLen {
 		return status.Errorf(codes.InvalidArgument, "streamURI must be at most %d bytes: %s", streamURIMaxLen, streamURI)
@@ -77,12 +83,14 @@ func ValidateStreamURI(streamURI string) error {
 	return nil
 }
 
+// TestTmpDir creates new temporary directory that can be used in testing.
 func TestTmpDir() string {
 	d, err := ioutil.TempDir("", "tt-*")
 	panic.OnErr(err)
 	return d
 }
 
+// IsMember retursn True if given serverId is a member of given stream topology.
 func IsMember(t *walleapi.StreamTopology, serverId string) bool {
 	for _, sId := range t.ServerIds {
 		if serverId == sId {
