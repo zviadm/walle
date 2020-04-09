@@ -50,16 +50,16 @@ func TestPipelineQueue(t *testing.T) {
 	// require.EqualValues(t, 3, len(q.v))
 }
 
+// BenchmarkQueue-4 - 1409140 - 1162 ns/op - 296 B/op - 6 allocs/op
 func BenchmarkQueue(b *testing.B) {
 	q := newQueue(1024 * 1024)
 	qBuf := maxQueueLen - 1
 	for i := 1; i < qBuf; i++ {
 		_, ok := q.Queue(&Request{EntryId: int64(i), Committed: true})
-		if !ok {
-			b.Fatalf("insert fail: %d", i)
-		}
+		require.True(b, ok, "insert fail: %d", i)
 	}
 	b.ResetTimer()
+	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		_, ok := q.Queue(&Request{EntryId: int64(i + qBuf), Committed: true})
 		if !ok {
