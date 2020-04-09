@@ -92,21 +92,21 @@ func TestStreamStorage(t *testing.T) {
 	require.NoError(t, err)
 	err = ss.PutEntry(entries[5], true)
 	require.NoError(t, err)
-	entry, ok := c0.Next()
+	entryId, ok := c0.Next()
 	require.True(t, ok)
-	require.EqualValues(t, 3, entry.EntryId)
+	require.EqualValues(t, 3, entryId)
 	c0.Close()
 
 	c0, err = ss.ReadFrom(1)
 	require.NoError(t, err)
 	c1, err := ss.ReadFrom(5)
 	require.NoError(t, err)
-	entry, ok = c1.Next()
+	entryId, ok = c1.Next()
 	require.True(t, ok)
-	require.EqualValues(t, 5, entry.EntryId)
-	entry, ok = c0.Next()
+	require.EqualValues(t, 5, entryId)
+	entryId, ok = c0.Next()
 	require.True(t, ok)
-	require.EqualValues(t, 3, entry.EntryId)
+	require.EqualValues(t, 3, entryId)
 	c0.Close()
 	c0.Close() // check to make sure it is safe to close closed cursor
 	c1.Close()
@@ -171,13 +171,13 @@ func streamReadAll(t *testing.T, ss Stream, entryId int64) []*walleapi.Entry {
 	require.NoError(t, err)
 	var r []*walleapi.Entry
 	for {
-		v, ok := cursor.Next()
+		_, ok := cursor.Next()
 		if !ok {
 			_, ok = cursor.Next()
 			require.False(t, ok)
 			break
 		}
-		r = append(r, v)
+		r = append(r, cursor.Entry())
 	}
 	return r
 }

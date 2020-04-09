@@ -80,14 +80,7 @@ func (s *Server) readAndProcessEntries(
 	entryId := startId
 	for entryId < endId {
 		var ok bool
-		var entryIdLocal int64
-		var entry *walleapi.Entry
-		if processEntry != nil {
-			entry, ok = cursor.Next()
-			entryIdLocal = entry.GetEntryId()
-		} else {
-			entryIdLocal, ok = cursor.Skip()
-		}
+		entryIdLocal, ok := cursor.Next()
 		if !ok {
 			return errors.Errorf(
 				"ERR_FATAL; committed entry wasn't found by cursor: %d > %d (from: %d)!",
@@ -104,6 +97,7 @@ func (s *Server) readAndProcessEntries(
 			}
 		}
 		if processEntry != nil {
+			entry := cursor.Entry()
 			if err := processEntry(entry); err != nil {
 				return err
 			}

@@ -231,20 +231,19 @@ func (s *Server) ReadEntries(
 	if err != nil {
 		return err
 	}
-	entryId := req.StartEntryId
-	cursor, err := ss.ReadFrom(entryId)
+	cursor, err := ss.ReadFrom(req.StartEntryId)
 	if err != nil {
 		return err
 	}
 	defer cursor.Close()
-	for entryId < req.EndEntryId {
-		entry, ok := cursor.Next()
-		if !ok || entry.EntryId != entryId {
+	for entryId := req.StartEntryId; entryId < req.EndEntryId; entryId++ {
+		eId, ok := cursor.Next()
+		if !ok || eId != entryId {
 			return status.Errorf(codes.NotFound,
 				"entry: %d is missing, found: %d in [%d..%d)",
-				entryId, entry.GetEntryId(), req.StartEntryId, req.EndEntryId)
+				entryId, eId, req.StartEntryId, req.EndEntryId)
 		}
-		entryId += 1
+		entry := cursor.Entry()
 		err := stream.Send(entry)
 		if err != nil {
 			return err

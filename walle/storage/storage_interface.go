@@ -61,11 +61,15 @@ type Metadata interface {
 	Topology() *walleapi.StreamTopology
 }
 
-// Cursor can be used to read entries from Stream. It is safe to call Close() on
+// Cursor can be used to read entries from the Stream. It is safe to call Close() on
 // already closed cursor. Cursor is also automatically closed once Next() exhausts all
 // committed entries.
 type Cursor interface {
-	Next() (*walleapi.Entry, bool)
-	Skip() (int64, bool)
+	// Next moves cursor to the next entry and returns EntryId.
+	Next() (entryId int64, ok bool)
+	// Entry unmarshals data for EntryId that cursor points to. This call is safe to call only
+	// after Next() returns successfully.
+	Entry() *walleapi.Entry
+	// Closes cursor and its underlying resources.
 	Close()
 }

@@ -486,13 +486,14 @@ func (m *streamStorage) ReadFrom(entryId int64) (Cursor, error) {
 		streamURI:   m.streamURI,
 		cursor:      cursor,
 		committedId: committedId,
+		needsNext:   false,
 	}
 	var buf8 [8]byte
 	binary.BigEndian.PutUint64(buf8[:], uint64(entryId))
 	mType, err := cursor.SearchNear(buf8[:])
 	panic.OnErr(err)
 	if mType == wt.MatchedSmaller {
-		_, _ = r.skip()
+		r.needsNext = true
 	}
 	return r, nil
 }
@@ -502,6 +503,7 @@ type streamCursor struct {
 	sessRO      *wt.Session
 	streamURI   string
 	cursor      *wt.Scanner
+	needsNext   bool
 	finished    bool
 	committedId int64
 }
@@ -517,15 +519,20 @@ func (m *streamCursor) close() {
 	}
 	m.finished = true
 }
-func (m *streamCursor) Skip() (int64, bool) {
+func (m *streamCursor) Next() (int64, bool) {
 	m.roMX.Lock()
 	defer m.roMX.Unlock()
-	return m.skip()
-}
-func (m *streamCursor) skip() (int64, bool) {
 	if m.sessRO.Closed() || m.finished {
 		return 0, false
 	}
+	if m.needsNext {
+		if err := m.cursor.Next(); err != nil {
+			panic.OnNotOk(wt.ErrCode(err) == wt.ErrNotFound, err.Error())
+			m.close()
+			return 0, false
+		}
+	}
+	m.needsNext = true
 	unsafeKey, err := m.cursor.UnsafeKey() // This is safe because it is copied to entryId.
 	panic.OnErr(err)
 	entryId := int64(binary.BigEndian.Uint64(unsafeKey))
@@ -533,28 +540,13 @@ func (m *streamCursor) skip() (int64, bool) {
 		m.close()
 		return 0, false
 	}
-	if err := m.cursor.Next(); err != nil {
-		panic.OnNotOk(wt.ErrCode(err) == wt.ErrNotFound, err.Error())
-		m.close()
-	}
 	return entryId, true
 }
-func (m *streamCursor) Next() (*walleapi.Entry, bool) {
+func (m *streamCursor) Entry() *walleapi.Entry {
 	m.roMX.Lock()
 	defer m.roMX.Unlock()
-	if m.sessRO.Closed() || m.finished {
-		return nil, false
-	}
 	entry := unmarshalValue(m.streamURI, m.committedId, m.cursor)
-	if entry.EntryId > m.committedId {
-		m.close()
-		return nil, false
-	}
-	if err := m.cursor.Next(); err != nil {
-		panic.OnNotOk(wt.ErrCode(err) == wt.ErrNotFound, err.Error())
-		m.close()
-	}
-	return entry, true
+	return entry
 }
 
 // Helper function to unmarshal value that scanner is currently pointing at. Scanner
