@@ -13,10 +13,10 @@ import (
 	"time"
 
 	"github.com/golang/protobuf/proto"
+	"github.com/zviadm/stats-go/exporters/datadog"
 	"github.com/zviadm/zlog"
 	"google.golang.org/grpc"
 
-	"github.com/zviadm/stats-go/exporters/datadog"
 	topomgr_pb "github.com/zviadm/walle/proto/topomgr"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
@@ -158,7 +158,7 @@ func main() {
 		s.GracefulStop()
 	}()
 	zlog.Infof("starting server on port:%s...", *port)
-	err := s.Serve(l)
+	err = s.Serve(l)
 	fatalOnErr(err)
 }
 

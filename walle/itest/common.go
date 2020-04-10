@@ -75,6 +75,7 @@ func RunWalle(
 			// in a single docker container.
 			"-walle.topomgr_lease", "1s",
 			"-walle.storage.extra_validations",
+			"-stats.instance_name", "walle" + strconv.Itoa(port),
 		},
 		strconv.Itoa(port))
 }
