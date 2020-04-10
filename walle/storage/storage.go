@@ -203,7 +203,9 @@ func (m *storage) Update(
 		if err != nil {
 			return
 		}
+		panic.OnErr(m.metaS.TxBegin(wt.TxCfg{Sync: wt.True}))
 		panic.OnErr(m.metaW.Insert([]byte(streamURI+sfxTopology), topologyB))
+		panic.OnErr(m.metaS.TxCommit())
 		m.mx.Lock()
 		defer m.mx.Unlock()
 		m.streamT[streamURI] = topology
