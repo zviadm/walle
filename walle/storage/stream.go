@@ -373,7 +373,7 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error 
 				entryWriterId, WriterId(prevEntry.WriterId))
 		}
 		if prevEntry.EntryId <= m.committed {
-			// This mustn't happen. Otherwise probalby a sign of data corruption or serious data
+			// This mustn't happen. Otherwise probably a sign of data corruption or serious data
 			// consistency bugs.
 			return status.Errorf(
 				codes.Internal, "put checksum mismatch for committed entry: %d, %s != %s, %s vs %s",
