@@ -38,7 +38,7 @@ func cmdBench(
 	ws := make([]*wallelib.Writer, *nStreams)
 	for idx := range ws {
 		ws[idx], err = wallelib.WaitAndClaim(
-			ctx, c, path.Join(*uriPrefix, strconv.Itoa(idx)), "bench:0000", time.Second)
+			ctx, c, path.Join(*uriPrefix, strconv.Itoa(idx)), "bench:0000", 10*time.Second)
 		exitOnErr(err)
 		defer ws[idx].Close()
 	}

@@ -94,6 +94,7 @@ func main() {
 	if err != nil {
 		zlog.Fatal(err)
 	}
+	zlog.Infof("initialized storage: %s", ss.ServerId())
 	defer func() {
 		time.Sleep(cancelDeadline.Load().(time.Time).Sub(time.Now()))
 		zlog.Infof("closing storage...")

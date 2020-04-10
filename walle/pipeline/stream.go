@@ -33,7 +33,7 @@ func newStream(
 }
 
 func (p *stream) timeoutAdjusted() time.Duration {
-	timeout := time.Second
+	timeout := time.Second // This should be ~putEntryBgWait.
 	_, _, writerLease, _ := p.ss.WriterInfo()
 	if writerLease > 0 && writerLease/4 < timeout {
 		timeout = writerLease / 4

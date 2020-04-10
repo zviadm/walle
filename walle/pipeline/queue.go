@@ -93,10 +93,11 @@ func (q *queue) popTillTail(r []queueItem, prevTailId int64) []queueItem {
 	} else {
 		for entryId := prevTailId + 1; entryId <= q.tailId; entryId++ {
 			item, ok := q.v[entryId]
-			if ok {
-				delete(q.v, item.R.EntryId)
-				r = append(r, item)
+			if !ok {
+				continue
 			}
+			delete(q.v, item.R.EntryId)
+			r = append(r, item)
 		}
 	}
 	return r

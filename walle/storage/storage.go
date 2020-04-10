@@ -86,8 +86,6 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 				return nil, err
 			}
 			serverId = hex.EncodeToString(serverIdB)
-			zlog.Infof(
-				"initializing new database: %s, with serverId: %s...", dbPath, serverId)
 		}
 		panic.OnErr(metaW.Insert([]byte(glbServerId), []byte(serverId)))
 	} else {
@@ -112,7 +110,6 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 		return nil, errors.Errorf(
 			"storage already has different serverId: %s vs %s", r.serverId, opts.ServerId)
 	}
-	zlog.Infof("storage: %s", r.serverId)
 
 	r.streamT = make(map[string]*walleapi.StreamTopology)
 	panic.OnErr(metaR.Reset())

@@ -8,10 +8,6 @@ import (
 	"github.com/zviadm/walle/walle/storage"
 )
 
-const (
-	storageFlushQ = 8192
-)
-
 type fetchFunc func(
 	ctx context.Context,
 	streamURI string,
@@ -25,11 +21,14 @@ type Pipeline struct {
 	rootCtx             context.Context
 	maxStreamQueueSize  int
 	flushSync           func()
-	flushQ              chan *ResultCtx
 	fetchCommittedEntry fetchFunc
 
 	mx sync.Mutex
 	p  map[storage.Stream]*stream
+
+	flushMX   sync.Mutex
+	flushQ    chan struct{}
+	flushDone chan struct{}
 }
 
 // New creates new Pipeline object.
@@ -42,9 +41,11 @@ func New(
 		rootCtx:             ctx,
 		maxStreamQueueSize:  maxStreamQueueSize,
 		flushSync:           flushSync,
-		flushQ:              make(chan *ResultCtx, storageFlushQ),
 		fetchCommittedEntry: fetchCommittedEntry,
 		p:                   make(map[storage.Stream]*stream),
+
+		flushQ:    make(chan struct{}, 1),
+		flushDone: make(chan struct{}),
 	}
 	go r.flusher(ctx)
 	return r
@@ -63,35 +64,36 @@ func (s *Pipeline) ForStream(ss storage.Stream) *stream {
 }
 
 // Flush schedules and waits for next flushSync operation to succeed.
-func (s *Pipeline) Flush() {
-	r := newResult()
-	s.flushQ <- r
-	<-r.Done()
-	return
+func (s *Pipeline) Flush(ctx context.Context) error {
+	s.flushMX.Lock()
+	done := s.flushDone
+	s.flushMX.Unlock()
+	select {
+	case s.flushQ <- struct{}{}:
+	default:
+	}
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-done:
+	}
+	return nil
 }
 
 func (s *Pipeline) flusher(ctx context.Context) {
-	q := make([]*ResultCtx, 0, storageFlushQ)
 	for {
-		q = q[:0]
 		select {
 		case <-ctx.Done():
 			return
-		case r := <-s.flushQ:
-			q = append(q, r)
+		case <-s.flushQ:
 		}
-	DrainLoop:
-		for {
-			select {
-			case r := <-s.flushQ:
-				q = append(q, r)
-			default:
-				break DrainLoop
-			}
-		}
+		s.flushMX.Lock()
+		flushDone := s.flushDone
+		s.flushDone = make(chan struct{})
+		s.flushMX.Unlock()
+
 		s.flushSync()
-		for _, r := range q {
-			r.set(nil)
-		}
+		close(flushDone)
 	}
 }

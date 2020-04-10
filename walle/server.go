@@ -148,7 +148,9 @@ func (s *Server) PutEntryInternal(
 			// Every successful PutEntry call that might have written actual data, requires
 			// flush. Commit only entries don't require flushes because they won't cause
 			// data loss.
-			s.pipeline.Flush()
+			if err := s.pipeline.Flush(ctx); err != nil {
+				return nil, err
+			}
 		}
 		return &walle_pb.PutEntryInternalResponse{}, nil
 	}
