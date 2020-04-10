@@ -16,6 +16,7 @@ import (
 	"github.com/zviadm/zlog"
 	"google.golang.org/grpc"
 
+	"github.com/zviadm/stats-go/exporters/datadog"
 	topomgr_pb "github.com/zviadm/walle/proto/topomgr"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
@@ -51,6 +52,9 @@ func main() {
 	var cancelDeadline atomic.Value
 	cancelDeadline.Store(time.Time{})
 
+	err := datadog.ExporterGo(ctx)
+	fatalOnErr(err)
+
 	if *storageDir == "" {
 		zlog.Fatal("must provide path to the storage using -walle.db_path flag")
 	}
@@ -59,9 +63,7 @@ func main() {
 	topoFile := path.Join(*storageDir, "topology.pb")
 	if *host == "" {
 		hostname, err := os.Hostname()
-		if err != nil {
-			zlog.Fatal(err)
-		}
+		fatalOnErr(err)
 		*host = hostname
 	}
 	if *port == "" {
@@ -91,9 +93,7 @@ func main() {
 		CacheSizeMB:     cacheSizeMB,
 		MaxLocalStreams: *maxLocalStreams,
 	})
-	if err != nil {
-		zlog.Fatal(err)
-	}
+	fatalOnErr(err)
 	zlog.Infof("initialized storage: %s", ss.ServerId())
 	defer func() {
 		time.Sleep(cancelDeadline.Load().(time.Time).Sub(time.Now()))
@@ -104,9 +104,7 @@ func main() {
 
 	if *bootstrapRootURI != "" {
 		err := walle.BootstrapRoot(ss, *bootstrapRootURI, rootFile, serverInfo)
-		if err != nil {
-			zlog.Fatal(err)
-		}
+		fatalOnErr(err)
 		zlog.Infof(
 			"bootstrapped %s, server: %s - %s",
 			*bootstrapRootURI, ss.ServerId(), serverInfo)
@@ -114,14 +112,10 @@ func main() {
 	}
 
 	rootPb, err := wallelib.TopologyFromFile(rootFile)
-	if err != nil {
-		zlog.Fatal(err)
-	}
+	fatalOnErr(err)
 	servingRootURI := *clusterURI == rootPb.RootUri
 	rootD, err := wallelib.NewRootDiscovery(ctx, rootPb, !servingRootURI)
-	if err != nil {
-		zlog.Fatal(err)
-	}
+	fatalOnErr(err)
 	rootCli := wallelib.NewClient(ctx, rootD)
 	go watchTopologyAndSave(ctx, rootD, rootFile)
 	var d wallelib.Discovery
@@ -132,17 +126,13 @@ func main() {
 	} else {
 		topology, _ := wallelib.TopologyFromFile(topoFile) // ok to ignore errors.
 		d, err = wallelib.NewDiscovery(ctx, rootCli, *clusterURI, topology)
-		if err != nil {
-			zlog.Fatal(err)
-		}
+		fatalOnErr(err)
 		go watchTopologyAndSave(ctx, d, topoFile)
 		c = wallelib.NewClient(ctx, d)
 	}
 	topology, _ := d.Topology()
 	err = registerServerInfo(ctx, rootCli, *clusterURI, topology, ss.ServerId(), serverInfo)
-	if err != nil {
-		zlog.Fatal(err)
-	}
+	fatalOnErr(err)
 
 	var topoMgr *topomgr.Manager
 	if servingRootURI {
@@ -157,9 +147,7 @@ func main() {
 	}
 
 	l, err := net.Listen("tcp", ":"+*port)
-	if err != nil {
-		zlog.Fatal(err)
-	}
+	fatalOnErr(err)
 	notify := make(chan os.Signal, 10)
 	signal.Notify(notify, syscall.SIGTERM)
 	go func() {
@@ -170,9 +158,8 @@ func main() {
 		s.GracefulStop()
 	}()
 	zlog.Infof("starting server on port:%s...", *port)
-	if err := s.Serve(l); err != nil {
-		zlog.Fatal(err)
-	}
+	err := s.Serve(l)
+	fatalOnErr(err)
 }
 
 func watchTopologyAndSave(ctx context.Context, d wallelib.Discovery, f string) {
@@ -186,6 +173,12 @@ func watchTopologyAndSave(ctx context.Context, d wallelib.Discovery, f string) {
 			return
 		case <-notify:
 		}
+	}
+}
+
+func fatalOnErr(err error) {
+	if err != nil {
+		zlog.Fatal(err)
 	}
 }
 

@@ -4,3 +4,6 @@
 [submodule "tt"]
 	path = tt
 	url = git@github.com:zviadm/tt.git
+[submodule "stats-go"]
+	path = stats-go
+	url = github.com:zviadm/stats-go.git
