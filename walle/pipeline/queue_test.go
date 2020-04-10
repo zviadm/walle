@@ -8,7 +8,7 @@ import (
 )
 
 func TestPipelineQueue(t *testing.T) {
-	q := newQueue(1024 * 1024)
+	q := newQueue("/test/1", 1024*1024)
 	for i := 1; i <= 5; i++ {
 		_, ok := q.Queue(&request{EntryId: int64(i), Committed: true})
 		require.True(t, ok)
@@ -52,7 +52,7 @@ func TestPipelineQueue(t *testing.T) {
 
 // BenchmarkQueue-4 - 1409140 - 1162 ns/op - 296 B/op - 6 allocs/op
 func BenchmarkQueue(b *testing.B) {
-	q := newQueue(1024 * 1024)
+	q := newQueue("/test/1", 1024*1024)
 	qBuf := maxQueueLen - 1
 	for i := 1; i < qBuf; i++ {
 		_, ok := q.Queue(&request{EntryId: int64(i), Committed: true})

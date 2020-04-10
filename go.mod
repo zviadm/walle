@@ -7,6 +7,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.5.1
 	github.com/zviadm/stats-go/exporters/datadog v0.0.0
+	github.com/zviadm/stats-go/metrics v0.0.0
 	github.com/zviadm/tt v0.0.0
 	github.com/zviadm/walle/proto v0.0.0
 	github.com/zviadm/walle/wallelib v0.0.0

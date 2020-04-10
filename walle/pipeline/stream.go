@@ -26,7 +26,7 @@ func newStream(
 	r := &stream{
 		ss:                  ss,
 		fetchCommittedEntry: fetchCommittedEntry,
-		q:                   newQueue(maxStreamQueueSize),
+		q:                   newQueue(ss.StreamURI(), maxStreamQueueSize),
 	}
 	go r.process(ctx)
 	return r
@@ -59,6 +59,7 @@ func (p *stream) backfillEntry(
 }
 
 func (p *stream) process(ctx context.Context) {
+	defer p.q.Close()
 	forceSkip := false
 	var skipTimeout <-chan time.Time
 	for ctx.Err() == nil && !p.ss.IsClosed() {
