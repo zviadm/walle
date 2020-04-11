@@ -22,9 +22,9 @@ type queue struct {
 	sizeDataB int
 	maxSizeB  int
 
-	streamURI string
-	statSize  metrics.Gauge
-	statBytes metrics.Gauge
+	streamURI  string
+	sizeG      metrics.Gauge
+	sizeBytesG metrics.Gauge
 }
 
 type queueItem struct {
@@ -43,16 +43,16 @@ func newQueue(streamURI string, maxSizeB int) *queue {
 		v:        make(map[int64]queueItem),
 		notifyC:  make(chan struct{}),
 
-		statSize:  statQueueSize.V(metrics.KV{"stream_uri": streamURI}),
-		statBytes: statQueueBytes.V(metrics.KV{"stream_uri": streamURI}),
+		sizeG:      queueSizeGauge.V(metrics.KV{"stream_uri": streamURI}),
+		sizeBytesG: queueBytesGauge.V(metrics.KV{"stream_uri": streamURI}),
 	}
 }
 
 func (q *queue) Close() {
 	q.mx.Lock()
 	defer q.mx.Unlock()
-	q.statSize.Add(-float64(len(q.v)))
-	q.statBytes.Add(-float64(q.sizeDataB))
+	q.sizeG.Add(-float64(len(q.v)))
+	q.sizeBytesG.Add(-float64(q.sizeDataB))
 
 	for _, item := range q.v {
 		item.Res.set(status.Errorf(codes.NotFound, "%s closed", q.streamURI))
@@ -98,7 +98,7 @@ func (q *queue) PopReady(tailId int64, forceSkip bool) ([]queueItem, chan struct
 			r = q.popTillTail(r, prevTailId)
 		}
 	}
-	q.statSize.Add(-float64(len(r)))
+	q.sizeG.Add(-float64(len(r)))
 	return r, q.notifyC
 }
 func (q *queue) popTillTail(r []queueItem, prevTailId int64) []queueItem {
@@ -134,8 +134,8 @@ func (q *queue) Queue(r *request) (*ResultCtx, bool) {
 		res := newResult()
 		qItem = queueItem{R: r, Res: res}
 		q.sizeDataB += len(r.Entry.GetData())
-		q.statSize.Add(1)
-		q.statBytes.Add(float64(len(r.Entry.GetData())))
+		q.sizeG.Add(1)
+		q.sizeBytesG.Add(float64(len(r.Entry.GetData())))
 	} else {
 		qItem.R.Committed = qItem.R.Committed || r.Committed
 		if r.Entry != nil {
@@ -147,7 +147,7 @@ func (q *queue) Queue(r *request) (*ResultCtx, bool) {
 					qItem.Res.set(status.Errorf(codes.FailedPrecondition,
 						"%s: %s < %s", q.streamURI, storage.WriterId(qItem.R.Entry.WriterId), storage.WriterId(r.Entry.WriterId)))
 					q.sizeDataB += len(r.Entry.Data) - len(qItem.R.Entry.Data)
-					q.statBytes.Add(float64(len(r.Entry.Data) - len(qItem.R.Entry.Data)))
+					q.sizeBytesG.Add(float64(len(r.Entry.Data) - len(qItem.R.Entry.Data)))
 					qItem.Res = newResult()
 					qItem.R.Entry = r.Entry
 				} else if writerCmp > 0 {

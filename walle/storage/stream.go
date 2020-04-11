@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/zviadm/stats-go/metrics"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/panic"
 	"github.com/zviadm/walle/wallelib"
@@ -50,6 +51,10 @@ type streamStorage struct {
 	tailEntry       *walleapi.Entry
 	tailEntryNotify chan struct{}
 	buf8            []byte
+
+	committedIdG metrics.Gauge
+	gapStartIdG  metrics.Gauge
+	tailEntryIdG metrics.Gauge
 }
 
 func createStreamStorage(
@@ -101,6 +106,10 @@ func openStreamStorage(
 		buf8:            make([]byte, 8),
 		tailEntry:       new(walleapi.Entry),
 		tailEntryNotify: make(chan struct{}),
+
+		committedIdG: committedIdGauge.V(metrics.KV{"stream_uri": streamURI}),
+		gapStartIdG:  gapStartIdGauge.V(metrics.KV{"stream_uri": streamURI}),
+		tailEntryIdG: tailEntryIdGauge.V(metrics.KV{"stream_uri": streamURI}),
 	}
 	v, err := metaR.ReadValue([]byte(streamURI + sfxWriterId))
 	panic.OnErr(err)
@@ -115,9 +124,11 @@ func openStreamStorage(
 	v, err = metaR.ReadValue([]byte(streamURI + sfxCommittedId))
 	panic.OnErr(err)
 	r.committed = int64(binary.BigEndian.Uint64(v))
+	r.committedIdG.Set(float64(r.committed))
 	v, err = metaR.ReadValue([]byte(streamURI + sfxGapStartId))
 	panic.OnErr(err)
 	r.gapStartId = int64(binary.BigEndian.Uint64(v))
+	r.gapStartIdG.Set(float64(r.gapStartId))
 	v, err = metaR.ReadValue([]byte(streamURI + sfxGapEndId))
 	panic.OnErr(err)
 	r.gapEndId = int64(binary.BigEndian.Uint64(v))
@@ -131,6 +142,7 @@ func openStreamStorage(
 	panic.OnErr(err)
 	panic.OnNotOk(nearType == wt.MatchedSmaller, "must return SmallerMatch when searching with maxEntryIdKey")
 	r.tailEntry = unmarshalValue(r.streamURI, r.committed, r.streamR)
+	r.tailEntryIdG.Set(float64(r.tailEntry.EntryId))
 	return r
 }
 
@@ -270,6 +282,7 @@ func (m *streamStorage) UpdateGapStart(entryId int64) {
 	if m.gapStartId >= m.gapEndId {
 		m.gapStartId = m.committed // caught up with committed.
 	}
+	m.gapStartIdG.Set(float64(m.gapStartId))
 	binary.BigEndian.PutUint64(m.buf8, uint64(m.gapStartId))
 	panic.OnErr(m.metaW.Update([]byte(m.streamURI+sfxGapStartId), m.buf8))
 }
@@ -311,10 +324,12 @@ func (m *streamStorage) unsafeCommitEntry(entryId int64, entryMd5 []byte, newGap
 		m.gapEndId = entryId
 	} else if m.gapStartId >= m.committed {
 		m.gapStartId = entryId
+		m.gapStartIdG.Set(float64(m.gapStartId))
 		binary.BigEndian.PutUint64(m.buf8, uint64(m.gapStartId))
 		panic.OnErr(m.metaW.Update([]byte(m.streamURI+sfxGapStartId), m.buf8))
 	}
 	m.committed = entryId
+	m.committedIdG.Set(float64(m.committed))
 	close(m.committedNotify)
 	m.committedNotify = make(chan struct{})
 	binary.BigEndian.PutUint64(m.buf8, uint64(m.committed))
@@ -469,6 +484,7 @@ func (m *streamStorage) unsafeUpdateTailEntry(e *walleapi.Entry) {
 		m.tailEntryNotify = make(chan struct{})
 	}
 	m.tailEntry = e
+	m.tailEntryIdG.Set(float64(m.tailEntry.EntryId))
 }
 
 func (m *streamStorage) ReadFrom(entryId int64) (Cursor, error) {
