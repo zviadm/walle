@@ -5,6 +5,8 @@ set -o pipefail
 SCRIPTPATH=`realpath $0`
 SCRIPTDIR=$(dirname "$SCRIPTPATH")
 
+$SCRIPTDIR/build_and_scp.sh 2 copyonly
+
 gcloud compute ssh wnode-0 -- "
 test -f /mnt/disks/w0/walle/root.pb ||
 ./walle -walle.storage_dir=/mnt/disks/w0/walle -walle.port=5005 -walle.bootstrap_uri=/cluster/bench
