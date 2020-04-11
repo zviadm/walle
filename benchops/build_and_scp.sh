@@ -24,3 +24,4 @@ for i in $(seq 0 $N); do
 	gcloud compute scp $HOME/.tt_cache/goroot/bin/walle wnode-$i:
 	(test -z $COPYONLY) && gcloud compute ssh wnode-$i -- "sudo systemctl start walle"
 done
+exit 0
