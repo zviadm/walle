@@ -17,6 +17,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/zviadm/stats-go/exporters/datadog"
 	"github.com/zviadm/stats-go/handlers/grpcstats"
+	_ "github.com/zviadm/stats-go/handlers/runtimestats"
 	"github.com/zviadm/zlog"
 	"google.golang.org/grpc"
 

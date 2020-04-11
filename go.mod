@@ -8,6 +8,7 @@ require (
 	github.com/stretchr/testify v1.5.1
 	github.com/zviadm/stats-go/exporters/datadog v0.0.0
 	github.com/zviadm/stats-go/handlers/grpcstats v0.0.0
+	github.com/zviadm/stats-go/handlers/runtimestats v0.0.0
 	github.com/zviadm/stats-go/metrics v0.0.0
 	github.com/zviadm/tt v0.0.0
 	github.com/zviadm/walle/proto v0.0.0
@@ -20,6 +21,7 @@ require (
 replace (
 	github.com/zviadm/stats-go/exporters/datadog => ./stats-go/exporters/datadog
 	github.com/zviadm/stats-go/handlers/grpcstats => ./stats-go/handlers/grpcstats
+	github.com/zviadm/stats-go/handlers/runtimestats => ./stats-go/handlers/runtimestats
 	github.com/zviadm/stats-go/metrics => ./stats-go/metrics
 	github.com/zviadm/tt => ./tt
 	github.com/zviadm/walle/proto => ./proto
