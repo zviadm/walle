@@ -144,6 +144,7 @@ func (q *queue) Queue(r *request) (*ResultCtx, bool) {
 	} else {
 		qItem.R.Committed = qItem.R.Committed || r.Committed
 		if r.Entry != nil {
+			prevEntry := qItem.R.Entry
 			if qItem.R.Entry == nil {
 				qItem.R.Entry = r.Entry
 			} else {
@@ -151,8 +152,6 @@ func (q *queue) Queue(r *request) (*ResultCtx, bool) {
 				if writerCmp < 0 {
 					qItem.Res.set(status.Errorf(codes.FailedPrecondition,
 						"%s: %s < %s", q.streamURI, storage.WriterId(qItem.R.Entry.WriterId), storage.WriterId(r.Entry.WriterId)))
-					q.sizeDataB += len(r.Entry.Data) - len(qItem.R.Entry.Data)
-					q.sizeBytesG.Add(float64(len(r.Entry.Data) - len(qItem.R.Entry.Data)))
 					qItem.Res = newResult()
 					qItem.R.Entry = r.Entry
 				} else if writerCmp > 0 {
@@ -162,6 +161,9 @@ func (q *queue) Queue(r *request) (*ResultCtx, bool) {
 					return res, true
 				}
 			}
+			sizeDelta := len(r.Entry.Data) - len(prevEntry.GetData())
+			q.sizeDataB += sizeDelta
+			q.sizeBytesG.Add(float64(sizeDelta))
 		}
 	}
 	q.v[r.EntryId] = qItem

@@ -31,6 +31,16 @@ func TestPipelineQueue(t *testing.T) {
 		_, ok := q.Queue(&request{EntryId: int64(i), Committed: true})
 		require.True(t, ok)
 	}
+	require.EqualValues(t, 0, q.sizeDataB)
+	require.EqualValues(t, 0, q.sizeBytesG.Get())
+	_, ok := q.Queue(&request{
+		EntryId: int64(10),
+		Entry:   &walleapi.Entry{Data: []byte("test")},
+	})
+	require.True(t, ok)
+	require.EqualValues(t, len("test"), q.sizeDataB)
+	require.EqualValues(t, len("test"), q.sizeBytesG.Get())
+
 	r, _ = q.PopReady(6, false)
 	require.Len(t, r, 1)
 	r, _ = q.PopReady(10, false)
