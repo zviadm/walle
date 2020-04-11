@@ -4,6 +4,8 @@ import (
 	"context"
 	"flag"
 	"net"
+	"net/http"
+	"net/http/pprof"
 	"os"
 	"os/signal"
 	"path"
@@ -36,18 +38,22 @@ func main() {
 		"Hostname that other servers can use to connect to this server. "+
 			"If it isn't set, os.Hostname() will be used to determine it automatically.")
 	var port = flag.String("walle.port", "", "Port to listen on.")
-
+	var clusterURI = flag.String("walle.cluster_uri", "", "Cluster URI to join.")
 	var bootstrapRootURI = flag.String(
 		"walle.bootstrap_uri", "",
 		"Bootstrap new deployment. Will exit once new bootstrapped storage is created.")
-
-	var clusterURI = flag.String("walle.cluster_uri", "", "Cluster URI to join.")
 
 	// Tuning flags.
 	var targetMemMB = flag.Int(
 		"walle.target_mem_mb", 200, "Target maximum total memory usage.")
 	var maxLocalStreams = flag.Int(
 		"walle.max_local_streams", 10, "Maximum number of streams that this server can handle.")
+
+	// Profiling/Debugging flags.
+	var debugAddr = flag.String(
+		"debug.addr", "",
+		"<listen addr>:<port> to setup /debug HTTP endpoint on. For security it is best to limit listen "+
+			"address to 127.0.0.1 (localhost) only.")
 	flag.Parse()
 	ctx, cancelAll := context.WithCancel(context.Background())
 	var cancelDeadline atomic.Value
@@ -55,6 +61,10 @@ func main() {
 
 	err := datadog.ExporterGo(ctx)
 	fatalOnErr(err)
+	if *debugAddr != "" {
+		err = serveDebug(*debugAddr)
+		fatalOnErr(err)
+	}
 
 	if *storageDir == "" {
 		zlog.Fatal("must provide path to the storage using -walle.db_path flag")
@@ -76,7 +86,8 @@ func main() {
 	// 50% goes to WT Cache. (non-GO memory)
 	// 25% goes to per stream queue.
 	// 25% goes to GC overhead.
-	cacheSizeMB := *targetMemMB / 2
+	cacheSizeMB := *targetMemMB / 4
+	// TODO(zviad): Figure out what else is taking up space in WT.
 	streamQueueMB := *targetMemMB / 4 / (*maxLocalStreams)
 	debug.SetGCPercent(100)
 	if streamQueueMB*1024*1024 <= wallelib.MaxInFlightSize {
@@ -205,4 +216,23 @@ func registerServerInfo(
 		ServerInfo: serverInfo,
 	})
 	return err
+}
+
+func serveDebug(addr string) error {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
+	server := http.Server{
+		Addr:    addr,
+		Handler: mux,
+	}
+	go func() {
+		err := server.ListenAndServe()
+		fatalOnErr(err)
+	}()
+	return nil
 }

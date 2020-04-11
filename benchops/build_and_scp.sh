@@ -20,7 +20,7 @@ if [[ -z $N ]]; then
 	exit 0
 fi
 for i in $(seq 0 $N); do
-	(test -z $COPYONLY) && gcloud compute ssh wnode-$i -- "sudo systemctl stop walle"
+	gcloud compute ssh wnode-$i -- "sudo systemctl stop walle" || true
 	gcloud compute scp $HOME/.tt_cache/goroot/bin/walle wnode-$i:
 	(test -z $COPYONLY) && gcloud compute ssh wnode-$i -- "sudo systemctl start walle"
 done

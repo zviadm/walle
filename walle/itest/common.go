@@ -76,6 +76,7 @@ func RunWalle(
 			"-walle.topomgr_lease", "1s",
 			"-walle.storage.extra_validations",
 			"-stats.instance_name", "walle" + strconv.Itoa(port),
+			"-debug.addr", "127.0.0.1:" + strconv.Itoa(port+1000),
 		},
 		strconv.Itoa(port))
 }

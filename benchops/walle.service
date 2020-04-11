@@ -12,6 +12,7 @@ Environment="GODEBUG=gctrace=1"
 ExecStart=/bin/bash -ce "exec /home/zviad/walle -walle.storage_dir=/mnt/disks/w0/walle -walle.port=5005 \
 	-walle.cluster_uri=/cluster/bench \
 	-stats.instance_name=walle5005 \
+	-debug.addr=127.0.0.1:6005 \
 	-walle.target_mem_mb=2500 -walle.max_local_streams=200 &>> /mnt/disks/w0/walle.log"
 
 [Install]

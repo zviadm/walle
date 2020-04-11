@@ -15,7 +15,10 @@ for i in {0..2}; do
 		--local-ssd interface="nvme"
 done
 
-gcloud compute ssh wctl-0 -- "sudo apt-get install -y --no-install-recommends libsnappy-dev"
+gcloud compute ssh wctl-0 -- "
+sudo apt-get install -y --no-install-recommends libsnappy-dev &&
+env DD_AGENT_MAJOR_VERSION=7 DD_API_KEY=$DD_API_KEY bash -c \"\$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent/master/cmd/agent/install_script.sh)\"
+"
 for i in {0..2}; do
 	gcloud compute ssh wnode-$i -- "
 sudo mkfs.ext4 -F /dev/nvme0n1
