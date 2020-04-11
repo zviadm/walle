@@ -82,7 +82,7 @@ func (q *queue) PopReady(tailId int64, forceSkip bool) ([]queueItem, chan struct
 	r = q.popTillTail(r, prevTailId)
 	item, ok := q.v[tailId+1]
 	if ok && item.R.IsReady(tailId) {
-		delete(q.v, item.R.EntryId)
+		q.remove(item.R)
 		r = append(r, item)
 	}
 	if len(r) == 0 && q.maxCommittedId > q.tailId && (forceSkip || q.isOverflowing()) {
@@ -91,24 +91,23 @@ func (q *queue) PopReady(tailId int64, forceSkip bool) ([]queueItem, chan struct
 			item, ok = q.v[q.maxCommittedId]
 		}
 		if ok {
-			delete(q.v, item.R.EntryId)
+			q.remove(item.R)
 			r = append(r, item)
 			prevTailId = q.tailId
 			q.tailId = item.R.EntryId
 			r = q.popTillTail(r, prevTailId)
 		}
 	}
-	q.sizeG.Add(-float64(len(r)))
 	return r, q.notifyC
 }
 func (q *queue) popTillTail(r []queueItem, prevTailId int64) []queueItem {
 	if q.tailId-prevTailId > int64(len(q.v)) {
-		for entryId, i := range q.v {
+		for entryId, item := range q.v {
 			if entryId > q.tailId {
 				continue
 			}
-			delete(q.v, entryId)
-			r = append(r, i)
+			q.remove(item.R)
+			r = append(r, item)
 		}
 	} else {
 		for entryId := prevTailId + 1; entryId <= q.tailId; entryId++ {
@@ -116,11 +115,17 @@ func (q *queue) popTillTail(r []queueItem, prevTailId int64) []queueItem {
 			if !ok {
 				continue
 			}
-			delete(q.v, item.R.EntryId)
+			q.remove(item.R)
 			r = append(r, item)
 		}
 	}
 	return r
+}
+func (q *queue) remove(r *request) {
+	delete(q.v, r.EntryId)
+	q.sizeDataB -= len(r.Entry.GetData())
+	q.sizeBytesG.Add(-float64(len(r.Entry.GetData())))
+	q.sizeG.Add(-1)
 }
 
 func (q *queue) Queue(r *request) (*ResultCtx, bool) {
@@ -134,8 +139,8 @@ func (q *queue) Queue(r *request) (*ResultCtx, bool) {
 		res := newResult()
 		qItem = queueItem{R: r, Res: res}
 		q.sizeDataB += len(r.Entry.GetData())
-		q.sizeG.Add(1)
 		q.sizeBytesG.Add(float64(len(r.Entry.GetData())))
+		q.sizeG.Add(1)
 	} else {
 		qItem.R.Committed = qItem.R.Committed || r.Committed
 		if r.Entry != nil {

@@ -10,12 +10,23 @@ import (
 func TestPipelineQueue(t *testing.T) {
 	q := newQueue("/test/1", 1024*1024)
 	for i := 1; i <= 5; i++ {
-		_, ok := q.Queue(&request{EntryId: int64(i), Committed: true})
+		_, ok := q.Queue(&request{
+			EntryId:   int64(i),
+			Committed: true,
+			Entry:     &walleapi.Entry{Data: []byte("test")},
+		})
 		require.True(t, ok)
 	}
+	require.EqualValues(t, 5, len(q.v))
+	require.EqualValues(t, 5, q.sizeG.Get())
+	require.EqualValues(t, 5*len("test"), q.sizeDataB)
+	require.EqualValues(t, 5*len("test"), q.sizeBytesG.Get())
 	r, _ := q.PopReady(5, false)
 	require.Len(t, r, 5)
 	require.EqualValues(t, 0, len(q.v))
+	require.EqualValues(t, 0, q.sizeG.Get())
+	require.EqualValues(t, 0, q.sizeDataB)
+	require.EqualValues(t, 0, q.sizeBytesG.Get())
 	for i := 10; i >= 6; i-- {
 		_, ok := q.Queue(&request{EntryId: int64(i), Committed: true})
 		require.True(t, ok)
