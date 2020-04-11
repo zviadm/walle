@@ -54,7 +54,7 @@ type streamStorage struct {
 
 	committedIdG metrics.Gauge
 	gapStartIdG  metrics.Gauge
-	tailEntryIdG metrics.Gauge
+	tailIdG      metrics.Gauge
 }
 
 func createStreamStorage(
@@ -109,7 +109,7 @@ func openStreamStorage(
 
 		committedIdG: committedIdGauge.V(metrics.KV{"stream_uri": streamURI}),
 		gapStartIdG:  gapStartIdGauge.V(metrics.KV{"stream_uri": streamURI}),
-		tailEntryIdG: tailEntryIdGauge.V(metrics.KV{"stream_uri": streamURI}),
+		tailIdG:      tailIdGauge.V(metrics.KV{"stream_uri": streamURI}),
 	}
 	v, err := metaR.ReadValue([]byte(streamURI + sfxWriterId))
 	panic.OnErr(err)
@@ -142,7 +142,7 @@ func openStreamStorage(
 	panic.OnErr(err)
 	panic.OnNotOk(nearType == wt.MatchedSmaller, "must return SmallerMatch when searching with maxEntryIdKey")
 	r.tailEntry = unmarshalValue(r.streamURI, r.committed, r.streamR)
-	r.tailEntryIdG.Set(float64(r.tailEntry.EntryId))
+	r.tailIdG.Set(float64(r.tailEntry.EntryId))
 	return r
 }
 
@@ -484,7 +484,7 @@ func (m *streamStorage) unsafeUpdateTailEntry(e *walleapi.Entry) {
 		m.tailEntryNotify = make(chan struct{})
 	}
 	m.tailEntry = e
-	m.tailEntryIdG.Set(float64(m.tailEntry.EntryId))
+	m.tailIdG.Set(float64(m.tailEntry.EntryId))
 }
 
 func (m *streamStorage) ReadFrom(entryId int64) (Cursor, error) {
