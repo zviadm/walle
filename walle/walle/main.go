@@ -14,6 +14,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/zviadm/stats-go/exporters/datadog"
+	"github.com/zviadm/stats-go/handlers/grpcstats"
 	"github.com/zviadm/zlog"
 	"google.golang.org/grpc"
 
@@ -139,7 +140,8 @@ func main() {
 		topoMgr = topomgr.NewManager(rootCli, serverInfo.Address)
 	}
 	ws := walle.NewServer(ctx, ss, c, d, streamQueueMB*1024*1024, topoMgr)
-	s := grpc.NewServer()
+	statsHandler := grpcstats.NewServer()
+	s := grpc.NewServer(grpc.StatsHandler(statsHandler))
 	walle_pb.RegisterWalleServer(s, ws)
 	walleapi.RegisterWalleApiServer(s, ws)
 	if topoMgr != nil {
