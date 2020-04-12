@@ -39,14 +39,13 @@ func NewServer(
 	s storage.Storage,
 	c Client,
 	d wallelib.Discovery,
-	maxStreamQueueSize int,
 	topoMgr *topomgr.Manager) *Server {
 	r := &Server{
 		rootCtx: ctx,
 		s:       s,
 	}
 	r.c = wrapClient(c, s.ServerId(), r)
-	r.pipeline = pipeline.New(ctx, maxStreamQueueSize, s.FlushSync, r.fetchCommittedEntry)
+	r.pipeline = pipeline.New(ctx, s.FlushSync, r.fetchCommittedEntry)
 
 	r.watchTopology(ctx, d, topoMgr)
 	go r.writerInfoWatcher(ctx)

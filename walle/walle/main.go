@@ -85,19 +85,12 @@ func main() {
 
 	// Memory allocation:
 	// 50% goes to WT Cache. (non-GO memory)
-	// 25% goes to per stream queue.
-	// 25% goes to GC overhead.
-	cacheSizeMB := *targetMemMB / 4
-	// TODO(zviad): Figure out what else is taking up space in WT.
-	streamQueueMB := *targetMemMB / 4 / (*maxLocalStreams)
-	debug.SetGCPercent(100)
-	if streamQueueMB*1024*1024 <= wallelib.MaxInFlightSize {
-		streamQueueMB = wallelib.MaxInFlightSize / 1024 / 1024
-		// TODO(zviad): Produce a warning that target memory might not be enough for
-		// all queues.
-	}
-	// Create memory ballast. TODO(zviad): Adjust this in future to be more dynamic if more
-	// space is needed for queues.
+	// 50% goes to GO heap:
+	//   - 25% GC overhead
+	//   - 25% for pipeline queue + active requests.
+	debug.SetGCPercent(100)         // GOGC=100, not tuneable.
+	cacheSizeMB := *targetMemMB / 4 // TODO(zviad): This should be /2. Figure out what else is taking up space in WT.
+	// Create memory ballast, to avoid GC performance issues due to very small heap.
 	memBallast = make([]byte, *targetMemMB*1024*1024/8)
 
 	zlog.Infof("initializing storage: %s...", dbPath)
@@ -151,7 +144,7 @@ func main() {
 	if servingRootURI {
 		topoMgr = topomgr.NewManager(rootCli, serverInfo.Address)
 	}
-	ws := walle.NewServer(ctx, ss, c, d, streamQueueMB*1024*1024, topoMgr)
+	ws := walle.NewServer(ctx, ss, c, d, topoMgr)
 	statsHandler := grpcstats.NewServer()
 	s := grpc.NewServer(grpc.StatsHandler(statsHandler))
 	walle_pb.RegisterWalleServer(s, ws)

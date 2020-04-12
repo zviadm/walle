@@ -2,11 +2,11 @@ package pipeline
 
 import (
 	"bytes"
+	"math"
 	"sync"
 
 	"github.com/zviadm/stats-go/metrics"
 	"github.com/zviadm/walle/walle/storage"
-	"github.com/zviadm/walle/wallelib"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -20,9 +20,6 @@ type queue struct {
 	maxReadyCommittedId int64
 	maxCommittedId      int64
 
-	sizeDataB int
-	maxSizeB  int
-
 	streamURI  string
 	sizeG      metrics.Gauge
 	sizeBytesG metrics.Gauge
@@ -35,14 +32,12 @@ type queueItem struct {
 
 const (
 	itemOverhead = 128
-	maxQueueLen  = wallelib.MaxInFlightPuts * 16
 )
 
-func newQueue(streamURI string, maxSizeB int) *queue {
+func newQueue(streamURI string) *queue {
 	return &queue{
-		maxSizeB: maxSizeB,
-		v:        make(map[int64]queueItem),
-		notifyC:  make(chan struct{}),
+		v:       make(map[int64]queueItem),
+		notifyC: make(chan struct{}),
 
 		sizeG:      queueSizeGauge.V(metrics.KV{"stream_uri": streamURI}),
 		sizeBytesG: queueBytesGauge.V(metrics.KV{"stream_uri": streamURI}),
@@ -53,10 +48,9 @@ func (q *queue) Close() {
 	q.mx.Lock()
 	defer q.mx.Unlock()
 	q.sizeG.Add(-float64(len(q.v)))
-	q.sizeBytesG.Add(-float64(q.sizeDataB))
-
 	for _, item := range q.v {
 		item.Res.set(status.Errorf(codes.NotFound, "%s closed", q.streamURI))
+		q.remove(item.R)
 	}
 }
 
@@ -68,7 +62,7 @@ func (q *queue) notify() {
 func (q *queue) CanSkip() bool {
 	q.mx.Lock()
 	defer q.mx.Unlock()
-	return q.maxCommittedId > q.tailId
+	return len(q.v) > 0
 }
 
 func (q *queue) PopReady(tailId int64, forceSkip bool, r []queueItem) ([]queueItem, chan struct{}) {
@@ -82,38 +76,39 @@ func (q *queue) PopReady(tailId int64, forceSkip bool, r []queueItem) ([]queueIt
 	if r != nil {
 		r = r[:0]
 	}
-	r = q.popTillTail(r, prevTailId)
+	r = q.popEntries(r, prevTailId+1, q.tailId)
 	item, ok := q.v[tailId+1]
 	if ok && item.R.IsReady(tailId) {
 		q.remove(item.R)
 		r = append(r, item)
 	}
-	if len(r) == 0 && q.maxCommittedId > q.tailId && (forceSkip || q.isOverflowing()) {
-		item, ok := q.v[q.maxReadyCommittedId]
-		if !ok {
-			item, ok = q.v[q.maxCommittedId]
-		}
+	if len(r) == 0 && forceSkip {
+		popTillId := int64(math.MaxInt64)
+		item, ok := q.v[q.maxCommittedId]
 		if ok {
+			itemReady, ok := q.v[q.maxReadyCommittedId]
+			if ok {
+				item = itemReady
+			}
 			q.remove(item.R)
 			r = append(r, item)
-			prevTailId = q.tailId
-			q.tailId = item.R.EntryId
-			r = q.popTillTail(r, prevTailId)
+			popTillId = item.R.EntryId
 		}
+		r = q.popEntries(r, q.tailId+1, popTillId)
 	}
 	return r, q.notifyC
 }
-func (q *queue) popTillTail(r []queueItem, prevTailId int64) []queueItem {
-	if q.tailId-prevTailId > int64(len(q.v)) {
+func (q *queue) popEntries(r []queueItem, startId int64, endId int64) []queueItem {
+	if startId-endId+1 > int64(len(q.v)) {
 		for entryId, item := range q.v {
-			if entryId > q.tailId {
+			if entryId > endId {
 				continue
 			}
 			q.remove(item.R)
 			r = append(r, item)
 		}
 	} else {
-		for entryId := prevTailId + 1; entryId <= q.tailId; entryId++ {
+		for entryId := startId; entryId <= endId; entryId++ {
 			item, ok := q.v[entryId]
 			if !ok {
 				continue
@@ -126,7 +121,6 @@ func (q *queue) popTillTail(r []queueItem, prevTailId int64) []queueItem {
 }
 func (q *queue) remove(r *request) {
 	delete(q.v, r.EntryId)
-	q.sizeDataB -= len(r.Entry.GetData())
 	q.sizeBytesG.Add(-float64(len(r.Entry.GetData())))
 	q.sizeG.Add(-1)
 }
@@ -137,11 +131,11 @@ func (q *queue) Queue(r *request) (*ResultCtx, bool) {
 	if r.EntryId <= q.tailId {
 		return nil, false
 	}
+	wasEmpty := len(q.v) == 0
 	qItem, ok := q.v[r.EntryId]
 	if !ok {
 		res := newResult()
 		qItem = queueItem{R: r, Res: res}
-		q.sizeDataB += len(r.Entry.GetData())
 		q.sizeBytesG.Add(float64(len(r.Entry.GetData())))
 		q.sizeG.Add(1)
 	} else {
@@ -165,12 +159,11 @@ func (q *queue) Queue(r *request) (*ResultCtx, bool) {
 				}
 			}
 			sizeDelta := len(r.Entry.Data) - len(prevEntry.GetData())
-			q.sizeDataB += sizeDelta
 			q.sizeBytesG.Add(float64(sizeDelta))
 		}
 	}
 	q.v[r.EntryId] = qItem
-	if qItem.R.IsReady(q.tailId) || qItem.R.Committed || q.isOverflowing() {
+	if wasEmpty || qItem.R.IsReady(q.tailId) || qItem.R.Committed {
 		q.notify()
 	}
 	if r.Committed && (r.EntryId > q.maxCommittedId) {
@@ -180,9 +173,4 @@ func (q *queue) Queue(r *request) (*ResultCtx, bool) {
 		q.maxReadyCommittedId = r.EntryId
 	}
 	return qItem.Res, true
-}
-
-func (q *queue) isOverflowing() bool {
-	return len(q.v) > maxQueueLen ||
-		(len(q.v)*itemOverhead+q.sizeDataB) >= q.maxSizeB
 }

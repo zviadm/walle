@@ -21,12 +21,11 @@ type stream struct {
 func newStream(
 	ctx context.Context,
 	ss storage.Stream,
-	maxStreamQueueSize int,
 	fetchCommittedEntry fetchFunc) *stream {
 	r := &stream{
 		ss:                  ss,
 		fetchCommittedEntry: fetchCommittedEntry,
-		q:                   newQueue(ss.StreamURI(), maxStreamQueueSize),
+		q:                   newQueue(ss.StreamURI()),
 	}
 	go r.process(ctx)
 	return r

@@ -8,7 +8,7 @@ import (
 )
 
 func TestPipelineQueue(t *testing.T) {
-	q := newQueue("/test/1", 1024*1024)
+	q := newQueue("/test/1")
 	for i := 1; i <= 5; i++ {
 		_, ok := q.Queue(&request{
 			EntryId:   int64(i),
@@ -19,26 +19,22 @@ func TestPipelineQueue(t *testing.T) {
 	}
 	require.EqualValues(t, 5, len(q.v))
 	require.EqualValues(t, 5, q.sizeG.Get())
-	require.EqualValues(t, 5*len("test"), q.sizeDataB)
 	require.EqualValues(t, 5*len("test"), q.sizeBytesG.Get())
 	r, _ := q.PopReady(5, false, nil)
 	require.Len(t, r, 5)
 	require.EqualValues(t, 0, len(q.v))
 	require.EqualValues(t, 0, q.sizeG.Get())
-	require.EqualValues(t, 0, q.sizeDataB)
 	require.EqualValues(t, 0, q.sizeBytesG.Get())
 	for i := 10; i >= 6; i-- {
 		_, ok := q.Queue(&request{EntryId: int64(i), Committed: true})
 		require.True(t, ok)
 	}
-	require.EqualValues(t, 0, q.sizeDataB)
 	require.EqualValues(t, 0, q.sizeBytesG.Get())
 	_, ok := q.Queue(&request{
 		EntryId: int64(10),
 		Entry:   &walleapi.Entry{Data: []byte("test")},
 	})
 	require.True(t, ok)
-	require.EqualValues(t, len("test"), q.sizeDataB)
 	require.EqualValues(t, len("test"), q.sizeBytesG.Get())
 
 	r, _ = q.PopReady(6, false, r)
@@ -73,9 +69,9 @@ func TestPipelineQueue(t *testing.T) {
 
 // BenchmarkQueue-4 - 1409140 - 1162 ns/op - 296 B/op - 6 allocs/op
 func BenchmarkQueue(b *testing.B) {
-	q := newQueue("/test/1", 1024*1024)
-	qBuf := maxQueueLen - 1
-	for i := 1; i < qBuf; i++ {
+	q := newQueue("/test/1")
+	qSize := 1024
+	for i := 1; i < qSize; i++ {
 		_, ok := q.Queue(&request{EntryId: int64(i), Committed: true})
 		require.True(b, ok, "insert fail: %d", i)
 	}
@@ -83,7 +79,7 @@ func BenchmarkQueue(b *testing.B) {
 	b.ReportAllocs()
 	var r []queueItem
 	for i := 0; i < b.N; i++ {
-		_, ok := q.Queue(&request{EntryId: int64(i + qBuf), Committed: true})
+		_, ok := q.Queue(&request{EntryId: int64(i + qSize), Committed: true})
 		if !ok {
 			b.Fatalf("insert fail: %d", i)
 		}
