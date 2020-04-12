@@ -19,9 +19,9 @@ func TestStreamBlast(t *testing.T) {
 	defer cancel()
 	defer servicelib.KillAll()
 
-	_, rootPb, rootCli := itest.SetupRootNodes(t, ctx, 1)
+	_, rootPb, rootCli := itest.SetupRootNodes(ctx, t, 1)
 	clusterURI := path.Join(topomgr.Prefix, "bench")
-	s, serverIds := itest.SetupClusterNodes(t, ctx, rootPb, rootCli, clusterURI, 3)
+	s, serverIds := itest.SetupClusterNodes(ctx, t, rootPb, rootCli, clusterURI, 3)
 
 	benchURIPrefix := "/bench"
 	benchURIs := 4

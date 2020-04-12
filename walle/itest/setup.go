@@ -14,12 +14,13 @@ import (
 	"github.com/zviadm/walle/wallelib"
 )
 
+// SetupRootNodes bootstraps new WALLE deployment and sets up root servers to serve it.
 func SetupRootNodes(
-	t *testing.T, ctx context.Context, rootN int) (
+	ctx context.Context, t *testing.T, rootN int) (
 	s []*servicelib.Service, rootPb *walleapi.Topology, rootCli wallelib.Client) {
 	rootURI := topomgr.Prefix + "itest"
 	wDir0 := storage.TestTmpDir()
-	rootPb = BootstrapDeployment(t, ctx, rootURI, wDir0, RootDefaultPort)
+	rootPb = BootstrapDeployment(ctx, t, rootURI, wDir0, RootDefaultPort)
 	mx := sync.Mutex{}
 	var runErr error
 	s = make([]*servicelib.Service, rootN)
@@ -52,7 +53,7 @@ func SetupRootNodes(
 	topology, err := topoMgr.FetchTopology(
 		ctx, &topomgr_pb.FetchTopologyRequest{ClusterUri: rootURI})
 	require.NoError(t, err)
-	serverIds := ServerIdsSlice(topology.Servers)
+	serverIds := serverIdsSlice(topology.Servers)
 	require.Len(t, serverIds, rootN)
 	require.Len(t, topology.Streams[rootURI].ServerIds, 1)
 	for idx, serverId := range serverIds {
@@ -77,16 +78,17 @@ func SetupRootNodes(
 	return s, rootPb, rootCli
 }
 
+// SetupClusterNodes creates new cluster and sets up WALLE servers to serve it.
 func SetupClusterNodes(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	rootPb *walleapi.Topology,
 	rootCli wallelib.Client,
 	clusterURI string,
 	clusterN int) (s []*servicelib.Service, serverIds []string) {
 
 	CreateStream(
-		t, ctx, rootCli, rootPb.RootUri, clusterURI, rootPb.Streams[rootPb.RootUri].ServerIds)
+		ctx, t, rootCli, rootPb.RootUri, clusterURI, rootPb.Streams[rootPb.RootUri].ServerIds)
 	mx := sync.Mutex{}
 	var runErr error
 	s = make([]*servicelib.Service, clusterN)
@@ -111,12 +113,13 @@ func SetupClusterNodes(
 	clusterPb, err := topoMgr.FetchTopology(
 		ctx, &topomgr_pb.FetchTopologyRequest{ClusterUri: clusterURI})
 	require.NoError(t, err)
-	return s, ServerIdsSlice(clusterPb.Servers)
+	return s, serverIdsSlice(clusterPb.Servers)
 }
 
+// CreateStream creates new stream in WALLE cluster.
 func CreateStream(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	root wallelib.Client,
 	clusterURI string,
 	streamURI string,
@@ -127,4 +130,12 @@ func CreateStream(
 		StreamUri:  streamURI,
 		ServerIds:  serverIds})
 	require.NoError(t, err)
+}
+
+func serverIdsSlice(servers map[string]*walleapi.ServerInfo) []string {
+	var serverIds []string
+	for serverId := range servers {
+		serverIds = append(serverIds, serverId)
+	}
+	return serverIds
 }

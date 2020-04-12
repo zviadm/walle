@@ -22,15 +22,18 @@ import (
 var _ = zlog.Info // Force import of `zlog`.
 
 const (
-	WallePkg           = "../../walle"
-	RootDefaultPort    = 5005
+	// WallePkg points to `walle` binary, relative to tests in `itest` package.
+	WallePkg = "../../walle"
+	// RootDefaultPort is starting port for root cluster nodes.
+	RootDefaultPort = 5005
+	// ClusterDefaultPort is starting port for regular nodes.
 	ClusterDefaultPort = 5055
 )
 
-// Must be called in main test function.
+// BootstrapDeployment bootstraps new WALLE deployment.
 func BootstrapDeployment(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	rootURI string,
 	storageDir string,
 	port int) *walleapi.Topology {
@@ -56,6 +59,7 @@ func BootstrapDeployment(
 	return rootTopology
 }
 
+// RunWalle starts new WALLE server process.
 func RunWalle(
 	ctx context.Context,
 	rootPb *walleapi.Topology,
@@ -79,12 +83,4 @@ func RunWalle(
 			"-debug.addr", "127.0.0.1:" + strconv.Itoa(port+1000),
 		},
 		strconv.Itoa(port))
-}
-
-func ServerIdsSlice(servers map[string]*walleapi.ServerInfo) []string {
-	var serverIds []string
-	for serverId := range servers {
-		serverIds = append(serverIds, serverId)
-	}
-	return serverIds
 }

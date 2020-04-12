@@ -18,11 +18,11 @@ func TestCrashingQuorum(t *testing.T) {
 	defer servicelib.KillAll()
 	defer require.NoError(t, servicelib.IptablesClearAll())
 
-	s, rootPb, rootCli := itest.SetupRootNodes(t, ctx, 3)
+	s, rootPb, rootCli := itest.SetupRootNodes(ctx, t, 3)
 
 	streamURI := "/t1/crashing"
 	itest.CreateStream(
-		t, ctx, rootCli, rootPb.RootUri, streamURI,
+		ctx, t, rootCli, rootPb.RootUri, streamURI,
 		rootPb.Streams[rootPb.RootUri].ServerIds)
 
 	crashC := make(chan time.Duration)

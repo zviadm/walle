@@ -21,21 +21,21 @@ func TestResizeQuorum(t *testing.T) {
 	defer cancel()
 	defer servicelib.KillAll()
 
-	services, rootPb, cli := itest.SetupRootNodes(t, ctx, 1)
+	services, rootPb, cli := itest.SetupRootNodes(ctx, t, 1)
 	topoMgr := topomgr.NewClient(cli)
 	nTotal := 5
 	for idx := 1; idx < nTotal; idx++ {
-		s := expandTopology(t, ctx, topoMgr, rootPb.RootUri, itest.RootDefaultPort+idx)
+		s := expandTopology(ctx, t, topoMgr, rootPb.RootUri, itest.RootDefaultPort+idx)
 		services = append(services, s)
 	}
 	for _, s := range services[:nTotal-1] {
-		shrinkTopology(t, ctx, s, topoMgr, rootPb.RootUri)
+		shrinkTopology(ctx, t, s, topoMgr, rootPb.RootUri)
 	}
 }
 
 func expandTopology(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	topoMgr topomgr_pb.TopoManagerClient,
 	rootURI string,
 	port int) *servicelib.Service {
@@ -76,8 +76,8 @@ func serverIdsDiff(t *testing.T, serverIdsAll map[string]*walleapi.ServerInfo, s
 }
 
 func shrinkTopology(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	s *servicelib.Service,
 	topoMgr topomgr_pb.TopoManagerClient,
 	rootURI string) {
