@@ -36,34 +36,34 @@ func TestStreamBlast(t *testing.T) {
 
 	// Test with full quorum.
 	zlog.Info("TEST: ---------- FULL QUORUM")
-	benchAll(t, ctx, clusterURI, benchURIPrefix)
+	benchAll(ctx, t, clusterURI, benchURIPrefix)
 
 	// Test with one node down.
 	zlog.Info("TEST: ---------- NODES 2 / 3")
 	defer require.NoError(t, servicelib.IptablesClearAll())
 	require.NoError(t, servicelib.IptablesBlockPort(itest.RootDefaultPort+2))
 	s[2].Kill()
-	benchAll(t, ctx, clusterURI, benchURIPrefix)
+	benchAll(ctx, t, clusterURI, benchURIPrefix)
 }
 
-func benchAll(t *testing.T, ctx context.Context, clusterURI string, benchURIPrefix string) {
+func benchAll(ctx context.Context, t *testing.T, clusterURI string, benchURIPrefix string) {
 	ww, err := servicelib.RunGoService(
 		ctx, "../../wctl", []string{
-			"-c", clusterURI, "bench", "-prefix", benchURIPrefix,
+			"-c", clusterURI, "bench", "-prefix", benchURIPrefix, "-lease=500ms",
 			"-streams", "1", "-qps", "500", "-kbs", "500", "-time", "2s"},
 		"")
 	require.NoError(t, err)
 	require.EqualValues(t, 0, ww.Wait())
 	ww, err = servicelib.RunGoService(
 		ctx, "../../wctl", []string{
-			"-c", clusterURI, "bench", "-prefix", benchURIPrefix,
+			"-c", clusterURI, "bench", "-prefix", benchURIPrefix, "-lease=500ms",
 			"-streams", "2", "-qps", "500", "-kbs", "500", "-time", "2s"},
 		"")
 	require.NoError(t, err)
 	require.EqualValues(t, 0, ww.Wait())
 	ww, err = servicelib.RunGoService(
 		ctx, "../../wctl", []string{
-			"-c", clusterURI, "bench", "-prefix", benchURIPrefix,
+			"-c", clusterURI, "bench", "-prefix", benchURIPrefix, "-lease=500ms",
 			"-streams", "4", "-qps", "500", "-kbs", "500", "-time", "2s"},
 		"")
 	require.NoError(t, err)

@@ -27,6 +27,7 @@ func cmdBench(
 	f := flag.NewFlagSet("cmd.bench", flag.ExitOnError)
 	uriPrefix := f.String("prefix", "/bench", "Stream URI prefix for streams to write to.")
 	nStreams := f.Int("streams", 1, "Total streams to use for benchmarking. Streams are zero indexed: <prefix>/<idx>")
+	writerLease := f.Duration("lease", 10*time.Second, "Writer lease duration.")
 	qps := f.Int("qps", 10, "Target total QPS.")
 	throughputKBs := f.Int("kbs", 10, "Target total throughput in KB per second.")
 	totalTime := f.Duration("time", 0, "Total bench duration. If 0, will run forever.")
@@ -38,7 +39,7 @@ func cmdBench(
 	ws := make([]*wallelib.Writer, *nStreams)
 	for idx := range ws {
 		ws[idx], err = wallelib.WaitAndClaim(
-			ctx, c, path.Join(*uriPrefix, strconv.Itoa(idx)), "bench:0000", 10*time.Second)
+			ctx, c, path.Join(*uriPrefix, strconv.Itoa(idx)), "bench:0000", *writerLease)
 		exitOnErr(err)
 		defer ws[idx].Close()
 	}
