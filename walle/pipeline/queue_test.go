@@ -2,9 +2,14 @@ package pipeline
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/walle/walle/storage"
+	"golang.org/x/net/context"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestPipelineQueue(t *testing.T) {
@@ -65,6 +70,31 @@ func TestPipelineQueue(t *testing.T) {
 	// require.EqualValues(t, 11, ii.R.Entry.EntryId)
 	// require.False(t, ii.R.Committed)
 	// require.EqualValues(t, 3, len(q.v))
+}
+
+func TestStreamTimeouts(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tmpDir := storage.TestTmpDir()
+	s, err := storage.Init(tmpDir, storage.InitOpts{Create: true, MaxLocalStreams: 2})
+	require.NoError(t, err)
+	err = s.Update(
+		"/test/1", &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
+	require.NoError(t, err)
+	ss, ok := s.Stream("/test/1")
+	require.True(t, ok)
+
+	q := newStream(ctx, ss, fakeFetch)
+	res := q.QueuePut(&walleapi.Entry{EntryId: 2, WriterId: storage.Entry0.WriterId}, false)
+	require.NoError(t, res.Err()) // There should be no immediate error.
+	select {
+	case <-res.Done():
+	case <-time.After(2 * time.Second):
+		t.Fatal("Put must have timed out and errored out!")
+	}
+	require.Error(t, res.Err())
+	require.EqualValues(t, codes.OutOfRange, status.Convert(res.Err()).Code())
 }
 
 // BenchmarkQueue-4 - 1409140 - 1162 ns/op - 296 B/op - 6 allocs/op

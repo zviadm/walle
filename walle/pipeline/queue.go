@@ -59,10 +59,10 @@ func (q *queue) notify() {
 	q.notifyC = make(chan struct{})
 }
 
-func (q *queue) CanSkip() bool {
+func (q *queue) IsEmpty() bool {
 	q.mx.Lock()
 	defer q.mx.Unlock()
-	return len(q.v) > 0
+	return len(q.v) == 0
 }
 
 func (q *queue) PopReady(tailId int64, forceSkip bool, r []queueItem) ([]queueItem, chan struct{}) {
@@ -99,7 +99,7 @@ func (q *queue) PopReady(tailId int64, forceSkip bool, r []queueItem) ([]queueIt
 	return r, q.notifyC
 }
 func (q *queue) popEntries(r []queueItem, startId int64, endId int64) []queueItem {
-	if startId-endId+1 > int64(len(q.v)) {
+	if endId-startId+1 > int64(len(q.v)) {
 		for entryId, item := range q.v {
 			if entryId > endId {
 				continue

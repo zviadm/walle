@@ -67,7 +67,7 @@ func (p *stream) process(ctx context.Context) {
 		tailId, tailNotify := p.ss.TailEntryId()
 		reqs, qNotify = p.q.PopReady(tailId, forceSkip, reqs)
 		if len(reqs) == 0 {
-			if skipTimeout == nil && p.q.CanSkip() {
+			if skipTimeout == nil && !p.q.IsEmpty() {
 				skipTimeout = time.After(p.timeoutAdjusted())
 			}
 			select {
