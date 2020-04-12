@@ -14,7 +14,6 @@ require (
 	github.com/zviadm/walle/wallelib v0.0.0
 	github.com/zviadm/wt v0.0.0
 	github.com/zviadm/zlog v0.0.0-20200326214804-bea93fc07ffa
-	golang.org/x/net v0.0.0-20190620200207-3b0461eec859
 	google.golang.org/grpc v1.28.1
 )
 

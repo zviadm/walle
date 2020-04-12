@@ -1,13 +1,13 @@
 package pipeline
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/storage"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -90,7 +90,7 @@ func TestStreamTimeouts(t *testing.T) {
 	require.NoError(t, res.Err()) // There should be no immediate error.
 	select {
 	case <-res.Done():
-	case <-time.After(2 * time.Second):
+	case <-time.After(QueueMaxTimeout + 100*time.Millisecond):
 		t.Fatal("Put must have timed out and errored out!")
 	}
 	require.Error(t, res.Err())

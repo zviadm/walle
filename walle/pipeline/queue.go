@@ -65,6 +65,12 @@ func (q *queue) IsEmpty() bool {
 	return len(q.v) == 0
 }
 
+func (q *queue) CanSkip() bool {
+	q.mx.Lock()
+	defer q.mx.Unlock()
+	return q.maxCommittedId > q.tailId
+}
+
 func (q *queue) PopReady(tailId int64, forceSkip bool, r []queueItem) ([]queueItem, chan struct{}) {
 	q.mx.Lock()
 	defer q.mx.Unlock()

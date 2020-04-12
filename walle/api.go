@@ -10,6 +10,7 @@ import (
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/broadcast"
+	"github.com/zviadm/walle/walle/pipeline"
 	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/walle/wallelib"
 	"google.golang.org/grpc/codes"
@@ -21,7 +22,7 @@ const (
 	// within request itself. And will continue waiting upto `putEntryBgWait` amount of time in the background
 	// before canceling context. This is useful to make sure live healthy servers aren't falling too far behind.
 	putEntryLiveWait = 10 * time.Millisecond
-	putEntryBgWait   = time.Second
+	putEntryBgWait   = pipeline.QueueMaxTimeout
 )
 
 // ClaimWriter implements WalleApiServer interface.

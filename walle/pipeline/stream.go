@@ -11,6 +11,12 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const (
+	// QueueMaxTimeout represents max amount of time that items can stay in the queue.
+	// This bounds queue size.
+	QueueMaxTimeout = time.Second
+)
+
 type stream struct {
 	ss                  storage.Stream
 	fetchCommittedEntry fetchFunc
@@ -32,7 +38,7 @@ func newStream(
 }
 
 func (p *stream) timeoutAdjusted() time.Duration {
-	timeout := time.Second // This should be ~putEntryBgWait.
+	timeout := QueueMaxTimeout
 	_, _, writerLease, _ := p.ss.WriterInfo()
 	if writerLease > 0 && writerLease/4 < timeout {
 		timeout = writerLease / 4
@@ -60,6 +66,7 @@ func (p *stream) backfillEntry(
 func (p *stream) process(ctx context.Context) {
 	defer p.q.Close()
 	forceSkip := false
+	var maxTimeout <-chan time.Time
 	var skipTimeout <-chan time.Time
 	var reqs []queueItem
 	var qNotify <-chan struct{}
@@ -67,8 +74,11 @@ func (p *stream) process(ctx context.Context) {
 		tailId, tailNotify := p.ss.TailEntryId()
 		reqs, qNotify = p.q.PopReady(tailId, forceSkip, reqs)
 		if len(reqs) == 0 {
-			if skipTimeout == nil && !p.q.IsEmpty() {
+			if skipTimeout == nil && p.q.CanSkip() {
 				skipTimeout = time.After(p.timeoutAdjusted())
+			}
+			if maxTimeout == nil && !p.q.IsEmpty() {
+				maxTimeout = time.After(QueueMaxTimeout)
 			}
 			select {
 			case <-ctx.Done():
@@ -78,11 +88,15 @@ func (p *stream) process(ctx context.Context) {
 			case <-skipTimeout:
 				forceSkip = true
 				skipTimeout = nil
+			case <-maxTimeout:
+				forceSkip = true
+				maxTimeout = nil
 			}
 			continue
 		}
 		forceSkip = false
 		skipTimeout = nil
+		maxTimeout = nil
 		for _, req := range reqs {
 			var err error
 			if req.R.Entry == nil {
