@@ -54,6 +54,7 @@ type streamStorage struct {
 
 	committedIdG metrics.Gauge
 	gapStartIdG  metrics.Gauge
+	gapEndIdG    metrics.Gauge
 	tailIdG      metrics.Gauge
 }
 
@@ -109,6 +110,7 @@ func openStreamStorage(
 
 		committedIdG: committedIdGauge.V(metrics.KV{"stream_uri": streamURI}),
 		gapStartIdG:  gapStartIdGauge.V(metrics.KV{"stream_uri": streamURI}),
+		gapEndIdG:    gapEndIdGauge.V(metrics.KV{"stream_uri": streamURI}),
 		tailIdG:      tailIdGauge.V(metrics.KV{"stream_uri": streamURI}),
 	}
 	v, err := metaR.ReadValue([]byte(streamURI + sfxWriterId))
@@ -132,6 +134,7 @@ func openStreamStorage(
 	v, err = metaR.ReadValue([]byte(streamURI + sfxGapEndId))
 	panic.OnErr(err)
 	r.gapEndId = int64(binary.BigEndian.Uint64(v))
+	r.gapEndIdG.Set(float64(r.gapEndId))
 
 	r.streamR, err = sess.Scan(streamDS(streamURI))
 	panic.OnErr(err)
@@ -204,10 +207,10 @@ func (m *streamStorage) UpdateWriter(
 	m.renewedLease = time.Now()
 
 	panic.OnErr(m.sess.TxBegin(wt.TxCfg{Sync: wt.True}))
-	panic.OnErr(m.metaW.Update([]byte(m.streamURI+sfxWriterId), []byte(m.writerId)))
-	panic.OnErr(m.metaW.Update([]byte(m.streamURI+sfxWriterAddr), []byte(m.writerAddr)))
+	panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxWriterId), []byte(m.writerId)))
+	panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxWriterAddr), []byte(m.writerAddr)))
 	binary.BigEndian.PutUint64(m.buf8, uint64(lease.Nanoseconds()))
-	panic.OnErr(m.metaW.Update([]byte(m.streamURI+sfxWriterLeaseNs), []byte(m.buf8)))
+	panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxWriterLeaseNs), []byte(m.buf8)))
 	panic.OnErr(m.sess.TxCommit())
 	return remainingLease, nil
 }
@@ -280,11 +283,18 @@ func (m *streamStorage) UpdateGapStart(entryId int64) {
 	}
 	m.gapStartId = entryId
 	if m.gapStartId >= m.gapEndId {
-		m.gapStartId = m.committed // caught up with committed.
+		m.gapStartId = 0 // caught up with committed.
+		m.gapEndId = 0
+		panic.OnErr(m.sess.TxBegin())
+		panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxGapStartId), make([]byte, 8)))
+		panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxGapEndId), make([]byte, 8)))
+		panic.OnErr(m.sess.TxCommit())
+	} else {
+		binary.BigEndian.PutUint64(m.buf8, uint64(m.gapStartId))
+		panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxGapStartId), m.buf8))
 	}
 	m.gapStartIdG.Set(float64(m.gapStartId))
-	binary.BigEndian.PutUint64(m.buf8, uint64(m.gapStartId))
-	panic.OnErr(m.metaW.Update([]byte(m.streamURI+sfxGapStartId), m.buf8))
+	m.gapEndIdG.Set(float64(m.gapEndId))
 }
 
 func (m *streamStorage) CommitEntry(entryId int64, entryMd5 []byte) error {
@@ -293,12 +303,12 @@ func (m *streamStorage) CommitEntry(entryId int64, entryMd5 []byte) error {
 	if m.sess.Closed() {
 		return status.Errorf(codes.NotFound, "%s not found", m.streamURI)
 	}
-	return m.unsafeCommitEntry(entryId, entryMd5, false, true)
+	return m.unsafeCommitEntry(entryId, entryMd5, false)
 }
 
 // Updates committedEntry, assuming m.mx is acquired. Returns False, if entryId is too far in the future
 // and local storage doesn't yet know about missing entries in between.
-func (m *streamStorage) unsafeCommitEntry(entryId int64, entryMd5 []byte, newGap bool, useTx bool) error {
+func (m *streamStorage) unsafeCommitEntry(entryId int64, entryMd5 []byte, newGap bool) error {
 	if entryId <= m.committed {
 		return nil
 	}
@@ -316,27 +326,27 @@ func (m *streamStorage) unsafeCommitEntry(entryId int64, entryMd5 []byte, newGap
 			entryId, hex.EncodeToString(entryMd5), hex.EncodeToString(existingEntry.ChecksumMd5),
 			m.writerId, WriterId(existingEntry.WriterId))
 	}
-	panic.OnNotOk(useTx || m.sess.InTx(), "commit must happen inside a transaction")
-	if useTx {
-		panic.OnErr(m.sess.TxBegin())
-	}
 	if newGap {
-		m.gapEndId = entryId
-	} else if m.gapStartId >= m.committed {
-		m.gapStartId = entryId
-		m.gapStartIdG.Set(float64(m.gapStartId))
+		panic.OnNotOk(m.sess.InTx(), "new gap must happen inside a transaction")
+		if m.gapStartId == 0 {
+			m.gapStartId = m.committed + 1
+			m.gapStartIdG.Set(float64(m.gapStartId))
+		}
 		binary.BigEndian.PutUint64(m.buf8, uint64(m.gapStartId))
-		panic.OnErr(m.metaW.Update([]byte(m.streamURI+sfxGapStartId), m.buf8))
+		panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxGapStartId), m.buf8))
+
+		m.gapEndId = entryId
+		m.gapEndIdG.Set(float64(m.gapEndId))
+		binary.BigEndian.PutUint64(m.buf8, uint64(m.gapEndId))
+		panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxGapEndId), m.buf8))
 	}
+
 	m.committed = entryId
 	m.committedIdG.Set(float64(m.committed))
 	close(m.committedNotify)
 	m.committedNotify = make(chan struct{})
 	binary.BigEndian.PutUint64(m.buf8, uint64(m.committed))
-	panic.OnErr(m.metaW.Update([]byte(m.streamURI+sfxCommittedId), m.buf8))
-	if useTx {
-		panic.OnErr(m.sess.TxCommit())
-	}
+	panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxCommittedId), m.buf8))
 	return nil
 }
 
@@ -414,18 +424,23 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error 
 		needsTrim = (cmpWriterId < 0)
 		entryExists = (cmpWriterId == 0) && (bytes.Compare(existingEntry.ChecksumMd5, entry.ChecksumMd5) == 0)
 	}
-	panic.OnErr(m.sess.TxBegin())
 	if needsTrim {
+		// If trimming is needed, it is important to run the whole operation in a transaction. Partial
+		// commit of just trimming the entries without inserting the new entry can cause data corruption
+		// otherwise.
+		panic.OnErr(m.sess.TxBegin())
 		m.unsafeRemoveAllEntriesFrom(entry.EntryId, entry)
 	}
 	if !entryExists {
 		m.unsafeInsertEntry(entry)
 	}
 	if isCommitted {
-		err := m.unsafeCommitEntry(entry.EntryId, entry.ChecksumMd5, false, false)
+		err := m.unsafeCommitEntry(entry.EntryId, entry.ChecksumMd5, false)
 		panic.OnErr(err) // This commit entry mustn't fail. Failure would mean data corrution.
 	}
-	panic.OnErr(m.sess.TxCommit())
+	if needsTrim {
+		panic.OnErr(m.sess.TxCommit())
+	}
 	return nil
 }
 
@@ -434,7 +449,7 @@ func (m *streamStorage) unsafeMakeGapCommit(entry *walleapi.Entry) {
 	panic.OnErr(m.sess.TxBegin())
 	m.unsafeRemoveAllEntriesFrom(m.committed+1, entry)
 	m.unsafeInsertEntry(entry)
-	err := m.unsafeCommitEntry(entry.EntryId, entry.ChecksumMd5, true, false)
+	err := m.unsafeCommitEntry(entry.EntryId, entry.ChecksumMd5, true)
 	panic.OnErr(err) // This commit entry mustn't fail. Failure would mean data corrution.
 	panic.OnErr(m.sess.TxCommit())
 }

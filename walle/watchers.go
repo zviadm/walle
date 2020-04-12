@@ -91,10 +91,11 @@ func (s *Server) writerInfoWatcher(ctx context.Context) {
 }
 
 func (s *Server) checkAndResolveNoWriterStream(ctx context.Context, ss storage.Stream) {
+	selfAddr := writerInternalAddrPrefix + s.s.ServerId()
 	_, writerAddr, _, remainingLease := ss.WriterInfo()
 	timeoutToResolve := writerTimeoutToResolve
 	if isInternalWriter(writerAddr) {
-		if strings.HasSuffix(writerAddr, s.s.ServerId()) {
+		if writerAddr == selfAddr {
 			timeoutToResolve = reResolveFrequency
 		} else {
 			timeoutToResolve = reResolveTimeout
@@ -113,7 +114,7 @@ func (s *Server) checkAndResolveNoWriterStream(ctx context.Context, ss storage.S
 	if time.Duration(wInfo.RemainingLeaseMs)*time.Millisecond >= -timeoutToResolve {
 		return
 	}
-	err = s.resolveNoWriterStream(ctx, ss, timeoutToResolve)
+	err = s.resolveNoWriterStream(ctx, ss, selfAddr)
 	if err != nil && status.Convert(err).Code() != codes.FailedPrecondition {
 		zlog.Warningf(
 			"[ww] err resolving %s, (prev: %s, %dms) -- %s",
@@ -122,8 +123,8 @@ func (s *Server) checkAndResolveNoWriterStream(ctx context.Context, ss storage.S
 }
 
 func (s *Server) resolveNoWriterStream(
-	ctx context.Context, ss storage.Stream, timeoutToResolve time.Duration) error {
-	writerAddr := writerInternalAddrPrefix + s.s.ServerId()
+	ctx context.Context, ss storage.Stream, writerAddr string) error {
+	// TODO(zviad): avoid calls to ClaimWriter, when writer hasn't changed.
 	resp, err := s.ClaimWriter(ctx,
 		&walleapi.ClaimWriterRequest{StreamUri: ss.StreamURI(), WriterAddr: writerAddr})
 	if err != nil {

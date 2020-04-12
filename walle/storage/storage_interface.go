@@ -36,7 +36,7 @@ type Stream interface {
 	// Returns EntryId for maximum entry that has been stored. May not be committed.
 	TailEntryId() (entryId int64, notify <-chan struct{})
 	// Returns range that covers all potentially missing entries: [startId...endId)
-	// If startId >= endId, there are no missing entries.
+	// Returns 0, 0, if there are no missing entries.
 	GapRange() (startId int64, endId int64)
 	// Returns last committed entry and all the following not-yet committed entries.
 	TailEntries() ([]*walleapi.Entry, error)

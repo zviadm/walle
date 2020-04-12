@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -73,7 +74,7 @@ func TestStreamStorage(t *testing.T) {
 	committed, _ = ss.CommittedEntryId()
 	require.EqualValues(t, 3, committed)
 	gapStart, gapEnd = ss.GapRange()
-	require.EqualValues(t, 0, gapStart)
+	require.EqualValues(t, 1, gapStart)
 	require.EqualValues(t, 3, gapEnd)
 
 	entriesR = streamReadAll(t, ss, 0)
@@ -227,4 +228,48 @@ func TestStreamOpenClose(t *testing.T) {
 	ss2, ok := s.Stream(streamURI)
 	require.True(t, ok)
 	require.False(t, ss2.IsClosed())
+}
+
+// BenchmarkPutEntryNoCommit-4 - 249379 - 4531 ns/op - 3.00 cgocalls/s - 256 B/op - 4 allocs/op
+func BenchmarkPutEntryNoCommit(b *testing.B) {
+	benchmarkPutEntry(b, false)
+}
+
+// BenchmarkPutEntryCommitted-4 - 132169 - 10323 ns/op - 6.00 cgocalls/s - 352 B/op - 5 allocs/op
+func BenchmarkPutEntryCommitted(b *testing.B) {
+	benchmarkPutEntry(b, true)
+}
+func benchmarkPutEntry(b *testing.B, committed bool) {
+	s, err := Init(TestTmpDir(), InitOpts{Create: true, MaxLocalStreams: 1})
+	require.NoError(b, err)
+	defer s.Close()
+
+	streamURI := "/test1"
+	err = s.Update(streamURI, &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
+	require.NoError(b, err)
+	ss, ok := s.Stream(streamURI)
+	require.True(b, ok)
+
+	var entries []*walleapi.Entry
+	entry := Entry0
+	for i := 0; i < b.N+1; i++ {
+		checksum := wallelib.CalculateChecksumMd5(entry.ChecksumMd5, entry.Data)
+		entry = &walleapi.Entry{
+			EntryId:     entry.EntryId + 1,
+			WriterId:    entry.WriterId,
+			ChecksumMd5: checksum,
+			Data:        entry.Data,
+		}
+		entries = append(entries, entry)
+	}
+	cgoCalls0 := runtime.NumCgoCall()
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		err = ss.PutEntry(entries[i], committed)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+	b.ReportMetric(float64(runtime.NumCgoCall()-cgoCalls0)/float64(b.N), "cgocalls/s")
 }
