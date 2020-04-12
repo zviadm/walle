@@ -23,18 +23,25 @@ type discovery struct {
 	notify   chan struct{}
 }
 
+// Discovery represents topology discovery for a single WALLE cluster.
 type Discovery interface {
 	Topology() (*walleapi.Topology, <-chan struct{})
 }
 
+// StaticDiscovery implements Discovery interface, always returning same
+// topology.
 type StaticDiscovery struct {
 	T *walleapi.Topology
 }
 
+// Topology implements Discovery interface.
 func (d *StaticDiscovery) Topology() (*walleapi.Topology, <-chan struct{}) {
 	return d.T, nil
 }
 
+// NewRootDiscovery creates discovery for root cluster. If waitForRefresh is true,
+// will wait for a bit to try to fetch most up to date topology information from
+// root cluster.
 func NewRootDiscovery(
 	ctx context.Context,
 	rootPb *walleapi.Topology,
@@ -58,6 +65,8 @@ func NewRootDiscovery(
 	return d, nil
 }
 
+// NewDiscovery creates Discovery for a non root cluster. Supplied `topology` can be nil,
+// in that case if initial fetch fails, this function will return an error.
 func NewDiscovery(
 	ctx context.Context,
 	root Client,
@@ -163,7 +172,7 @@ func streamUpdates(
 	return TopologyFromEntry(entry)
 }
 
-// Helper function to read topology from a file.
+// TopologyFromFile reads and parses topology from a file.
 func TopologyFromFile(f string) (*walleapi.Topology, error) {
 	topologyB, err := ioutil.ReadFile(f)
 	if err != nil {
@@ -174,7 +183,7 @@ func TopologyFromFile(f string) (*walleapi.Topology, error) {
 	return topology, err
 }
 
-// Helper function to write topology to a file. Write happens atomically
+// TopologyToFile writes topology to a file. Write happens atomically
 // to avoid chances of corruption if process where to crash.
 func TopologyToFile(t *walleapi.Topology, f string) error {
 	tB, err := t.Marshal()
@@ -190,7 +199,7 @@ func TopologyToFile(t *walleapi.Topology, f string) error {
 	return os.Rename(tmpF, f)
 }
 
-// Parses out and unmarshalls stored topology protobuf from an entry.
+// TopologyFromEntry parses out and unmarshalls stored topology protobuf from an entry.
 func TopologyFromEntry(entry *walleapi.Entry) (*walleapi.Topology, error) {
 	topology := &walleapi.Topology{}
 	if err := topology.Unmarshal(entry.Data); err != nil {

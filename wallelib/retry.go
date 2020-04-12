@@ -11,6 +11,9 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// KeepTryingWithBackoff is a helper function to continue retrying given
+// function with an exponential backoff. Function is retried until it is successful,
+// or returns final=True, or context expires.
 func KeepTryingWithBackoff(
 	ctx context.Context,
 	minBackoff time.Duration,

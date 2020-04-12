@@ -8,9 +8,11 @@ import (
 )
 
 const (
+	// EnvRootPb is environment variable that holds path to WALLE root.pb file.
 	EnvRootPb = "WALLE_ROOTPB"
 )
 
+// RootPbFromEnv reads and parses root.pb file that EnvRootPb points to.
 func RootPbFromEnv() (*walleapi.Topology, error) {
 	rootPb := os.Getenv(EnvRootPb)
 	if rootPb == "" {

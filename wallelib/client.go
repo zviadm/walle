@@ -1,4 +1,4 @@
-// wallelib provides client libraries to interact with WALLE servers
+// Package wallelib provides client libraries to interact with WALLE servers
 package wallelib
 
 import (
@@ -17,11 +17,13 @@ import (
 	"github.com/zviadm/walle/proto/walleapi"
 )
 
+// Client represents WALLE client that is pointing to a single cluster.
 type Client interface {
 	// Returns gRPC client to talk to specific streamURI within a cluster.
 	ForStream(streamURI string) (ApiClient, error)
 }
 
+// ApiClient is wrapper over WalleApiClient.
 type ApiClient interface {
 	walleapi.WalleApiClient
 	IsPreferred() bool
@@ -37,8 +39,10 @@ type client struct {
 	rrIdx     map[string]int              // streamURI -> round-robin index
 }
 
+// ErrConnUnavailable is returned when all connections are in TransientFailure state.
 var ErrConnUnavailable = status.Error(codes.Unavailable, "connection in TransientFailure")
 
+// NewClient creates new client given discovery for WALLE cluster.
 func NewClient(ctx context.Context, d Discovery) *client {
 	c := &client{
 		d:     d,
@@ -51,6 +55,9 @@ func NewClient(ctx context.Context, d Discovery) *client {
 	return c
 }
 
+// NewClientFromRootPb is a convenience method for creating new client
+// given root cluster topology protobuf and clusterURI string only. Will create
+// discoveries for root cluster and clusterURI internally.
 func NewClientFromRootPb(
 	ctx context.Context,
 	rootPb *walleapi.Topology,
@@ -218,7 +225,7 @@ func (c *client) unsafeServerConn(serverId string) (*grpc.ClientConn, error) {
 	return conn, nil
 }
 
-// Returns True for error codes that are never retriable in WALLE.
+// IsErrFinal returns True for error codes that are never retriable in WALLE.
 func IsErrFinal(errCode codes.Code) bool {
 	return errCode == codes.FailedPrecondition || errCode == codes.InvalidArgument
 }

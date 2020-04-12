@@ -12,17 +12,27 @@ import (
 )
 
 const (
-	LeaseMinimum    = 100 * time.Millisecond
-	MaxEntrySize    = 1024 * 1024 // 1MB
-	MaxInFlightSize = 4 * 1024 * 1024
-	MaxInFlightPuts = 128
+	// LeaseMinimum is absolute minimum that can be provided as writer lease duration.
+	// More realistic range of writer lease would be ~1-10seconds.
+	LeaseMinimum = 100 * time.Millisecond
 
+	// MaxEntrySize is maximum entry size in WALLE. This can't be changed.
+	MaxEntrySize = 1024 * 1024 // 1MB
+
+	maxInFlightSize = 4 * 1024 * 1024 // Maximum put request bytes in-flight.
+	maxInFlightPuts = 128             // Maximum number of put requests in-flight.
+
+	// shortBeat duration defines minimum amount of time it takes for explicit Commit
+	// to be called after a successful PutEntry request, if there are no other PutEntry
+	// requests made. Explicit Commits are avoided if PutEntry traffic is fast enough
+	// since PutEntry calls themselves can also act as explicit Commit calls for previous entries.
 	shortBeat = 5 * time.Millisecond
 
 	connectTimeout  = time.Second
-	ReconnectDelay  = 5 * time.Second
 	putEntryTimeout = 5 * time.Second
 	watchTimeout    = 5 * time.Second
+	// ReconnectDelay is maximum backoff timeout for establishing connections.
+	ReconnectDelay = 5 * time.Second
 )
 
 // Writer is not thread safe. PutEntry calls must be issued serially.
@@ -53,6 +63,7 @@ type Writer struct {
 	rootCancel context.CancelFunc
 }
 
+// PutCtx provides context.Context like interface for PutEntry results.
 type PutCtx struct {
 	Entry *walleapi.Entry // Read-only!
 	mx    sync.Mutex
@@ -60,19 +71,24 @@ type PutCtx struct {
 	done  chan struct{}
 }
 
-func (p *PutCtx) Err() error {
-	p.mx.Lock()
-	defer p.mx.Unlock()
-	return p.err
-}
-func (p *PutCtx) Done() <-chan struct{} {
-	return p.done
-}
 func (p *PutCtx) set(err error) {
 	p.mx.Lock()
 	defer p.mx.Unlock()
 	p.err = err
 	close(p.done)
+}
+
+// Err returns result of PutCtx. Value of Err() is relevant only after
+// Done() channel is closed.
+func (p *PutCtx) Err() error {
+	p.mx.Lock()
+	defer p.mx.Unlock()
+	return p.err
+}
+
+// Done returns channel that will be closed once Err() is set.
+func (p *PutCtx) Done() <-chan struct{} {
+	return p.done
 }
 
 func newWriter(
@@ -96,7 +112,7 @@ func newWriter(
 		// Use very large buffer for reqQ to never block. If user fills this queue up,
 		// PutEntry calls will start blocking.
 		reqQ:    make(chan *PutCtx, 16384),
-		limiter: newLimiter(MaxInFlightPuts, MaxInFlightSize),
+		limiter: newLimiter(maxInFlightPuts, maxInFlightSize),
 
 		committedEntryId: tailEntry.EntryId,
 		committedEntryXX: tailEntry.ChecksumXX,
@@ -111,7 +127,7 @@ func newWriter(
 	return w
 }
 
-// Permanently closes writer and all outstanding PutEntry calls with it.
+// Close permanently closes writer and all outstanding PutEntry calls with it.
 // This call is thread safe and can be called at any time.
 func (w *Writer) Close() {
 	w.rootCancel()
@@ -125,23 +141,23 @@ func (w *Writer) cancelWithErr(err error) {
 	w.Close()
 }
 
-// Returns channel that will get closed when Writer itself becomes closed.
+// Done returns channel that will get closed when Writer itself becomes closed.
 // Writer will automatically close if it determines that it is no longer the
 // exclusive writer and no further PutEntry calls can succeed.
 func (w *Writer) Done() <-chan struct{} {
 	return w.rootCtx.Done()
 }
 
-// Returns True, if at the time of the IsExclusive() call, it is guaranteed that
-// there was no other writer that could have written any entries. Note that
-// Writer can be closed, but still exclusive for some time period, due to how leasing works.
+// IsExclusive returns True, if at the time of the IsExclusive() call, it is guaranteed that
+// there was no other writer that could have written any entries. Note that Writer can be closed,
+// but still exclusive for some time period, due to how leasing works.
 func (w *Writer) IsExclusive() bool {
 	w.committedEntryMx.Lock()
 	defer w.committedEntryMx.Unlock()
 	return w.commitTime.Add(w.writerLease * 3 / 4).After(time.Now())
 }
 
-// Returns last entry that was successfully put in the stream.
+// Committed returns last entry that was successfully put in the stream.
 func (w *Writer) Committed() *walleapi.Entry {
 	w.committedEntryMx.Lock()
 	defer w.committedEntryMx.Unlock()
@@ -170,11 +186,11 @@ func (w *Writer) processor(ctx context.Context) {
 	}
 }
 
-func (w *Writer) cli(refresh bool) (walleapi.WalleApiClient, error) {
+func (w *Writer) cli(cliWithErr ApiClient) (ApiClient, error) {
 	w.cliMX.Lock()
 	defer w.cliMX.Unlock()
 	var err error
-	if w.cachedCli == nil || refresh || !w.cachedCli.IsPreferred() {
+	if w.cachedCli == nil || w.cachedCli == cliWithErr || !w.cachedCli.IsPreferred() {
 		w.cachedCli, err = w.c.ForStream(w.streamURI)
 	}
 	return w.cachedCli, err
@@ -196,10 +212,12 @@ func (w *Writer) heartbeater(ctx context.Context) {
 			(committedEntryId == toCommit.EntryId && ts.Add(w.longBeat).After(now)) {
 			continue
 		}
+		var cli ApiClient
 		err := KeepTryingWithBackoff(
 			ctx, w.longBeat, w.writerLease/4,
 			func(retryN uint) (bool, bool, error) {
-				cli, err := w.cli(retryN >= 1)
+				var err error
+				cli, err = w.cli(cli)
 				if err != nil {
 					return false, false, err
 				}
@@ -231,6 +249,7 @@ func (w *Writer) process(ctx context.Context, req *PutCtx) {
 	if w.writerLease > timeout {
 		timeout = w.writerLease
 	}
+	var cli ApiClient
 	err := KeepTryingWithBackoff(
 		ctx, w.longBeat, w.writerLease,
 		func(retryN uint) (bool, bool, error) {
@@ -238,7 +257,8 @@ func (w *Writer) process(ctx context.Context, req *PutCtx) {
 			if toCommit.EntryId >= req.Entry.EntryId {
 				return true, false, nil
 			}
-			cli, err := w.cli(false)
+			var err error
+			cli, err = w.cli(cli)
 			if err != nil {
 				silentErr := (req.Entry.EntryId > toCommit.EntryId+1)
 				return false, silentErr, err
@@ -271,6 +291,7 @@ func (w *Writer) process(ctx context.Context, req *PutCtx) {
 	req.set(err)
 }
 
+// PutEntry puts new entry in the stream.
 func (w *Writer) PutEntry(data []byte) *PutCtx {
 	entry := &walleapi.Entry{
 		EntryId:  w.tailEntry.EntryId + 1,
@@ -309,6 +330,8 @@ func (w *Writer) updateCommittedEntryId(
 	}
 }
 
+// CalculateChecksumXX calculates checksum of new entry given checksum
+// of the previous entry.
 func CalculateChecksumXX(prevXX uint64, data []byte) uint64 {
 	h := xxhash.New()
 	b := []byte{
