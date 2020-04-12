@@ -14,7 +14,7 @@ import (
 
 var topo1Node = &walleapi.Topology{
 	Streams: map[string]*walleapi.StreamTopology{
-		"/mock/1": &walleapi.StreamTopology{
+		"/mock/1": {
 			Version:   3,
 			ServerIds: []string{"01"},
 		},

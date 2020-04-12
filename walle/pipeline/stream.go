@@ -62,9 +62,11 @@ func (p *stream) process(ctx context.Context) {
 	defer p.q.Close()
 	forceSkip := false
 	var skipTimeout <-chan time.Time
+	var reqs []queueItem
+	var qNotify <-chan struct{}
 	for ctx.Err() == nil && !p.ss.IsClosed() {
 		tailId, tailNotify := p.ss.TailEntryId()
-		reqs, qNotify := p.q.PopReady(tailId, forceSkip)
+		reqs, qNotify = p.q.PopReady(tailId, forceSkip, reqs)
 		if len(reqs) == 0 {
 			if skipTimeout == nil && p.q.CanSkip() {
 				skipTimeout = time.After(p.timeoutAdjusted())

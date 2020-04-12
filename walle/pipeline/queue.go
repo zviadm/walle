@@ -6,6 +6,7 @@ import (
 
 	"github.com/zviadm/stats-go/metrics"
 	"github.com/zviadm/walle/walle/storage"
+	"github.com/zviadm/walle/wallelib"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -34,7 +35,7 @@ type queueItem struct {
 
 const (
 	itemOverhead = 128
-	maxQueueLen  = 2048
+	maxQueueLen  = wallelib.MaxInFlightPuts * 16
 )
 
 func newQueue(streamURI string, maxSizeB int) *queue {
@@ -70,7 +71,7 @@ func (q *queue) CanSkip() bool {
 	return q.maxCommittedId > q.tailId
 }
 
-func (q *queue) PopReady(tailId int64, forceSkip bool) ([]queueItem, chan struct{}) {
+func (q *queue) PopReady(tailId int64, forceSkip bool, r []queueItem) ([]queueItem, chan struct{}) {
 	q.mx.Lock()
 	defer q.mx.Unlock()
 	prevTailId := q.tailId
@@ -78,7 +79,9 @@ func (q *queue) PopReady(tailId int64, forceSkip bool) ([]queueItem, chan struct
 	if len(q.v) == 0 {
 		return nil, q.notifyC
 	}
-	var r []queueItem
+	if r != nil {
+		r = r[:0]
+	}
 	r = q.popTillTail(r, prevTailId)
 	item, ok := q.v[tailId+1]
 	if ok && item.R.IsReady(tailId) {

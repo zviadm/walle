@@ -21,7 +21,7 @@ func TestPipelineQueue(t *testing.T) {
 	require.EqualValues(t, 5, q.sizeG.Get())
 	require.EqualValues(t, 5*len("test"), q.sizeDataB)
 	require.EqualValues(t, 5*len("test"), q.sizeBytesG.Get())
-	r, _ := q.PopReady(5, false)
+	r, _ := q.PopReady(5, false, nil)
 	require.Len(t, r, 5)
 	require.EqualValues(t, 0, len(q.v))
 	require.EqualValues(t, 0, q.sizeG.Get())
@@ -41,9 +41,9 @@ func TestPipelineQueue(t *testing.T) {
 	require.EqualValues(t, len("test"), q.sizeDataB)
 	require.EqualValues(t, len("test"), q.sizeBytesG.Get())
 
-	r, _ = q.PopReady(6, false)
+	r, _ = q.PopReady(6, false, r)
 	require.Len(t, r, 1)
-	r, _ = q.PopReady(10, false)
+	r, _ = q.PopReady(10, false, r)
 	require.Len(t, r, 4)
 	require.EqualValues(t, 0, len(q.v))
 
@@ -81,12 +81,13 @@ func BenchmarkQueue(b *testing.B) {
 	}
 	b.ResetTimer()
 	b.ReportAllocs()
+	var r []queueItem
 	for i := 0; i < b.N; i++ {
 		_, ok := q.Queue(&request{EntryId: int64(i + qBuf), Committed: true})
 		if !ok {
 			b.Fatalf("insert fail: %d", i)
 		}
-		r, _ := q.PopReady(int64(i+1), false)
+		r, _ = q.PopReady(int64(i+1), false, r)
 		if len(r) != 1 || r[0].R.EntryId != int64(i+1) {
 			b.Fatalf("pop fail: %d - %d %d", i, len(r), r[0].R.EntryId)
 		}
