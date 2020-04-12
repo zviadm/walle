@@ -232,6 +232,7 @@ func BenchmarkPutEntryNoCommit(b *testing.B) {
 func BenchmarkPutEntryCommitted(b *testing.B) {
 	benchmarkPutEntry(b, true)
 }
+
 func benchmarkPutEntry(b *testing.B, committed bool) {
 	s, err := Init(TestTmpDir(), InitOpts{Create: true, MaxLocalStreams: 1})
 	require.NoError(b, err)

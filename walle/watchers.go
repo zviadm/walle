@@ -83,6 +83,7 @@ func (s *Server) updateTopology(t *walleapi.Topology, topoMgr *topomgr.Manager) 
 func (s *Server) writerInfoWatcher(ctx context.Context) {
 	ticker := time.NewTicker(writerTimeoutToResolve)
 	defer ticker.Stop()
+	resolvedEntryIds := make(map[string]int64) // streamURI -> EntryId
 	for {
 		select {
 		case <-ctx.Done():
@@ -95,12 +96,17 @@ func (s *Server) writerInfoWatcher(ctx context.Context) {
 			if !ok {
 				continue // can race with topology watcher.
 			}
-			s.checkAndResolveNoWriterStream(ctx, ss)
+			resolvedEntryId, ok := resolvedEntryIds[streamURI]
+			if !ok {
+				resolvedEntryId = -1
+			}
+			resolvedEntryIds[streamURI] = s.checkAndResolveNoWriterStream(ctx, ss, resolvedEntryId)
 		}
 	}
 }
 
-func (s *Server) checkAndResolveNoWriterStream(ctx context.Context, ss storage.Stream) {
+func (s *Server) checkAndResolveNoWriterStream(
+	ctx context.Context, ss storage.Stream, resolvedEntryId int64) int64 {
 	selfAddr := writerInternalAddrPrefix + s.s.ServerId()
 	_, writerAddr, _, remainingLease := ss.WriterInfo()
 	timeoutToResolve := writerTimeoutToResolve
@@ -112,41 +118,57 @@ func (s *Server) checkAndResolveNoWriterStream(ctx context.Context, ss storage.S
 		}
 	}
 	if remainingLease >= -timeoutToResolve {
-		return // Quick shortcut, requiring no i/o for most common case.
+		return resolvedEntryId // Quick shortcut, requiring no i/o for most common case.
 	}
 	ctx, cancel := context.WithTimeout(ctx, reResolveTimeout)
 	defer cancel()
 	wInfo, err := broadcast.WriterInfo(
 		ctx, s.c, s.s.ServerId(), ss.StreamURI(), ss.Topology())
 	if err != nil {
-		return // TODO(zviad): Should we log a warning?
+		return resolvedEntryId // TODO(zviad): Should we log a warning?
 	}
 	if time.Duration(wInfo.RemainingLeaseMs)*time.Millisecond >= -timeoutToResolve {
-		return
+		return resolvedEntryId
 	}
-	err = s.resolveNoWriterStream(ctx, ss, selfAddr)
+	var tailEntry *walleapi.Entry
+	if selfAddr == wInfo.WriterAddr {
+		tailEntries, err := ss.TailEntries()
+		if err == nil && tailEntries[0].EntryId == resolvedEntryId {
+			tailEntry = tailEntries[0]
+		}
+	}
+	resolvedEntryId, err = s.resolveNoWriterStream(ctx, ss, selfAddr, tailEntry)
 	if err != nil && status.Convert(err).Code() != codes.FailedPrecondition {
 		zlog.Warningf(
 			"[ww] err resolving %s, (prev: %s, %dms) -- %s",
 			ss.StreamURI(), wInfo.WriterAddr, wInfo.RemainingLeaseMs, err)
 	}
+	return resolvedEntryId
 }
 
 func (s *Server) resolveNoWriterStream(
-	ctx context.Context, ss storage.Stream, writerAddr string) error {
-	// TODO(zviad): avoid calls to ClaimWriter, when writer hasn't changed.
-	resp, err := s.ClaimWriter(ctx,
-		&walleapi.ClaimWriterRequest{StreamUri: ss.StreamURI(), WriterAddr: writerAddr})
-	if err != nil {
-		return err
+	ctx context.Context,
+	ss storage.Stream,
+	writerAddr string,
+	tailEntry *walleapi.Entry) (int64, error) {
+	if tailEntry == nil {
+		resp, err := s.ClaimWriter(ctx,
+			&walleapi.ClaimWriterRequest{StreamUri: ss.StreamURI(), WriterAddr: writerAddr})
+		if err != nil {
+			return -1, err
+		}
+		tailEntry = resp.TailEntry
 	}
-	_, err = s.PutEntry(ctx, &walleapi.PutEntryRequest{
+	_, err := s.PutEntry(ctx, &walleapi.PutEntryRequest{
 		StreamUri:         ss.StreamURI(),
-		Entry:             resp.TailEntry,
-		CommittedEntryId:  resp.TailEntry.EntryId,
-		CommittedEntryMd5: resp.TailEntry.ChecksumMd5,
+		Entry:             &walleapi.Entry{WriterId: tailEntry.WriterId},
+		CommittedEntryId:  tailEntry.EntryId,
+		CommittedEntryMd5: tailEntry.ChecksumMd5,
 	})
-	return err
+	if err != nil {
+		return -1, err
+	}
+	return tailEntry.EntryId, nil
 }
 
 func isInternalWriter(writerAddr string) bool {
