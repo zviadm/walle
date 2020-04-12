@@ -7,6 +7,7 @@ import (
 
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/broadcast"
+	"github.com/zviadm/walle/walle/panic"
 	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/walle/walle/topomgr"
 	"github.com/zviadm/walle/wallelib"
@@ -49,19 +50,28 @@ func (s *Server) watchTopology(ctx context.Context, d wallelib.Discovery, topoMg
 	}()
 }
 func (s *Server) updateTopology(t *walleapi.Topology, topoMgr *topomgr.Manager) {
+	// First apply topologies for non-local streams. This makes sure streams get removed
+	// first before new streams get added.
 	for streamURI, streamT := range t.Streams {
+		if storage.IsMember(streamT, s.s.ServerId()) {
+			continue
+		}
+		err := s.s.Update(streamURI, streamT)
+		panic.OnErr(err)
+		if topoMgr != nil && strings.HasPrefix(streamURI, topomgr.Prefix) {
+			topoMgr.StopManaging(streamURI)
+		}
+	}
+	for streamURI, streamT := range t.Streams {
+		if !storage.IsMember(streamT, s.s.ServerId()) {
+			continue
+		}
 		err := s.s.Update(streamURI, streamT)
 		if err != nil {
 			zlog.Errorf("ERR_FATAL; err updating topology: %s %s", streamURI, err)
 			continue
 		}
-		if topoMgr == nil || !strings.HasPrefix(streamURI, topomgr.Prefix) {
-			continue
-		}
-		_, ok := s.s.Stream(streamURI)
-		if ok {
-			topoMgr.Manage(streamURI)
-		} else {
+		if topoMgr != nil && strings.HasPrefix(streamURI, topomgr.Prefix) {
 			topoMgr.StopManaging(streamURI)
 		}
 	}

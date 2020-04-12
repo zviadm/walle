@@ -17,13 +17,16 @@ import (
 type storage struct {
 	serverId string
 	c        *wt.Connection
-	flushS   *wt.Session
 	metaS    *wt.Session
 	metaW    *wt.Mutator
 
-	mx      sync.Mutex
-	streamT map[string]*walleapi.StreamTopology // exists for all streamURIs
-	streams map[string]Stream                   // exists only for local streams
+	flushMX sync.Mutex
+	flushS  *wt.Session
+
+	streamT         map[string]*walleapi.StreamTopology // exists for all streamURIs
+	streamsMX       sync.Mutex
+	maxLocalStreams int
+	streams         map[string]Stream // exists only for local streams
 }
 
 var _ Storage = &storage{}
@@ -49,7 +52,7 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 	cfg := wt.ConnCfg{
 		Create:     wt.Bool(opts.Create),
 		Log:        "enabled,compressor=snappy",
-		SessionMax: opts.MaxLocalStreams*2 + 2,
+		SessionMax: opts.MaxLocalStreams*2 + 10, // +10 is just as a buffer.
 		CacheSize:  opts.CacheSizeMB * 1024 * 1024,
 
 		// Statistics:    []wt.Statistics{wt.StatsFast},
@@ -99,12 +102,13 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 	flushS, err := c.OpenSession()
 	panic.OnErr(err)
 	r := &storage{
-		serverId: serverId,
-		c:        c,
-		flushS:   flushS,
-		metaS:    metaS,
-		metaW:    metaW,
-		streams:  make(map[string]Stream),
+		serverId:        serverId,
+		c:               c,
+		flushS:          flushS,
+		metaS:           metaS,
+		metaW:           metaW,
+		maxLocalStreams: opts.MaxLocalStreams,
+		streams:         make(map[string]Stream),
 	}
 	if opts.ServerId != "" && opts.ServerId != r.serverId {
 		return nil, errors.Errorf(
@@ -152,8 +156,6 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 // Closing storage will leak underlying memory that is held by WiredTiger C library.
 // Assumption is that, after closing storage, program will exit promptly.
 func (m *storage) Close() {
-	m.mx.Lock()
-	defer m.mx.Unlock()
 	panic.OnErr(m.c.Close(wt.ConnCloseCfg{LeakMemory: wt.True}))
 }
 
@@ -162,14 +164,14 @@ func (m *storage) ServerId() string {
 }
 
 func (m *storage) FlushSync() {
-	m.mx.Lock()
-	defer m.mx.Unlock()
+	m.flushMX.Lock()
+	defer m.flushMX.Unlock()
 	panic.OnErr(m.flushS.LogFlush(wt.SyncOn))
 }
 
 func (m *storage) Streams(localOnly bool) []string {
-	m.mx.Lock()
-	defer m.mx.Unlock()
+	m.streamsMX.Lock()
+	defer m.streamsMX.Unlock()
 	r := make([]string, 0, len(m.streamT))
 	for streamURI := range m.streamT {
 		_, ok := m.streams[streamURI]
@@ -180,10 +182,18 @@ func (m *storage) Streams(localOnly bool) []string {
 	}
 	return r
 }
+func (m *storage) checkAddLocalStream() error {
+	m.streamsMX.Lock()
+	defer m.streamsMX.Unlock()
+	if len(m.streams) < m.maxLocalStreams {
+		return nil
+	}
+	return errors.Errorf("max streams reached: %d", m.maxLocalStreams)
+}
 
 func (m *storage) Stream(streamURI string) (Stream, bool) {
-	m.mx.Lock()
-	defer m.mx.Unlock()
+	m.streamsMX.Lock()
+	defer m.streamsMX.Unlock()
 	r, ok := m.streams[streamURI]
 	return r, ok
 }
@@ -206,8 +216,8 @@ func (m *storage) Update(
 		panic.OnErr(m.metaS.TxBegin(wt.TxCfg{Sync: wt.True}))
 		panic.OnErr(m.metaW.Insert([]byte(streamURI+sfxTopology), topologyB))
 		panic.OnErr(m.metaS.TxCommit())
-		m.mx.Lock()
-		defer m.mx.Unlock()
+		m.streamsMX.Lock()
+		defer m.streamsMX.Unlock()
 		m.streamT[streamURI] = topology
 		if ss == nil {
 			delete(m.streams, streamURI)
@@ -226,22 +236,20 @@ func (m *storage) Update(
 		ss = nil
 		return nil
 	} else {
-		var err error
-		ss, err = m.makeLocalStream(streamURI)
-		return err
+		err := m.checkAddLocalStream()
+		if err != nil {
+			return err
+		}
+		ss = m.makeLocalStream(streamURI)
+		return nil
 	}
 }
 
-func (m *storage) makeLocalStream(streamURI string) (Stream, error) {
+func (m *storage) makeLocalStream(streamURI string) Stream {
 	sess, err := m.c.OpenSession()
-	if err != nil {
-		return nil, err
-	}
+	panic.OnErr(err)
 	sessRO, err := m.c.OpenSession()
-	if err != nil {
-		panic.OnErr(sess.Close()) // close successfully opened session.
-		return nil, err
-	}
+	panic.OnErr(err)
 	s := createStreamStorage(m.serverId, streamURI, sess, sessRO)
-	return s, nil
+	return s
 }

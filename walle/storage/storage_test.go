@@ -193,15 +193,8 @@ func TestStreamLimits(t *testing.T) {
 	_, ok := s.Stream(longURI)
 	require.True(t, ok)
 
-	hasErr := false
-	for i := 0; i < 20; i++ {
-		err := s.Update("/t"+strconv.Itoa(i), &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
-		if err != nil {
-			hasErr = true
-			break
-		}
-	}
-	require.True(t, hasErr, "MaxStreams limit must have kicked in at some point!")
+	err = s.Update("/t2", &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
+	require.Error(t, err) // MaxLocalStreams limitation.
 }
 
 func TestStreamOpenClose(t *testing.T) {
