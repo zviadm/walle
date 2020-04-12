@@ -25,7 +25,7 @@ func BootstrapRoot(s storage.Storage, rootURI string, rootFile string, rootInfo 
 		RootUri: rootURI,
 		Version: entryId,
 		Streams: map[string]*walleapi.StreamTopology{
-			rootURI: &walleapi.StreamTopology{
+			rootURI: {
 				Version:   1,
 				ServerIds: []string{s.ServerId()},
 			},

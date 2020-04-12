@@ -6,6 +6,9 @@ require (
 	github.com/golang/protobuf v1.3.5
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.5.1
+	github.com/zviadm/stats-go v0.0.2
+	github.com/zviadm/stats-go/exporters/datadog v0.0.0-20200412142242-c3dc8e03d31d
+	github.com/zviadm/stats-go/handlers/grpcstats v0.0.0-20200412142242-c3dc8e03d31d
 	github.com/zviadm/tt v0.0.0
 	github.com/zviadm/walle/proto v0.0.0
 	github.com/zviadm/walle/wallelib v0.0.0

@@ -12,11 +12,13 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// Client defines interface for a direct accessing client that can talk to specific
+// serverId-s.
 type Client interface {
 	ForServer(serverId string) (walle_pb.WalleClient, error)
 }
 
-// Broadcasts requests to all serverIds and returns list of serverIds that have succeeded.
+// Call broadcasts requests to all serverIds and returns list of serverIds that have succeeded.
 // Returns an error if majority didn't succeed.
 func Call(
 	ctx context.Context,

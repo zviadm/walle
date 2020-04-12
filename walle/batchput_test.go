@@ -20,7 +20,7 @@ var topo1Node = &walleapi.Topology{
 		},
 	},
 	Servers: map[string]*walleapi.ServerInfo{
-		"01": &walleapi.ServerInfo{Address: "localhost1:1001"},
+		"01": {Address: "localhost1:1001"},
 	},
 }
 

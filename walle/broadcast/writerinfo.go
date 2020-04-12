@@ -11,6 +11,8 @@ import (
 	"github.com/zviadm/walle/proto/walleapi"
 )
 
+// WriterInfo broadcasts WriterInfo rpc to all servers and merges result into a
+// single WriterInfoResponse based on majority of responses.
 func WriterInfo(
 	ctx context.Context,
 	cli Client,
