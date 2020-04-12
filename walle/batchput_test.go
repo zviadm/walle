@@ -2,6 +2,7 @@ package walle
 
 import (
 	"context"
+	"runtime"
 	"testing"
 	"time"
 
@@ -27,7 +28,7 @@ var (
 	benchData = []byte("test data for benchmarking")
 )
 
-// BenchmarkPutEntrySerial-4 - 772 - 1396476 ns/op - 3194 B/op - 59 allocs/op
+// BenchmarkPutEntrySerial-4 - 879 - 1337006 ns/op - 5.00 cgocalls/op - 2788 B/op - 43 allocs/op
 func BenchmarkPutEntrySerial(b *testing.B) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -37,6 +38,7 @@ func BenchmarkPutEntrySerial(b *testing.B) {
 	require.NoError(b, err)
 	defer w.Close()
 
+	cgoCalls0 := runtime.NumCgoCall()
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
@@ -46,9 +48,10 @@ func BenchmarkPutEntrySerial(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
+	b.ReportMetric(float64(runtime.NumCgoCall()-cgoCalls0)/float64(b.N), "cgocalls/op")
 }
 
-// BenchmarkPutEntryPipeline-4 - 6530 - 181576 ns/op - 2669 B/op - 48 allocs/op
+// BenchmarkPutEntryPipeline-4 - 6744 - 162409 ns/op - 1.31 cgocalls/op - 2382 B/op - 38 allocs/op
 func BenchmarkPutEntryPipeline(b *testing.B) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -60,6 +63,7 @@ func BenchmarkPutEntryPipeline(b *testing.B) {
 	}
 	defer w.Close()
 
+	cgoCalls0 := runtime.NumCgoCall()
 	b.ResetTimer()
 	b.ReportAllocs()
 	puts := make([]*wallelib.PutCtx, b.N)
@@ -72,4 +76,5 @@ func BenchmarkPutEntryPipeline(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
+	b.ReportMetric(float64(runtime.NumCgoCall()-cgoCalls0)/float64(b.N), "cgocalls/op")
 }
