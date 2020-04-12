@@ -50,7 +50,7 @@ func TestStreamStorage(t *testing.T) {
 			WriterId: writerId,
 			Data:     []byte("entry " + strconv.Itoa(idx)),
 		}
-		entry.ChecksumMd5 = wallelib.CalculateChecksumMd5(entries[idx-1].ChecksumMd5, entry.Data)
+		entry.ChecksumXX = wallelib.CalculateChecksumXX(entries[idx-1].ChecksumXX, entry.Data)
 		entries = append(entries, entry)
 	}
 
@@ -149,12 +149,12 @@ func TestStreamStorageRaces(t *testing.T) {
 	entry := Entry0
 	for idx := 1; idx <= 50; idx++ {
 		data := []byte("entry " + strconv.Itoa(idx))
-		checksum := wallelib.CalculateChecksumMd5(entry.ChecksumMd5, data)
+		checksum := wallelib.CalculateChecksumXX(entry.ChecksumXX, data)
 		entry = &walleapi.Entry{
-			EntryId:     int64(idx),
-			WriterId:    entry.WriterId,
-			Data:        data,
-			ChecksumMd5: checksum,
+			EntryId:    int64(idx),
+			WriterId:   entry.WriterId,
+			Data:       data,
+			ChecksumXX: checksum,
 		}
 		err := ss.PutEntry(entry, true)
 		require.NoError(t, err)
@@ -247,12 +247,12 @@ func benchmarkPutEntry(b *testing.B, committed bool) {
 	var entries []*walleapi.Entry
 	entry := Entry0
 	for i := 0; i < b.N+1; i++ {
-		checksum := wallelib.CalculateChecksumMd5(entry.ChecksumMd5, entry.Data)
+		checksum := wallelib.CalculateChecksumXX(entry.ChecksumXX, entry.Data)
 		entry = &walleapi.Entry{
-			EntryId:     entry.EntryId + 1,
-			WriterId:    entry.WriterId,
-			ChecksumMd5: checksum,
-			Data:        entry.Data,
+			EntryId:    entry.EntryId + 1,
+			WriterId:   entry.WriterId,
+			ChecksumXX: checksum,
+			Data:       entry.Data,
 		}
 		entries = append(entries, entry)
 	}

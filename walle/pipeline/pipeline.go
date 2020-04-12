@@ -12,7 +12,7 @@ type fetchFunc func(
 	ctx context.Context,
 	streamURI string,
 	committedId int64,
-	committedMd5 []byte) (*walleapi.Entry, error)
+	committedXX uint64) (*walleapi.Entry, error)
 
 // Pipeline provides queue like abstraction to stream line
 // put operations for each stream, and perform group FlushSync operations

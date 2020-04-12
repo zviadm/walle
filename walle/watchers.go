@@ -160,10 +160,10 @@ func (s *Server) resolveNoWriterStream(
 		tailEntry = resp.TailEntry
 	}
 	_, err := s.PutEntry(ctx, &walleapi.PutEntryRequest{
-		StreamUri:         ss.StreamURI(),
-		Entry:             &walleapi.Entry{WriterId: tailEntry.WriterId},
-		CommittedEntryId:  tailEntry.EntryId,
-		CommittedEntryMd5: tailEntry.ChecksumMd5,
+		StreamUri:        ss.StreamURI(),
+		Entry:            &walleapi.Entry{WriterId: tailEntry.WriterId},
+		CommittedEntryId: tailEntry.EntryId,
+		CommittedEntryXX: tailEntry.ChecksumXX,
 	})
 	if err != nil {
 		return -1, err

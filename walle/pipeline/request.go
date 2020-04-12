@@ -8,7 +8,7 @@ import (
 
 type request struct {
 	EntryId   int64
-	EntryMd5  []byte
+	EntryXX   uint64
 	Committed bool
 	Entry     *walleapi.Entry
 }

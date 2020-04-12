@@ -51,7 +51,7 @@ message PutEntryInternalRequest {
 
 	Entry entry = 5;
 	int64 committed_entry_id = 6;
-	bytes committed_entry_md5 = 7;
+	uint64 committed_entry_x_x = 7;
 	bool ignore_lease_renew = 8;
 }
 message PutEntryInternalResponse{}

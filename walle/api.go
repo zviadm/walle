@@ -104,7 +104,7 @@ func (s *Server) ClaimWriter(
 	var maxWriterServerId string
 	var maxEntry *walleapi.Entry
 	var committedEntryId int64
-	var committedEntryMd5 []byte
+	var committedEntryXX uint64
 	for serverId, es := range entries {
 		e := es[len(es)-1]
 		cmpWriterId := bytes.Compare(e.WriterId, maxEntry.GetWriterId())
@@ -114,7 +114,7 @@ func (s *Server) ClaimWriter(
 			maxEntry = e
 		}
 		committedEntryId = es[0].EntryId
-		committedEntryMd5 = es[0].ChecksumMd5
+		committedEntryXX = es[0].ChecksumXX
 	}
 
 	c, err := s.c.ForServer(maxWriterServerId)
@@ -124,13 +124,13 @@ func (s *Server) ClaimWriter(
 	maxEntry = proto.Clone(maxEntry).(*walleapi.Entry)
 	maxEntry.WriterId = writerId.Encode()
 	_, err = c.PutEntryInternal(ctx, &walle_pb.PutEntryInternalRequest{
-		ServerId:          maxWriterServerId,
-		StreamUri:         req.StreamUri,
-		StreamVersion:     ssTopology.Version,
-		FromServerId:      s.s.ServerId(),
-		Entry:             maxEntry,
-		CommittedEntryId:  committedEntryId,
-		CommittedEntryMd5: committedEntryMd5,
+		ServerId:         maxWriterServerId,
+		StreamUri:        req.StreamUri,
+		StreamVersion:    ssTopology.Version,
+		FromServerId:     s.s.ServerId(),
+		Entry:            maxEntry,
+		CommittedEntryId: committedEntryId,
+		CommittedEntryXX: committedEntryXX,
 	})
 	if err != nil {
 		return nil, err
@@ -150,7 +150,7 @@ func (s *Server) ClaimWriter(
 		}
 		startIdx := esLen
 		for idx, entry := range es[:esLen] {
-			if bytes.Compare(entry.ChecksumMd5, maxEntries[idx].ChecksumMd5) != 0 {
+			if entry.ChecksumXX != maxEntries[idx].ChecksumXX {
 				startIdx = idx
 				break
 			}
@@ -159,13 +159,13 @@ func (s *Server) ClaimWriter(
 			entry := proto.Clone(maxEntries[idx]).(*walleapi.Entry)
 			entry.WriterId = writerId.Encode()
 			_, err = c.PutEntryInternal(ctx, &walle_pb.PutEntryInternalRequest{
-				ServerId:          serverId,
-				StreamUri:         req.StreamUri,
-				StreamVersion:     ssTopology.Version,
-				FromServerId:      s.s.ServerId(),
-				Entry:             entry,
-				CommittedEntryId:  committedEntryId,
-				CommittedEntryMd5: committedEntryMd5,
+				ServerId:         serverId,
+				StreamUri:        req.StreamUri,
+				StreamVersion:    ssTopology.Version,
+				FromServerId:     s.s.ServerId(),
+				Entry:            entry,
+				CommittedEntryId: committedEntryId,
+				CommittedEntryXX: committedEntryXX,
 			})
 			if err != nil {
 				return nil, err
@@ -178,13 +178,13 @@ func (s *Server) ClaimWriter(
 			return nil, err
 		}
 		_, err = c.PutEntryInternal(ctx, &walle_pb.PutEntryInternalRequest{
-			ServerId:          serverId,
-			StreamUri:         req.StreamUri,
-			StreamVersion:     ssTopology.Version,
-			FromServerId:      s.s.ServerId(),
-			Entry:             maxEntry,
-			CommittedEntryId:  maxEntry.EntryId,
-			CommittedEntryMd5: maxEntry.ChecksumMd5,
+			ServerId:         serverId,
+			StreamUri:        req.StreamUri,
+			StreamVersion:    ssTopology.Version,
+			FromServerId:     s.s.ServerId(),
+			Entry:            maxEntry,
+			CommittedEntryId: maxEntry.EntryId,
+			CommittedEntryXX: maxEntry.ChecksumXX,
 		})
 		if err != nil {
 			return nil, err
@@ -214,14 +214,14 @@ func (s *Server) commitMaxEntry(
 				return false, err
 			}
 			_, err = c.PutEntryInternal(ctx, &walle_pb.PutEntryInternalRequest{
-				ServerId:          serverId,
-				StreamUri:         streamURI,
-				StreamVersion:     streamVersion,
-				FromServerId:      s.s.ServerId(),
-				Entry:             maxEntry,
-				CommittedEntryId:  maxEntry.EntryId,
-				CommittedEntryMd5: maxEntry.ChecksumMd5,
-				IgnoreLeaseRenew:  true,
+				ServerId:         serverId,
+				StreamUri:        streamURI,
+				StreamVersion:    streamVersion,
+				FromServerId:     s.s.ServerId(),
+				Entry:            maxEntry,
+				CommittedEntryId: maxEntry.EntryId,
+				CommittedEntryXX: maxEntry.ChecksumXX,
+				IgnoreLeaseRenew: true,
 			})
 			if err != nil {
 				return false, err
@@ -272,13 +272,13 @@ func (s *Server) PutEntry(
 	_, err := broadcast.Call(ctx, s.c, ssTopology.ServerIds, putEntryLiveWait, putEntryBgWait,
 		func(c walle_pb.WalleClient, ctx context.Context, serverId string) error {
 			_, err := c.PutEntryInternal(ctx, &walle_pb.PutEntryInternalRequest{
-				ServerId:          serverId,
-				StreamUri:         req.StreamUri,
-				StreamVersion:     ssTopology.Version,
-				FromServerId:      s.s.ServerId(),
-				Entry:             req.Entry,
-				CommittedEntryId:  req.CommittedEntryId,
-				CommittedEntryMd5: req.CommittedEntryMd5,
+				ServerId:         serverId,
+				StreamUri:        req.StreamUri,
+				StreamVersion:    ssTopology.Version,
+				FromServerId:     s.s.ServerId(),
+				Entry:            req.Entry,
+				CommittedEntryId: req.CommittedEntryId,
+				CommittedEntryXX: req.CommittedEntryXX,
 			})
 			return err
 		})

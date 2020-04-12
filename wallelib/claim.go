@@ -46,10 +46,10 @@ func claimWriter(
 	}
 	commitTime := time.Now()
 	_, err = cli.PutEntry(ctx, &walleapi.PutEntryRequest{
-		StreamUri:         streamURI,
-		Entry:             &walleapi.Entry{WriterId: resp.WriterId},
-		CommittedEntryId:  resp.TailEntry.EntryId,
-		CommittedEntryMd5: resp.TailEntry.ChecksumMd5,
+		StreamUri:        streamURI,
+		Entry:            &walleapi.Entry{WriterId: resp.WriterId},
+		CommittedEntryId: resp.TailEntry.EntryId,
+		CommittedEntryXX: resp.TailEntry.ChecksumXX,
 	})
 	if err != nil {
 		return nil, err

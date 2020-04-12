@@ -43,7 +43,7 @@ type Stream interface {
 	// Returns cursor to read committed entries starting at entryId.
 	ReadFrom(entryId int64) (Cursor, error)
 
-	CommitEntry(entryId int64, entryMd5 []byte) error
+	CommitEntry(entryId int64, entryXX uint64) error
 	PutEntry(entry *walleapi.Entry, isCommitted bool) error
 	UpdateGapStart(entryId int64)
 }

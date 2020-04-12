@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"crypto/md5"
 	"crypto/rand"
 	"encoding/binary"
 	"encoding/hex"
@@ -49,9 +48,9 @@ const (
 var (
 	// Entry0 is root entry for every WALLE stream.
 	Entry0 = &walleapi.Entry{
-		EntryId:     0,
-		WriterId:    make([]byte, writerIdLen),
-		ChecksumMd5: make([]byte, md5.Size),
+		EntryId:    0,
+		WriterId:   make([]byte, writerIdLen),
+		ChecksumXX: 0,
 	}
 	entry0B, _    = Entry0.Marshal()
 	maxEntryIdKey = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}

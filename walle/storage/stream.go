@@ -3,7 +3,6 @@ package storage
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/hex"
 	"flag"
 	"fmt"
 	"sync"
@@ -297,18 +296,18 @@ func (m *streamStorage) UpdateGapStart(entryId int64) {
 	m.gapEndIdG.Set(float64(m.gapEndId))
 }
 
-func (m *streamStorage) CommitEntry(entryId int64, entryMd5 []byte) error {
+func (m *streamStorage) CommitEntry(entryId int64, entryXX uint64) error {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	if m.sess.Closed() {
 		return status.Errorf(codes.NotFound, "%s not found", m.streamURI)
 	}
-	return m.unsafeCommitEntry(entryId, entryMd5, false)
+	return m.unsafeCommitEntry(entryId, entryXX, false)
 }
 
 // Updates committedEntry, assuming m.mx is acquired. Returns False, if entryId is too far in the future
 // and local storage doesn't yet know about missing entries in between.
-func (m *streamStorage) unsafeCommitEntry(entryId int64, entryMd5 []byte, newGap bool) error {
+func (m *streamStorage) unsafeCommitEntry(entryId int64, entryXX uint64, newGap bool) error {
 	if entryId <= m.committed {
 		return nil
 	}
@@ -320,10 +319,10 @@ func (m *streamStorage) unsafeCommitEntry(entryId int64, entryMd5 []byte, newGap
 		return status.Errorf(
 			codes.Internal, "uncommitted entry %d: missing [%d..%d]", entryId, m.committed, m.tailEntry.EntryId)
 	}
-	if bytes.Compare(existingEntry.ChecksumMd5, entryMd5) != 0 {
+	if existingEntry.ChecksumXX != entryXX {
 		return status.Errorf(
-			codes.OutOfRange, "commit checksum mismatch for entry: %d, %s != %s, %s vs %s",
-			entryId, hex.EncodeToString(entryMd5), hex.EncodeToString(existingEntry.ChecksumMd5),
+			codes.OutOfRange, "commit checksum mismatch for entry: %d, %d != %d, %s vs %s",
+			entryId, entryXX, existingEntry.ChecksumXX,
 			m.writerId, WriterId(existingEntry.WriterId))
 	}
 	if newGap {
@@ -389,20 +388,20 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error 
 
 	prevEntry := m.unsafeReadEntry(entry.EntryId - 1)
 	panic.OnNotOk(prevEntry != nil, "gap in uncommitted entries!")
-	expectedMd5 := wallelib.CalculateChecksumMd5(prevEntry.ChecksumMd5, entry.Data)
-	if bytes.Compare(expectedMd5, entry.ChecksumMd5) != 0 {
+	expectedXX := wallelib.CalculateChecksumXX(prevEntry.ChecksumXX, entry.Data)
+	if expectedXX != entry.ChecksumXX {
 		if !isCommitted {
 			return status.Errorf(
-				codes.OutOfRange, "put checksum mismatch for entry: %d, %s != %s, %s vs %s",
-				entry.EntryId, hex.EncodeToString(entry.ChecksumMd5), hex.EncodeToString(expectedMd5),
+				codes.OutOfRange, "put checksum mismatch for entry: %d, %d != %d, %s vs %s",
+				entry.EntryId, entry.ChecksumXX, expectedXX,
 				entryWriterId, WriterId(prevEntry.WriterId))
 		}
 		if prevEntry.EntryId <= m.committed {
 			// This mustn't happen. Otherwise probably a sign of data corruption or serious data
 			// consistency bugs.
 			return status.Errorf(
-				codes.Internal, "put checksum mismatch for committed entry: %d, %s != %s, %s vs %s",
-				entry.EntryId, hex.EncodeToString(entry.ChecksumMd5), hex.EncodeToString(expectedMd5),
+				codes.Internal, "put checksum mismatch for committed entry: %d, %d != %d, %s vs %s",
+				entry.EntryId, entry.ChecksumXX, expectedXX,
 				entryWriterId, WriterId(prevEntry.WriterId))
 		}
 		m.unsafeMakeGapCommit(entry)
@@ -422,7 +421,7 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error 
 		// Truncate entries, because rest of the uncommitted entries are no longer valid, since a new writer
 		// is writing a previous entry.
 		needsTrim = (cmpWriterId < 0)
-		entryExists = (cmpWriterId == 0) && (bytes.Compare(existingEntry.ChecksumMd5, entry.ChecksumMd5) == 0)
+		entryExists = (cmpWriterId == 0) && (existingEntry.ChecksumXX == entry.ChecksumXX)
 	}
 	if needsTrim {
 		// If trimming is needed, it is important to run the whole operation in a transaction. Partial
@@ -435,7 +434,7 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error 
 		m.unsafeInsertEntry(entry)
 	}
 	if isCommitted {
-		err := m.unsafeCommitEntry(entry.EntryId, entry.ChecksumMd5, false)
+		err := m.unsafeCommitEntry(entry.EntryId, entry.ChecksumXX, false)
 		panic.OnErr(err) // This commit entry mustn't fail. Failure would mean data corrution.
 	}
 	if needsTrim {
@@ -449,7 +448,7 @@ func (m *streamStorage) unsafeMakeGapCommit(entry *walleapi.Entry) {
 	panic.OnErr(m.sess.TxBegin())
 	m.unsafeRemoveAllEntriesFrom(m.committed+1, entry)
 	m.unsafeInsertEntry(entry)
-	err := m.unsafeCommitEntry(entry.EntryId, entry.ChecksumMd5, true)
+	err := m.unsafeCommitEntry(entry.EntryId, entry.ChecksumXX, true)
 	panic.OnErr(err) // This commit entry mustn't fail. Failure would mean data corrution.
 	panic.OnErr(m.sess.TxCommit())
 }

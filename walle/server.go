@@ -131,7 +131,7 @@ func (s *Server) PutEntryInternal(
 	p := s.pipeline.ForStream(ss)
 	var res *pipeline.ResultCtx
 	if req.Entry.EntryId == 0 || !isCommitted {
-		res = p.QueueCommit(req.CommittedEntryId, req.CommittedEntryMd5)
+		res = p.QueueCommit(req.CommittedEntryId, req.CommittedEntryXX)
 	}
 	if req.Entry.EntryId > 0 {
 		res = p.QueuePut(req.Entry, isCommitted)
@@ -159,7 +159,7 @@ func (s *Server) fetchCommittedEntry(
 	ctx context.Context,
 	streamURI string,
 	committedEntryId int64,
-	committedEntryMd5 []byte) (*walleapi.Entry, error) {
+	committedEntryXX uint64) (*walleapi.Entry, error) {
 	ss, ok := s.s.Stream(streamURI)
 	if !ok {
 		return nil, status.Errorf(codes.NotFound, "%s not found", streamURI)

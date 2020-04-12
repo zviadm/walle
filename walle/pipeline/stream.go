@@ -47,11 +47,11 @@ func (p *stream) timeoutAdjusted() time.Duration {
 }
 
 func (p *stream) backfillEntry(
-	ctx context.Context, entryId int64, entryMd5 []byte) error {
+	ctx context.Context, entryId int64, entryXX uint64) error {
 	ctx, cancel := context.WithTimeout(ctx, p.timeoutAdjusted())
 	defer cancel()
 	entry, err := p.fetchCommittedEntry(
-		ctx, p.ss.StreamURI(), entryId, entryMd5)
+		ctx, p.ss.StreamURI(), entryId, entryXX)
 	if err != nil {
 		return err
 	}
@@ -100,9 +100,9 @@ func (p *stream) process(ctx context.Context) {
 		for _, req := range reqs {
 			var err error
 			if req.R.Entry == nil {
-				err = p.ss.CommitEntry(req.R.EntryId, req.R.EntryMd5)
+				err = p.ss.CommitEntry(req.R.EntryId, req.R.EntryXX)
 				if err != nil && status.Convert(err).Code() == codes.OutOfRange {
-					err = p.backfillEntry(ctx, req.R.EntryId, req.R.EntryMd5)
+					err = p.backfillEntry(ctx, req.R.EntryId, req.R.EntryXX)
 				}
 			} else {
 				err = p.ss.PutEntry(req.R.Entry, req.R.Committed)
@@ -112,15 +112,15 @@ func (p *stream) process(ctx context.Context) {
 	}
 }
 
-func (p *stream) QueueCommit(entryId int64, entryMd5 []byte) *ResultCtx {
+func (p *stream) QueueCommit(entryId int64, entryXX uint64) *ResultCtx {
 	res, ok := p.q.Queue(&request{
 		EntryId:   entryId,
-		EntryMd5:  entryMd5,
+		EntryXX:   entryXX,
 		Committed: true,
 	})
 	if !ok {
 		res = newResult()
-		err := p.ss.CommitEntry(entryId, entryMd5)
+		err := p.ss.CommitEntry(entryId, entryXX)
 		res.set(err)
 	}
 	return res
@@ -128,7 +128,7 @@ func (p *stream) QueueCommit(entryId int64, entryMd5 []byte) *ResultCtx {
 func (p *stream) QueuePut(e *walleapi.Entry, isCommitted bool) *ResultCtx {
 	res, ok := p.q.Queue(&request{
 		EntryId:   e.EntryId,
-		EntryMd5:  e.ChecksumMd5,
+		EntryXX:   e.ChecksumXX,
 		Committed: isCommitted,
 		Entry:     e,
 	})

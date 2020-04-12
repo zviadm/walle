@@ -2,10 +2,10 @@ package wallelib
 
 import (
 	"context"
-	"crypto/md5"
 	"sync"
 	"time"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/zlog"
 	"google.golang.org/grpc/status"
@@ -43,11 +43,11 @@ type Writer struct {
 	reqQ      chan *PutCtx
 	limiter   *limiter
 
-	committedEntryMx  sync.Mutex
-	committedEntryId  int64
-	committedEntryMd5 []byte
-	toCommit          *walleapi.Entry
-	commitTime        time.Time
+	committedEntryMx sync.Mutex
+	committedEntryId int64
+	committedEntryXX uint64
+	toCommit         *walleapi.Entry
+	commitTime       time.Time
 
 	rootCtx    context.Context
 	rootCancel context.CancelFunc
@@ -98,10 +98,10 @@ func newWriter(
 		reqQ:    make(chan *PutCtx, 16384),
 		limiter: newLimiter(MaxInFlightPuts, MaxInFlightSize),
 
-		committedEntryId:  tailEntry.EntryId,
-		committedEntryMd5: tailEntry.ChecksumMd5,
-		toCommit:          tailEntry,
-		commitTime:        commitTime,
+		committedEntryId: tailEntry.EntryId,
+		committedEntryXX: tailEntry.ChecksumXX,
+		toCommit:         tailEntry,
+		commitTime:       commitTime,
 
 		rootCtx:    ctx,
 		rootCancel: cancel,
@@ -206,16 +206,16 @@ func (w *Writer) heartbeater(ctx context.Context) {
 				putCtx, cancel := context.WithTimeout(ctx, w.writerLease/4)
 				defer cancel()
 				_, err = cli.PutEntry(putCtx, &walleapi.PutEntryRequest{
-					StreamUri:         w.streamURI,
-					Entry:             &walleapi.Entry{WriterId: w.writerId},
-					CommittedEntryId:  toCommit.EntryId,
-					CommittedEntryMd5: toCommit.ChecksumMd5,
+					StreamUri:        w.streamURI,
+					Entry:            &walleapi.Entry{WriterId: w.writerId},
+					CommittedEntryId: toCommit.EntryId,
+					CommittedEntryXX: toCommit.ChecksumXX,
 				})
 				if err != nil {
 					errCode := status.Convert(err).Code()
 					return IsErrFinal(errCode), false, err
 				}
-				w.updateCommittedEntryId(now, toCommit.EntryId, toCommit.ChecksumMd5, toCommit)
+				w.updateCommittedEntryId(now, toCommit.EntryId, toCommit.ChecksumXX, toCommit)
 				return true, false, nil
 			})
 		if err != nil {
@@ -247,10 +247,10 @@ func (w *Writer) process(ctx context.Context, req *PutCtx) {
 			putCtx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 			_, err = cli.PutEntry(putCtx, &walleapi.PutEntryRequest{
-				StreamUri:         w.streamURI,
-				Entry:             req.Entry,
-				CommittedEntryId:  toCommit.EntryId,
-				CommittedEntryMd5: toCommit.ChecksumMd5,
+				StreamUri:        w.streamURI,
+				Entry:            req.Entry,
+				CommittedEntryId: toCommit.EntryId,
+				CommittedEntryXX: toCommit.ChecksumXX,
 			})
 			if err != nil {
 				_, _, _, toCommit := w.safeCommittedEntryId()
@@ -262,7 +262,7 @@ func (w *Writer) process(ctx context.Context, req *PutCtx) {
 				return IsErrFinal(errCode), silentErr, err
 			}
 			w.updateCommittedEntryId(
-				now, toCommit.EntryId, toCommit.ChecksumMd5, req.Entry)
+				now, toCommit.EntryId, toCommit.ChecksumXX, req.Entry)
 			return true, false, nil
 		})
 	if err != nil {
@@ -277,7 +277,7 @@ func (w *Writer) PutEntry(data []byte) *PutCtx {
 		WriterId: w.writerId,
 		Data:     data,
 	}
-	entry.ChecksumMd5 = CalculateChecksumMd5(w.tailEntry.ChecksumMd5, data)
+	entry.ChecksumXX = CalculateChecksumXX(w.tailEntry.ChecksumXX, data)
 	w.tailEntry = entry
 	r := &PutCtx{
 		Entry: entry,
@@ -287,14 +287,14 @@ func (w *Writer) PutEntry(data []byte) *PutCtx {
 	return r
 }
 
-func (w *Writer) safeCommittedEntryId() (time.Time, int64, []byte, *walleapi.Entry) {
+func (w *Writer) safeCommittedEntryId() (time.Time, int64, uint64, *walleapi.Entry) {
 	w.committedEntryMx.Lock()
 	defer w.committedEntryMx.Unlock()
-	return w.commitTime, w.committedEntryId, w.committedEntryMd5, w.toCommit
+	return w.commitTime, w.committedEntryId, w.committedEntryXX, w.toCommit
 }
 
 func (w *Writer) updateCommittedEntryId(
-	ts time.Time, committedEntryId int64, committedEntryMd5 []byte, toCommit *walleapi.Entry) {
+	ts time.Time, committedEntryId int64, committedEntryXX uint64, toCommit *walleapi.Entry) {
 	w.committedEntryMx.Lock()
 	defer w.committedEntryMx.Unlock()
 	if ts.After(w.commitTime) {
@@ -302,18 +302,28 @@ func (w *Writer) updateCommittedEntryId(
 	}
 	if committedEntryId > w.committedEntryId {
 		w.committedEntryId = committedEntryId
-		w.committedEntryMd5 = committedEntryMd5
+		w.committedEntryXX = committedEntryXX
 	}
 	if toCommit.EntryId > w.toCommit.EntryId {
 		w.toCommit = toCommit
 	}
 }
 
-func CalculateChecksumMd5(prevMd5 []byte, data []byte) []byte {
-	h := md5.New()
-	h.Write(prevMd5)
+func CalculateChecksumXX(prevXX uint64, data []byte) uint64 {
+	h := xxhash.New()
+	b := []byte{
+		byte(prevXX),
+		byte(prevXX >> 8),
+		byte(prevXX >> 16),
+		byte(prevXX >> 24),
+		byte(prevXX >> 32),
+		byte(prevXX >> 40),
+		byte(prevXX >> 48),
+		byte(prevXX >> 56),
+	}
+	h.Write(b)
 	h.Write(data)
-	return h.Sum(nil)
+	return h.Sum64()
 }
 
 // Limiter for maximum number and size of requests that are in-flight.

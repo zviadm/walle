@@ -19,8 +19,8 @@ message Entry {
 	int64 entry_id = 1;
 	bytes writer_id = 2;
 	bytes data = 3;
-	// checksum_md5 is a rolling md5 for all `data`.
-	bytes checksum_md5 = 4;
+	// checksum_x_x is a rolling xxHash64 for all `data`.
+	uint64 checksum_x_x = 4;
 }
 
 message ClaimWriterRequest {
@@ -49,7 +49,7 @@ message PutEntryRequest {
 	string stream_uri = 1;
 	Entry entry = 2;
 	int64 committed_entry_id = 3;
-	bytes committed_entry_md5 = 4;
+	uint64 committed_entry_x_x = 4;
 }
 message PutEntryResponse {
 }

@@ -40,35 +40,35 @@ func TestRpcSizeLimits(t *testing.T) {
 	entries := []*walleapi.Entry{putCtx.Entry}
 	for i := 1; i <= 8; i++ {
 		data := make([]byte, wallelib.MaxEntrySize) // Put 8MB worth of data.
-		checksum := wallelib.CalculateChecksumMd5(entries[i-1].ChecksumMd5, data)
+		checksum := wallelib.CalculateChecksumXX(entries[i-1].ChecksumXX, data)
 		entry := &walleapi.Entry{
-			EntryId:     entries[i-1].EntryId + 1,
-			WriterId:    w.Committed().WriterId,
-			Data:        data,
-			ChecksumMd5: checksum,
+			EntryId:    entries[i-1].EntryId + 1,
+			WriterId:   w.Committed().WriterId,
+			Data:       data,
+			ChecksumXX: checksum,
 		}
 		entries = append(entries, entry)
 		_, err := c.PutEntry(ctx, &walleapi.PutEntryRequest{
-			StreamUri:         streamURI,
-			Entry:             entry,
-			CommittedEntryId:  putCtx.Entry.EntryId,
-			CommittedEntryMd5: putCtx.Entry.ChecksumMd5,
+			StreamUri:        streamURI,
+			Entry:            entry,
+			CommittedEntryId: putCtx.Entry.EntryId,
+			CommittedEntryXX: putCtx.Entry.ChecksumXX,
 		})
 		require.NoError(t, err)
 	}
 	tooLarge := make([]byte, wallelib.MaxEntrySize+1)
-	checksum := wallelib.CalculateChecksumMd5(entries[len(entries)-1].ChecksumMd5, tooLarge)
+	checksum := wallelib.CalculateChecksumXX(entries[len(entries)-1].ChecksumXX, tooLarge)
 	eTooLarge := &walleapi.Entry{
-		EntryId:     entries[len(entries)-1].EntryId + 1,
-		WriterId:    w.Committed().WriterId,
-		Data:        tooLarge,
-		ChecksumMd5: checksum,
+		EntryId:    entries[len(entries)-1].EntryId + 1,
+		WriterId:   w.Committed().WriterId,
+		Data:       tooLarge,
+		ChecksumXX: checksum,
 	}
 	_, err = c.PutEntry(ctx, &walleapi.PutEntryRequest{
-		StreamUri:         streamURI,
-		Entry:             eTooLarge,
-		CommittedEntryId:  putCtx.Entry.EntryId,
-		CommittedEntryMd5: putCtx.Entry.ChecksumMd5,
+		StreamUri:        streamURI,
+		Entry:            eTooLarge,
+		CommittedEntryId: putCtx.Entry.EntryId,
+		CommittedEntryXX: putCtx.Entry.ChecksumXX,
 	})
 	// Make sure MaxEntrySize limits work, and Put gets rejected.
 	require.Error(t, err)

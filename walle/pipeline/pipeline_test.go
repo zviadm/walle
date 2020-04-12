@@ -17,7 +17,7 @@ func fakeFetch(
 	ctx context.Context,
 	streamURI string,
 	committedId int64,
-	committedMd5 []byte) (*walleapi.Entry, error) {
+	committedXX uint64) (*walleapi.Entry, error) {
 	return nil, errors.New("not implemented")
 
 }
@@ -57,12 +57,12 @@ func benchmarkFullPipeline(b *testing.B, nStreams int) {
 	var entries []*walleapi.Entry
 	entry := storage.Entry0
 	for i := 0; i < b.N/nStreams+1; i++ {
-		checksum := wallelib.CalculateChecksumMd5(entry.ChecksumMd5, entry.Data)
+		checksum := wallelib.CalculateChecksumXX(entry.ChecksumXX, entry.Data)
 		entry = &walleapi.Entry{
-			EntryId:     entry.EntryId + 1,
-			WriterId:    entry.WriterId,
-			ChecksumMd5: checksum,
-			Data:        entry.Data,
+			EntryId:    entry.EntryId + 1,
+			WriterId:   entry.WriterId,
+			ChecksumXX: checksum,
+			Data:       entry.Data,
 		}
 		entries = append(entries, entry)
 	}

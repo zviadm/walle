@@ -53,8 +53,8 @@ func cmdScan(
 		exitOnErr(err)
 		if i%10000 == 0 {
 			fmt.Printf(
-				"%d: w:%s checksum:%s\n",
-				entry.EntryId, hex.EncodeToString(entry.WriterId), hex.EncodeToString(entry.ChecksumMd5))
+				"%d: w:%s checksum:%d\n",
+				entry.EntryId, hex.EncodeToString(entry.WriterId), entry.ChecksumXX)
 		}
 		finalEntry = entry
 	}
@@ -64,7 +64,7 @@ func cmdScan(
 	entryB, err := finalEntry.Marshal()
 	exitOnErr(err)
 	fmt.Printf(
-		"%d: w:%s checksum:%s\nDATA (%d): %v\nENCODED (%d): %v\n",
-		finalEntry.EntryId, hex.EncodeToString(finalEntry.WriterId), hex.EncodeToString(finalEntry.ChecksumMd5),
+		"%d: w:%s checksum:%d\nDATA (%d): %v\nENCODED (%d): %v\n",
+		finalEntry.EntryId, hex.EncodeToString(finalEntry.WriterId), finalEntry.ChecksumXX,
 		len(finalEntry.Data), finalEntry.Data, len(entryB), entryB)
 }
