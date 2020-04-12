@@ -72,7 +72,7 @@ func (s *Server) updateTopology(t *walleapi.Topology, topoMgr *topomgr.Manager) 
 			continue
 		}
 		if topoMgr != nil && strings.HasPrefix(streamURI, topomgr.Prefix) {
-			topoMgr.StopManaging(streamURI)
+			topoMgr.Manage(streamURI)
 		}
 	}
 }
