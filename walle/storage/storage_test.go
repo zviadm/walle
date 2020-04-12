@@ -230,12 +230,12 @@ func TestStreamOpenClose(t *testing.T) {
 	require.False(t, ss2.IsClosed())
 }
 
-// BenchmarkPutEntryNoCommit-4 - 249379 - 4531 ns/op - 3.00 cgocalls/s - 256 B/op - 4 allocs/op
+// BenchmarkPutEntryNoCommit-4 - 249379 - 4531 ns/op - 1.00 cgocalls/op - 256 B/op - 4 allocs/op
 func BenchmarkPutEntryNoCommit(b *testing.B) {
 	benchmarkPutEntry(b, false)
 }
 
-// BenchmarkPutEntryCommitted-4 - 132169 - 10323 ns/op - 6.00 cgocalls/s - 352 B/op - 5 allocs/op
+// BenchmarkPutEntryCommitted-4 - 132169 - 10323 ns/op - 2.00 cgocalls/op - 384 B/op - 6 allocs/op
 func BenchmarkPutEntryCommitted(b *testing.B) {
 	benchmarkPutEntry(b, true)
 }
@@ -271,5 +271,5 @@ func benchmarkPutEntry(b *testing.B, committed bool) {
 			b.Fatal(err)
 		}
 	}
-	b.ReportMetric(float64(runtime.NumCgoCall()-cgoCalls0)/float64(b.N), "cgocalls/s")
+	b.ReportMetric(float64(runtime.NumCgoCall()-cgoCalls0)/float64(b.N), "cgocalls/op")
 }
