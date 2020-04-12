@@ -19,11 +19,11 @@ func TestRpcSizeLimits(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	defer servicelib.KillAll()
-	_, rootPb, rootCli := itest.SetupRootNodes(t, ctx, 3)
+	_, rootPb, rootCli := itest.SetupRootNodes(ctx, t, 3)
 
 	streamURI := "/t1/size_limits"
 	itest.CreateStream(
-		t, ctx, rootCli, rootPb.RootUri, streamURI,
+		ctx, t, rootCli, rootPb.RootUri, streamURI,
 		rootPb.Streams[rootPb.RootUri].ServerIds)
 	w, err := wallelib.WaitAndClaim(
 		ctx, rootCli, streamURI, "blastwriter:1001", time.Second)
