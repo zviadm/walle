@@ -97,7 +97,7 @@ func TestStreamTimeouts(t *testing.T) {
 	require.EqualValues(t, codes.OutOfRange, status.Convert(res.Err()).Code())
 }
 
-// BenchmarkQueue-4 - 1409140 - 1162 ns/op - 296 B/op - 6 allocs/op
+// BenchmarkQueue-4 - 1117670 - 1526 ns/op - 257 B/op - 4 allocs/op
 func BenchmarkQueue(b *testing.B) {
 	q := newQueue("/test/1")
 	qSize := 1024

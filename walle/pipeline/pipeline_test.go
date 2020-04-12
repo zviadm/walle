@@ -22,17 +22,17 @@ func fakeFetch(
 
 }
 
-// BenchmarkFullPipeline_1-4 - 144762 - 11560 ns/op - 1.00 cgocalls/op - 690 B/op - 9 allocs/op
+// BenchmarkFullPipeline_1-4 - 1.00 cgocalls/op	- 414 B/op - 5 allocs/op
 func BenchmarkFullPipeline_1(b *testing.B) {
 	benchmarkFullPipeline(b, 1)
 }
 
-// BenchmarkFullPipeline_10-4 - 176266 - 8479 ns/op - 1.00 cgocalls/op - 513 B/op - 8 allocs/op
+// BenchmarkFullPipeline_10-4 - 1.00 cgocalls/op - 513 B/op - 5 allocs/op
 func BenchmarkFullPipeline_10(b *testing.B) {
 	benchmarkFullPipeline(b, 100)
 }
 
-// BenchmarkFullPipeline_100-4 - 234454 - 5444 ns/op - 1.00 cgocalls/op - 509 B/op - 8 allocs/op
+// BenchmarkFullPipeline_100-4 - 1.00 cgocalls/op - 375 B/op - 5 allocs/op
 func BenchmarkFullPipeline_100(b *testing.B) {
 	benchmarkFullPipeline(b, 100)
 }
