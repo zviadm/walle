@@ -19,9 +19,14 @@ var flagManagerLease = flag.Duration(
 		"unless root cluster is deployed across really high latency network.")
 
 const (
+	// Prefix for all cluster topology streams.
 	Prefix = "/cluster/"
 )
 
+// Manager provides implementation for TopoManagerServer, and also
+// provides functions to manage specific cluster topologies.
+// Manage, StopManaging & Close calls aren't thread-safe, and
+// must be called from a single thread only.
 type Manager struct {
 	c    wallelib.Client
 	addr string
@@ -38,6 +43,7 @@ type clusterData struct {
 	putCtx     *wallelib.PutCtx   // putCtx of last putEntry call
 }
 
+// NewManager creates new Manager object.
 func NewManager(c wallelib.Client, addr string) *Manager {
 	return &Manager{
 		c:        c,
@@ -46,14 +52,14 @@ func NewManager(c wallelib.Client, addr string) *Manager {
 	}
 }
 
-// Manage, StopManaging & Close calls aren't thread-safe, must be called from a single thread only.
+// Close closes manager and all its underlying go routines.
 func (m *Manager) Close() {
-	for clusterURI, _ := range m.clusters {
+	for clusterURI := range m.clusters {
 		m.StopManaging(clusterURI)
 	}
 }
 
-// Manage, StopManaging & Close calls aren't thread-safe, must be called from a single thread only.
+// Manage stats go routine to handle topology management for a given clusterURI.
 func (m *Manager) Manage(clusterURI string) {
 	if _, ok := m.clusters[clusterURI]; ok {
 		return
@@ -104,7 +110,7 @@ func (m *Manager) manageLoop(
 	}
 }
 
-// manage & stopManaging calls aren't thread-safe, must be called from a single thread only.
+// StopManaging stops managing given clusterURI.
 func (m *Manager) StopManaging(clusterURI string) {
 	perTopo, ok := m.clusters[clusterURI]
 	if !ok {

@@ -18,6 +18,7 @@ type client struct {
 	c wallelib.Client
 }
 
+// NewClient returns client that can be used to talk to TopoManagerServer.
 func NewClient(root wallelib.Client) topomgr.TopoManagerClient {
 	return &client{root}
 }

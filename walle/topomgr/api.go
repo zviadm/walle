@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// RegisterServer implements topomgr.TomoManagerServer interface.
 func (m *Manager) RegisterServer(
 	ctx context.Context,
 	req *topomgr.RegisterServerRequest) (*empty.Empty, error) {
@@ -48,6 +49,7 @@ func (m *Manager) registerServer(req *topomgr.RegisterServerRequest) (*wallelib.
 	return c.commitTopology(topology)
 }
 
+// FetchTopology implements topomgr.TomoManagerServer interface.
 func (m *Manager) FetchTopology(
 	ctx context.Context,
 	req *topomgr.FetchTopologyRequest) (*walleapi.Topology, error) {
@@ -65,6 +67,7 @@ func (m *Manager) FetchTopology(
 	return topology, nil
 }
 
+// UpdateServerIds implements topomgr.TomoManagerServer interface.
 func (m *Manager) UpdateServerIds(
 	ctx context.Context,
 	req *topomgr.UpdateServerIdsRequest) (*empty.Empty, error) {
