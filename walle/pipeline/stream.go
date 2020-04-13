@@ -90,8 +90,11 @@ func (p *stream) process(ctx context.Context) {
 	for ctx.Err() == nil && !p.ss.IsClosed() {
 		reqs, qNotify = p.q.PopReady(p.ss.TailEntryId(), forceSkip, reqs)
 		if len(reqs) == 0 {
-			if skipTimeout == nil && p.q.CanSkip() {
-				skipTimeout = time.After(p.skipTimeoutAdjusted())
+			if skipTimeout == nil {
+				readyId, _ := p.q.MaxReadyCommittedId()
+				if readyId > p.ss.TailEntryId() {
+					skipTimeout = time.After(p.skipTimeoutAdjusted())
+				}
 			}
 			if maxTimeout == nil && !p.q.IsEmpty() {
 				maxTimeout = time.After(QueueMaxTimeout)

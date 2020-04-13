@@ -13,11 +13,12 @@ import (
 )
 
 type queue struct {
-	mx    sync.Mutex
-	minId int64 // Lower bound on smallest EntryId stored in `v`
-	v     map[int64]queueItem
-	// Notifications are sent if either smallest element changes in the queue
-	// or if any of max committedId-s changes.
+	mx            sync.Mutex
+	v             map[int64]queueItem
+	minId         int64 // Lower bound on smallest item in `v`.
+	minIdToNotify int64 // If item with EntryId <= minIdToNotify shows up, send notify.
+	// Notifications are sent if either minIdToNotify triggers or if any of max
+	// committedId-s change.
 	notifyC chan struct{}
 
 	maxReadyCommittedId int64
@@ -35,11 +36,12 @@ type queueItem struct {
 
 const (
 	itemOverhead = 128
+	maxEntryId   = int64(math.MaxInt64 / 2) // avoid any accidental overflow bugs.
 )
 
 func newQueue(streamURI string) *queue {
 	return &queue{
-		minId:   int64(math.MaxInt64),
+		minId:   maxEntryId,
 		v:       make(map[int64]queueItem),
 		notifyC: make(chan struct{}),
 
@@ -69,12 +71,6 @@ func (q *queue) IsEmpty() bool {
 	return len(q.v) == 0
 }
 
-func (q *queue) CanSkip() bool {
-	q.mx.Lock()
-	defer q.mx.Unlock()
-	return q.maxReadyCommittedId >= q.minId
-}
-
 func (q *queue) MaxCommittedId() (int64, <-chan struct{}) {
 	q.mx.Lock()
 	defer q.mx.Unlock()
@@ -82,6 +78,11 @@ func (q *queue) MaxCommittedId() (int64, <-chan struct{}) {
 		return 0, q.notifyC
 	}
 	return q.maxCommittedId, q.notifyC
+}
+func (q *queue) MaxReadyCommittedId() (int64, <-chan struct{}) {
+	q.mx.Lock()
+	defer q.mx.Unlock()
+	return q.maxReadyCommittedId, q.notifyC
 }
 func (q *queue) EntryXX(entryId int64) (uint64, bool) {
 	q.mx.Lock()
@@ -96,6 +97,7 @@ func (q *queue) EntryXX(entryId int64) (uint64, bool) {
 func (q *queue) PopReady(tailId int64, forceSkip bool, r []queueItem) ([]queueItem, <-chan struct{}) {
 	q.mx.Lock()
 	defer q.mx.Unlock()
+	q.minIdToNotify = tailId + 1
 	if r != nil {
 		r = r[:0]
 	}
@@ -109,7 +111,7 @@ func (q *queue) PopReady(tailId int64, forceSkip bool, r []queueItem) ([]queueIt
 	}
 	r = q.popEntriesTill(r, popTillId)
 	if len(r) == 0 && forceSkip {
-		popTillId := int64(math.MaxInt64)
+		popTillId := maxEntryId
 		item, ok := q.v[q.maxReadyCommittedId]
 		if ok {
 			q.remove(item.R)
@@ -189,9 +191,8 @@ func (q *queue) Queue(r *request) *ResultCtx {
 		}
 	}
 	q.v[item.R.EntryId] = item
-	if item.R.EntryId <= q.minId {
+	if item.R.EntryId < q.minId {
 		q.minId = item.R.EntryId
-		shouldNotify = true
 	}
 	if item.R.Committed && (item.R.EntryId > q.maxCommittedId) {
 		q.maxCommittedId = item.R.EntryId
@@ -201,7 +202,7 @@ func (q *queue) Queue(r *request) *ResultCtx {
 		q.maxReadyCommittedId = item.R.EntryId
 		shouldNotify = true
 	}
-	if shouldNotify {
+	if shouldNotify || item.R.EntryId < q.minIdToNotify {
 		q.notify()
 	}
 	return item.Res
