@@ -202,7 +202,7 @@ func (q *queue) Queue(r *request) *ResultCtx {
 		q.maxReadyCommittedId = item.R.EntryId
 		shouldNotify = true
 	}
-	if shouldNotify || item.R.EntryId < q.minIdToNotify {
+	if shouldNotify || item.R.EntryId <= q.minIdToNotify {
 		q.notify()
 	}
 	return item.Res
