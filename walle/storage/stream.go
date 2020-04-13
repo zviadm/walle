@@ -28,9 +28,9 @@ type streamStorage struct {
 	roMX   sync.Mutex
 	sessRO *wt.Session
 
-	mx       sync.Mutex
-	topology *walleapi.StreamTopology
+	topology atomic.Value // type is: *walleapi.StreamTopology
 
+	mx              sync.Mutex
 	writerId        WriterId
 	writerAddr      string
 	writerLease     time.Duration
@@ -161,14 +161,10 @@ func (m *streamStorage) IsClosed() bool {
 }
 
 func (m *streamStorage) Topology() *walleapi.StreamTopology {
-	m.mx.Lock()
-	defer m.mx.Unlock()
-	return m.topology
+	return m.topology.Load().(*walleapi.StreamTopology)
 }
 func (m *streamStorage) setTopology(t *walleapi.StreamTopology) {
-	m.mx.Lock()
-	defer m.mx.Unlock()
-	m.topology = t
+	m.topology.Store(t)
 }
 
 func (m *streamStorage) WriterInfo() (WriterId, string, time.Duration, time.Duration) {

@@ -28,6 +28,10 @@ func TestStorageOpen(t *testing.T) {
 	require.NoError(t, err)
 	defer s.Close()
 	require.EqualValues(t, s.Streams(false), []string{"/s/1"})
+
+	ss, ok := s.Stream("/s/1")
+	require.True(t, ok)
+	require.EqualValues(t, 1, ss.Topology().Version)
 }
 
 func TestStreamStorage(t *testing.T) {
