@@ -78,3 +78,23 @@ func BenchmarkPutEntryPipeline(b *testing.B) {
 	}
 	b.ReportMetric(float64(runtime.NumCgoCall()-cgoCalls0)/float64(b.N), "cgocalls/op")
 }
+
+func TestPutCtxClose(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	_, c := newMockSystem(ctx, topo1Node, storage.TestTmpDir())
+
+	w, err := wallelib.WaitAndClaim(ctx, c, "/mock/1", "testhost:1001", time.Second)
+	require.NoError(t, err)
+	puts := make([]*wallelib.PutCtx, 1000)
+	for i := range puts {
+		puts[i] = w.PutEntry(benchData)
+	}
+	w.Close() // close writer before PutEntry calls are done.
+	for _, putCtx := range puts {
+		<-putCtx.Done()
+	}
+	pCtx := w.PutEntry(benchData)
+	<-pCtx.Done()
+	require.Error(t, pCtx.Err())
+}

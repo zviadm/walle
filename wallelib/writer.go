@@ -52,6 +52,7 @@ type Writer struct {
 
 	tailEntry *walleapi.Entry
 	reqQ      chan *PutCtx
+	reqQmx    sync.Mutex // exists to coordinate writer close.
 	limiter   *limiter
 
 	committedEntryMx sync.Mutex
@@ -167,6 +168,17 @@ func (w *Writer) Committed() *walleapi.Entry {
 }
 
 func (w *Writer) processor(ctx context.Context) {
+	defer func() {
+		w.reqQmx.Lock()
+		defer w.reqQmx.Unlock()
+		if ctx.Err() == nil {
+			panic("Must exit only when context is done!")
+		}
+		close(w.reqQ)
+		for req := range w.reqQ {
+			req.set(ctx.Err())
+		}
+	}()
 	for {
 		select {
 		case <-ctx.Done():
@@ -312,7 +324,13 @@ func (w *Writer) PutEntry(data []byte) *PutCtx {
 		Entry: entry,
 		done:  make(chan struct{}),
 	}
-	w.reqQ <- r
+	w.reqQmx.Lock()
+	defer w.reqQmx.Unlock()
+	if err := w.rootCtx.Err(); err != nil {
+		r.set(err)
+	} else {
+		w.reqQ <- r
+	}
 	return r
 }
 
