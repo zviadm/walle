@@ -51,7 +51,7 @@ func BenchmarkPutEntrySerial(b *testing.B) {
 	b.ReportMetric(float64(runtime.NumCgoCall()-cgoCalls0)/float64(b.N), "cgocalls/op")
 }
 
-// BenchmarkPutEntryPipeline-4 - 1.31 cgocalls/op - 2382 B/op - 38 allocs/op
+// BenchmarkPutEntryPipeline-4 - 1.24 cgocalls/op - 1827 B/op - 30 allocs/op
 func BenchmarkPutEntryPipeline(b *testing.B) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

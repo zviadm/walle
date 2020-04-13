@@ -24,13 +24,16 @@ type streamStorage struct {
 	streamR   *wt.Scanner
 	streamW   *wt.Mutator
 
-	// separate read only session and lock for ReadFrom calls.
+	// Separate read only session and lock for ReadFrom calls.
 	roMX   sync.Mutex
 	sessRO *wt.Session
 
-	topology atomic.Value // type is: *walleapi.StreamTopology
+	// mx protects all non-atomic variables below. and also protects
+	// WT sess and all its cursors.
+	mx       sync.Mutex
+	buf8     []byte
+	topology atomic.Value // Type is: *walleapi.StreamTopology
 
-	mx              sync.Mutex
 	writerId        WriterId
 	writerAddr      string
 	writerLease     time.Duration
@@ -40,10 +43,8 @@ type streamStorage struct {
 	gapEndId        int64
 	committedNotify chan struct{}
 
-	entryBuf    *walleapi.Entry
 	tailEntry   *walleapi.Entry
 	tailEntryId atomic.Int64
-	buf8        []byte
 
 	committedIdG metrics.Gauge
 	gapStartIdG  metrics.Gauge
@@ -299,16 +300,15 @@ func (m *streamStorage) commitEntry(entryId int64, entryXX uint64, newGap bool) 
 	if entryId > m.tailEntry.EntryId {
 		return status.Errorf(codes.OutOfRange, "commit entryId: %d > %d", entryId, m.tailEntry.EntryId)
 	}
-	existingEntry := m.readEntry(entryId)
-	if existingEntry == nil {
+	existingEntryXX, ok := m.readEntryXX(entryId)
+	if !ok {
 		return status.Errorf(
-			codes.Internal, "uncommitted entry %d: missing [%d..%d]", entryId, m.committed, m.tailEntry.EntryId)
+			codes.DataLoss, "uncommitted entry %d: missing [%d..%d]", entryId, m.committed, m.tailEntry.EntryId)
 	}
-	if existingEntry.ChecksumXX != entryXX {
+	if existingEntryXX != entryXX {
 		return status.Errorf(
-			codes.OutOfRange, "commit checksum mismatch for entry: %d, %d != %d, %s vs %s",
-			entryId, entryXX, existingEntry.ChecksumXX,
-			m.writerId, WriterId(existingEntry.WriterId))
+			codes.OutOfRange, "commit checksum mismatch for entry: %d, %d != %d, %s",
+			entryId, entryXX, existingEntryXX, m.writerId)
 	}
 	if newGap {
 		panic.OnNotOk(m.sess.InTx(), "new gap must happen inside a transaction")
@@ -371,23 +371,24 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error 
 		return nil
 	}
 
-	prevEntry := m.readEntry(entry.EntryId - 1)
-	panic.OnNotOk(prevEntry != nil, "gap in uncommitted entries!")
-	expectedXX := wallelib.CalculateChecksumXX(prevEntry.ChecksumXX, entry.Data)
+	prevEntryXX, ok := m.readEntryXX(entry.EntryId - 1)
+	if !ok {
+		return status.Errorf(
+			codes.DataLoss, "uncommitted entry %d: missing [%d..%d]", entry.EntryId-1, m.committed, m.tailEntry.EntryId)
+	}
+	expectedXX := wallelib.CalculateChecksumXX(prevEntryXX, entry.Data)
 	if expectedXX != entry.ChecksumXX {
 		if !isCommitted {
 			return status.Errorf(
-				codes.OutOfRange, "put checksum mismatch for entry: %d, %d != %d, %s vs %s",
-				entry.EntryId, entry.ChecksumXX, expectedXX,
-				entryWriterId, WriterId(prevEntry.WriterId))
+				codes.OutOfRange, "put checksum mismatch for new entry: %d, %d != %d, %s",
+				entry.EntryId, entry.ChecksumXX, expectedXX, entryWriterId)
 		}
-		if prevEntry.EntryId <= m.committed {
+		if entry.EntryId-1 <= m.committed {
 			// This mustn't happen. Otherwise probably a sign of data corruption or serious data
 			// consistency bugs.
 			return status.Errorf(
-				codes.Internal, "put checksum mismatch for committed entry: %d, %d != %d, %s vs %s",
-				entry.EntryId, entry.ChecksumXX, expectedXX,
-				entryWriterId, WriterId(prevEntry.WriterId))
+				codes.DataLoss, "put checksum mismatch for committed entry: %d, %d != %d, %s",
+				entry.EntryId, entry.ChecksumXX, expectedXX, entryWriterId)
 		}
 		m.makeGapCommit(entry)
 		return nil
@@ -453,6 +454,13 @@ func (m *streamStorage) readEntry(entryId int64) *walleapi.Entry {
 	entry := unmarshalValue(m.streamURI, m.committed, m.streamR)
 	panic.OnErr(m.streamR.Reset())
 	return entry
+}
+func (m *streamStorage) readEntryXX(entryId int64) (uint64, bool) {
+	entry := m.readEntry(entryId)
+	if entry == nil {
+		return 0, false
+	}
+	return entry.ChecksumXX, true
 }
 func (m *streamStorage) insertEntry(entry *walleapi.Entry) {
 	if entry.EntryId > m.tailEntry.EntryId {
