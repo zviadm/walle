@@ -120,10 +120,8 @@ func (c *client) update(topology *walleapi.Topology) {
 	c.preferred = preferred
 	// Close and clear out all connections to serverIds that are no longer registered in topology.
 	for serverId, conn := range c.conns {
-		_, ok := topology.Servers[serverId]
-		// TODO(zviad): we should also close connections that may now have incorrect
-		// targets, if server address has changed.
-		if !ok {
+		info, ok := topology.Servers[serverId]
+		if !ok || info.Address != conn.Target() {
 			conn.Close()
 			delete(c.conns, serverId)
 		}
