@@ -273,13 +273,13 @@ func (w *Writer) process(ctx context.Context, req *PutCtx) {
 			defer cancel()
 			now := time.Now()
 			w.inflightPuts.Add(1)
+			defer w.inflightPuts.Add(-1)
 			_, err = cli.PutEntry(putCtx, &walleapi.PutEntryRequest{
 				StreamUri:        w.streamURI,
 				Entry:            req.Entry,
 				CommittedEntryId: toCommit.EntryId,
 				CommittedEntryXX: toCommit.ChecksumXX,
 			})
-			w.inflightPuts.Add(-1)
 			if err != nil {
 				_, _, _, toCommit := w.safeCommittedEntryId()
 				if req.Entry.EntryId <= toCommit.EntryId {
