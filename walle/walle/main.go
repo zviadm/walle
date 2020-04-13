@@ -30,8 +30,6 @@ import (
 	"github.com/zviadm/walle/wallelib"
 )
 
-var memBallast []byte
-
 func main() {
 	var storageDir = flag.String("walle.storage_dir", "", "Path where database and discovery data will be stored.")
 	var host = flag.String(
@@ -46,9 +44,9 @@ func main() {
 
 	// Tuning flags.
 	var targetMemMB = flag.Int(
-		"walle.target_mem_mb", 200, "Target maximum total memory usage.")
+		"walle.target_mem_mb", 200, "Target maximum total memory usage. Recommended to be set at 60% of total memory size.")
 	var maxLocalStreams = flag.Int(
-		"walle.max_local_streams", 10, "Maximum number of streams that this server can handle.")
+		"walle.max_local_streams", 100, "Maximum number of streams that this server can handle.")
 
 	// Profiling/Debugging flags.
 	var debugAddr = flag.String(
@@ -85,13 +83,10 @@ func main() {
 
 	// Memory allocation:
 	// 50% goes to WT Cache. (non-GO memory)
-	// 50% goes to GO heap:
-	//   - 25% GC overhead
-	//   - 25% for pipeline queue + active requests.
-	debug.SetGCPercent(100)         // GOGC=100, not tuneable.
-	cacheSizeMB := *targetMemMB / 4 // TODO(zviad): This should be /2. Figure out what else is taking up space in WT.
-	// Create memory ballast, to avoid GC performance issues due to very small heap.
-	memBallast = make([]byte, *targetMemMB*1024*1024/8)
+	// 50% goes to memory ballast + GC overhead.
+	debug.SetGCPercent(100) // GOGC=100, not tuneable.
+	cacheSizeMB := *targetMemMB / 2
+	_ = make([]byte, *targetMemMB*1024*1024/4)
 
 	zlog.Infof("initializing storage: %s...", dbPath)
 	ss, err := storage.Init(dbPath, storage.InitOpts{

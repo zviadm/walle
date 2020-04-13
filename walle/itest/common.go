@@ -81,6 +81,7 @@ func RunWalle(
 			"-walle.storage.extra_validations",
 			"-stats.instance_name", "walle" + strconv.Itoa(port),
 			"-debug.addr", "127.0.0.1:" + strconv.Itoa(port+1000),
+			"-walle.target_mem_mb=100",
 		},
 		strconv.Itoa(port))
 }

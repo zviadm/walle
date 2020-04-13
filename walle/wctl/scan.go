@@ -66,5 +66,5 @@ func cmdScan(
 	fmt.Printf(
 		"%d: w:%s checksum:%d\nDATA (%d): %v\nENCODED (%d): %v\n",
 		finalEntry.EntryId, hex.EncodeToString(finalEntry.WriterId), finalEntry.ChecksumXX,
-		len(finalEntry.Data), finalEntry.Data, len(entryB), entryB)
+		len(finalEntry.Data), finalEntry.Data[:100], len(entryB), entryB[:100])
 }
