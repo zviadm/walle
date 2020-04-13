@@ -75,6 +75,8 @@ func (s *Server) NewWriter(
 		return nil, err
 	}
 	reqWriterId := storage.WriterId(req.WriterId)
+	zlog.Infof(
+		"[%s] writerId update: %s (%s)", ss.StreamURI(), req.WriterAddr, reqWriterId)
 	remainingLease, err := ss.UpdateWriter(reqWriterId, req.WriterAddr, time.Duration(req.LeaseMs)*time.Millisecond)
 	if err != nil {
 		return nil, err
@@ -324,7 +326,8 @@ func (s *Server) checkAndUpdateWriterId(
 			return status.Errorf(codes.Internal, "writerId is newer than majority?: %s > %s", writerId, ssWriterId)
 		}
 		zlog.Infof(
-			"[%s] writerId: updating %s -> %s", ss.StreamURI(), ssWriterId, writerId)
+			"[%s] writerId update: %s (%s) -> %s (%s)",
+			ss.StreamURI(), writerAddr, ssWriterId, resp.WriterAddr, respWriterId)
 		ss.UpdateWriter(respWriterId, resp.WriterAddr, time.Duration(resp.LeaseMs)*time.Millisecond)
 	}
 }

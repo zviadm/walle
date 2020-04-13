@@ -7,8 +7,6 @@ import (
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/zlog"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 const (
@@ -33,34 +31,49 @@ func newStream(
 		fetchCommittedEntry: fetchCommittedEntry,
 		q:                   newQueue(ss.StreamURI()),
 	}
+	go r.backfiller(ctx)
 	go r.process(ctx)
 	return r
 }
 
-func (p *stream) timeoutAdjusted() time.Duration {
+func (p *stream) backfiller(ctx context.Context) {
+	for ctx.Err() == nil {
+		committedId, committedXX, notify := p.q.MaxCommittedId()
+		if committedId <= p.ss.TailEntryId() {
+			select {
+			case <-ctx.Done():
+				return
+			case <-notify:
+			}
+			continue
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(p.skipTimeoutAdjusted()):
+		}
+		if committedId <= p.ss.TailEntryId() {
+			continue
+		}
+		fetchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		entry, err := p.fetchCommittedEntry(
+			fetchCtx, p.ss.StreamURI(), committedId, committedXX)
+		cancel()
+		if err != nil {
+			zlog.Infof("[sp] stream: %s err fetching - %s", p.ss.StreamURI(), err)
+			continue
+		}
+		_ = p.QueuePut(entry, true)
+	}
+}
+
+func (p *stream) skipTimeoutAdjusted() time.Duration {
 	timeout := QueueMaxTimeout
 	_, _, writerLease, _ := p.ss.WriterInfo()
 	if writerLease > 0 && writerLease/4 < timeout {
 		timeout = writerLease / 4
 	}
 	return timeout
-}
-
-func (p *stream) backfillEntry(
-	ctx context.Context, entryId int64, entryXX uint64) error {
-	ctx, cancel := context.WithTimeout(ctx, p.timeoutAdjusted())
-	defer cancel()
-	entry, err := p.fetchCommittedEntry(
-		ctx, p.ss.StreamURI(), entryId, entryXX)
-	if err != nil {
-		return err
-	}
-	err = p.ss.PutEntry(entry, true)
-	if err != nil {
-		return err
-	}
-	zlog.Infof("[sp] stream: %s caught up to: %d (might have created a gap)", p.ss.StreamURI(), entryId)
-	return nil
 }
 
 func (p *stream) process(ctx context.Context) {
@@ -74,7 +87,7 @@ func (p *stream) process(ctx context.Context) {
 		reqs, qNotify = p.q.PopReady(p.ss.TailEntryId(), forceSkip, reqs)
 		if len(reqs) == 0 {
 			if skipTimeout == nil && p.q.CanSkip() {
-				skipTimeout = time.After(p.timeoutAdjusted())
+				skipTimeout = time.After(p.skipTimeoutAdjusted())
 			}
 			if maxTimeout == nil && !p.q.IsEmpty() {
 				maxTimeout = time.After(QueueMaxTimeout)
@@ -99,9 +112,6 @@ func (p *stream) process(ctx context.Context) {
 			var err error
 			if req.R.Entry == nil {
 				err = p.ss.CommitEntry(req.R.EntryId, req.R.EntryXX)
-				if err != nil && status.Convert(err).Code() == codes.OutOfRange {
-					err = p.backfillEntry(ctx, req.R.EntryId, req.R.EntryXX)
-				}
 			} else {
 				err = p.ss.PutEntry(req.R.Entry, req.R.Committed)
 			}

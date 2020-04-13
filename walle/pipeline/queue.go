@@ -12,9 +12,11 @@ import (
 )
 
 type queue struct {
-	mx      sync.Mutex
-	minId   int64 // Lower bound on smallest EntryId stored in `v`
-	v       map[int64]queueItem
+	mx    sync.Mutex
+	minId int64 // Lower bound on smallest EntryId stored in `v`
+	v     map[int64]queueItem
+	// Notifications are sent if either smallest element changes in the queue
+	// or new committed entry gets added into the queue.
 	notifyC chan struct{}
 
 	maxReadyCommittedId int64
@@ -69,10 +71,23 @@ func (q *queue) IsEmpty() bool {
 func (q *queue) CanSkip() bool {
 	q.mx.Lock()
 	defer q.mx.Unlock()
-	return q.maxCommittedId >= q.minId
+	return q.maxReadyCommittedId >= q.minId
 }
 
-func (q *queue) PopReady(tailId int64, forceSkip bool, r []queueItem) ([]queueItem, chan struct{}) {
+func (q *queue) MaxCommittedId() (int64, uint64, <-chan struct{}) {
+	q.mx.Lock()
+	defer q.mx.Unlock()
+	if q.maxCommittedId <= q.maxReadyCommittedId || q.maxCommittedId < q.minId {
+		return 0, 0, q.notifyC
+	}
+	item, ok := q.v[q.maxCommittedId]
+	if !ok {
+		return 0, 0, q.notifyC
+	}
+	return item.R.EntryId, item.R.EntryXX, q.notifyC
+}
+
+func (q *queue) PopReady(tailId int64, forceSkip bool, r []queueItem) ([]queueItem, <-chan struct{}) {
 	q.mx.Lock()
 	defer q.mx.Unlock()
 	if len(q.v) == 0 {
@@ -89,12 +104,8 @@ func (q *queue) PopReady(tailId int64, forceSkip bool, r []queueItem) ([]queueIt
 	}
 	if len(r) == 0 && forceSkip {
 		popTillId := int64(math.MaxInt64)
-		item, ok := q.v[q.maxCommittedId]
+		item, ok := q.v[q.maxReadyCommittedId]
 		if ok {
-			itemReady, ok := q.v[q.maxReadyCommittedId]
-			if ok {
-				item = itemReady
-			}
 			q.remove(item.R)
 			r = append(r, item)
 			popTillId = item.R.EntryId

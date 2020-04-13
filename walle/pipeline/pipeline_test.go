@@ -19,20 +19,19 @@ func fakeFetch(
 	committedId int64,
 	committedXX uint64) (*walleapi.Entry, error) {
 	return nil, errors.New("not implemented")
-
 }
 
-// BenchmarkFullPipeline_1-4 - 1.00 cgocalls/op	- 414 B/op - 5 allocs/op
+// BenchmarkFullPipeline_1-4 - 1.00 cgocalls/op	- 4 allocs/op
 func BenchmarkFullPipeline_1(b *testing.B) {
 	benchmarkFullPipeline(b, 1)
 }
 
-// BenchmarkFullPipeline_10-4 - 1.00 cgocalls/op - 513 B/op - 5 allocs/op
+// BenchmarkFullPipeline_10-4 - 1.00 cgocalls/op - 4 allocs/op
 func BenchmarkFullPipeline_10(b *testing.B) {
 	benchmarkFullPipeline(b, 100)
 }
 
-// BenchmarkFullPipeline_100-4 - 1.00 cgocalls/op - 375 B/op - 5 allocs/op
+// BenchmarkFullPipeline_100-4 - 1.00 cgocalls/op - 4 allocs/op
 func BenchmarkFullPipeline_100(b *testing.B) {
 	benchmarkFullPipeline(b, 100)
 }
@@ -82,13 +81,13 @@ func benchmarkFullPipeline(b *testing.B, nStreams int) {
 		}
 		eIdx = eIdxStart + eIdxOffset
 
-		r := p.ForStream(streams[sIdx]).QueuePut(entries[eIdx], false)
+		r := p.ForStream(streams[sIdx]).QueuePut(entries[eIdx], eIdx%1000 == 0)
 		rs = append(rs, r)
 	}
-	for _, r := range rs {
+	for idx, r := range rs {
 		<-r.Done()
 		if r.Err() != nil {
-			b.Fatal(r.Err())
+			b.Fatalf("err: %d %d -- %s", idx, b.N, r.Err())
 		}
 	}
 	b.ReportMetric(float64(runtime.NumCgoCall()-cgoCalls0)/float64(b.N), "cgocalls/op")
