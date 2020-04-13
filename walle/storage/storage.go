@@ -52,7 +52,7 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 	cfg := wt.ConnCfg{
 		Create:     wt.Bool(opts.Create),
 		Log:        "enabled,compressor=snappy",
-		SessionMax: opts.MaxLocalStreams*2 + 10, // +10 is just as a buffer.
+		SessionMax: opts.MaxLocalStreams*2 + 30, // +30 is as a buffer since WT internal threads also use sessions.
 		CacheSize:  opts.CacheSizeMB * 1024 * 1024,
 
 		// Statistics:    []wt.Statistics{wt.StatsFast},
