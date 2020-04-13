@@ -16,10 +16,7 @@ import (
 	"github.com/zviadm/tt/servicelib"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/wallelib"
-	"github.com/zviadm/zlog"
 )
-
-var _ = zlog.Info // Force import of `zlog`.
 
 const (
 	// WallePkg points to `walle` binary, relative to tests in `itest` package.
