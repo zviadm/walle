@@ -49,8 +49,8 @@ var (
 	// Entry0 is root entry for every WALLE stream.
 	Entry0 = &walleapi.Entry{
 		EntryId:    0,
-		WriterId:   make([]byte, writerIdLen),
 		ChecksumXX: 0,
+		WriterId:   make([]byte, writerIdLen),
 	}
 	entry0B, _    = Entry0.Marshal()
 	maxEntryIdKey = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}

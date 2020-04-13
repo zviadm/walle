@@ -3,7 +3,6 @@ package storage
 import (
 	"bytes"
 	"encoding/binary"
-	"flag"
 	"fmt"
 	"sync"
 	"time"
@@ -16,11 +15,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
-
-var flagExtraValidations = flag.Bool(
-	"walle.storage.extra_validations", false,
-	"If True, will perform extra validations and data sanity checks. This adversely affects performance, "+
-		"only recommended for test and staging nodes, serving non production workloads.")
 
 type streamStorage struct {
 	serverId  string
@@ -476,10 +470,6 @@ func (m *streamStorage) unsafeInsertEntry(entry *walleapi.Entry) {
 	binary.BigEndian.PutUint64(m.buf8, uint64(entry.EntryId))
 	entryB, err := entry.Marshal()
 	panic.OnErr(err)
-	if *flagExtraValidations {
-		validateEntry := new(walleapi.Entry)
-		panic.OnErr(validateEntry.Unmarshal(entryB))
-	}
 	panic.OnErr(m.streamW.Insert(m.buf8, entryB))
 }
 
