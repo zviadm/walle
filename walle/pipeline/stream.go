@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/zviadm/stats-go/metrics"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/zlog"
@@ -18,8 +19,8 @@ const (
 type stream struct {
 	ss                  storage.Stream
 	fetchCommittedEntry fetchFunc
-
-	q *queue
+	q                   *queue
+	backfillsC          metrics.Counter
 }
 
 func newStream(
@@ -30,12 +31,16 @@ func newStream(
 		ss:                  ss,
 		fetchCommittedEntry: fetchCommittedEntry,
 		q:                   newQueue(ss.StreamURI()),
+		backfillsC:          backfillsCounter.V(metrics.KV{"stream_uri": ss.StreamURI()}),
 	}
 	go r.backfiller(ctx)
 	go r.process(ctx)
 	return r
 }
 
+// backfiller watches if a committed entry is stuck in queue for too long, and if it is
+// will attempt to backfill it from other servers. This can happen if this server misses
+// PutEntry calls and needs to catch up to other servers by creating a gap.
 func (p *stream) backfiller(ctx context.Context) {
 	for ctx.Err() == nil {
 		committedId, notify := p.q.MaxCommittedId()
@@ -67,6 +72,7 @@ func (p *stream) backfiller(ctx context.Context) {
 			zlog.Infof("[sp] stream: %s err fetching - %s", p.ss.StreamURI(), err)
 			continue
 		}
+		p.backfillsC.Count(1)
 		_ = p.QueuePut(entry, true)
 	}
 }
