@@ -8,6 +8,7 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/zlog"
+	"go.uber.org/atomic"
 	"google.golang.org/grpc/status"
 )
 
@@ -58,6 +59,7 @@ type Writer struct {
 	committedEntryXX uint64
 	toCommit         *walleapi.Entry
 	commitTime       time.Time
+	inflightPuts     atomic.Int64
 
 	rootCtx    context.Context
 	rootCancel context.CancelFunc
@@ -106,7 +108,7 @@ func newWriter(
 		writerLease: writerLease,
 		writerAddr:  writerAddr,
 		writerId:    writerId,
-		longBeat:    writerLease / 8,
+		longBeat:    writerLease / 4,
 
 		tailEntry: tailEntry,
 		// Use very large buffer for reqQ to never block. If user fills this queue up,
@@ -208,21 +210,25 @@ func (w *Writer) heartbeater(ctx context.Context) {
 		}
 		now := time.Now()
 		ts, committedEntryId, _, toCommit := w.safeCommittedEntryId()
-		if ts.Add(shortBeat).After(now) ||
-			(committedEntryId == toCommit.EntryId && ts.Add(w.longBeat).After(now)) {
+		if ts.Add(w.longBeat).After(now) &&
+			(committedEntryId == toCommit.EntryId || w.inflightPuts.Load() > 0) {
+			// Skip heartbeat if:
+			//   - Long beat hasn't been missed
+			//   - Either puts are inflight, or there is nothing new to commit.
 			continue
 		}
 		var cli ApiClient
 		err := KeepTryingWithBackoff(
-			ctx, w.longBeat, w.writerLease/4,
+			ctx, w.longBeat/4, w.longBeat,
 			func(retryN uint) (bool, bool, error) {
 				var err error
 				cli, err = w.cli(cli)
 				if err != nil {
 					return false, false, err
 				}
-				putCtx, cancel := context.WithTimeout(ctx, w.writerLease/4)
+				putCtx, cancel := context.WithTimeout(ctx, w.longBeat)
 				defer cancel()
+				now := time.Now()
 				_, err = cli.PutEntry(putCtx, &walleapi.PutEntryRequest{
 					StreamUri:        w.streamURI,
 					Entry:            &walleapi.Entry{WriterId: w.writerId},
@@ -263,15 +269,17 @@ func (w *Writer) process(ctx context.Context, req *PutCtx) {
 				silentErr := (req.Entry.EntryId > toCommit.EntryId+1)
 				return false, silentErr, err
 			}
-			now := time.Now()
 			putCtx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
+			now := time.Now()
+			w.inflightPuts.Add(1)
 			_, err = cli.PutEntry(putCtx, &walleapi.PutEntryRequest{
 				StreamUri:        w.streamURI,
 				Entry:            req.Entry,
 				CommittedEntryId: toCommit.EntryId,
 				CommittedEntryXX: toCommit.ChecksumXX,
 			})
+			w.inflightPuts.Add(-1)
 			if err != nil {
 				_, _, _, toCommit := w.safeCommittedEntryId()
 				if req.Entry.EntryId <= toCommit.EntryId {

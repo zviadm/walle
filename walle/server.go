@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/zviadm/stats-go/metrics"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/broadcast"
@@ -128,6 +129,9 @@ func (s *Server) PutEntryInternal(
 	err = ss.RenewLease(writerId, 0)
 	if err != nil && !req.IgnoreLeaseRenew {
 		return nil, err
+	}
+	if req.Entry.EntryId == 0 {
+		heartbeatsCounter.V(metrics.KV{"stream_uri": ss.StreamURI()}).Count(1)
 	}
 
 	p := s.pipeline.ForStream(ss)
