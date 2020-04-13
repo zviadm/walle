@@ -15,8 +15,8 @@ docker run -i -t --rm \
 	tt-walle:latest \
 	/root/go1.14/bin/go install ./walle/walle ./walle/wctl
 
-gcloud compute scp $HOME/.tt_cache/goroot/bin/wctl wctl-0:
 if [[ -z $N ]]; then
+	gcloud compute scp $HOME/.tt_cache/goroot/bin/wctl wctl-0:
 	exit 0
 fi
 for i in $(seq 0 $N); do
