@@ -38,7 +38,7 @@ func newStream(
 
 func (p *stream) backfiller(ctx context.Context) {
 	for ctx.Err() == nil {
-		committedId, committedXX, notify := p.q.MaxCommittedId()
+		committedId, notify := p.q.MaxCommittedId()
 		if committedId <= p.ss.TailEntryId() {
 			select {
 			case <-ctx.Done():
@@ -53,6 +53,10 @@ func (p *stream) backfiller(ctx context.Context) {
 		case <-time.After(p.skipTimeoutAdjusted()):
 		}
 		if committedId <= p.ss.TailEntryId() {
+			continue
+		}
+		committedXX, ok := p.q.EntryXX(committedId)
+		if !ok {
 			continue
 		}
 		fetchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)

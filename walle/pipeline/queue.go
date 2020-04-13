@@ -74,17 +74,22 @@ func (q *queue) CanSkip() bool {
 	return q.maxReadyCommittedId >= q.minId
 }
 
-func (q *queue) MaxCommittedId() (int64, uint64, <-chan struct{}) {
+func (q *queue) MaxCommittedId() (int64, <-chan struct{}) {
 	q.mx.Lock()
 	defer q.mx.Unlock()
-	if q.maxCommittedId <= q.maxReadyCommittedId || q.maxCommittedId < q.minId {
-		return 0, 0, q.notifyC
+	if q.maxCommittedId <= q.maxReadyCommittedId {
+		return 0, q.notifyC
 	}
-	item, ok := q.v[q.maxCommittedId]
+	return q.maxCommittedId, q.notifyC
+}
+func (q *queue) EntryXX(entryId int64) (uint64, bool) {
+	q.mx.Lock()
+	defer q.mx.Unlock()
+	item, ok := q.v[entryId]
 	if !ok {
-		return 0, 0, q.notifyC
+		return 0, false
 	}
-	return item.R.EntryId, item.R.EntryXX, q.notifyC
+	return item.R.EntryXX, true
 }
 
 func (q *queue) PopReady(tailId int64, forceSkip bool, r []queueItem) ([]queueItem, <-chan struct{}) {
