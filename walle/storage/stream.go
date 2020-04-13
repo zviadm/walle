@@ -177,7 +177,7 @@ func (m *streamStorage) setTopology(t *walleapi.StreamTopology) {
 func (m *streamStorage) WriterInfo() (WriterId, string, time.Duration, time.Duration) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
-	return m.writerId, m.writerAddr, m.writerLease, m.unsafeRemainingLease()
+	return m.writerId, m.writerAddr, m.writerLease, m.remainingLease()
 }
 func (m *streamStorage) UpdateWriter(
 	writerId WriterId, writerAddr string, lease time.Duration) (time.Duration, error) {
@@ -193,7 +193,7 @@ func (m *streamStorage) UpdateWriter(
 	if cmpWriterId == 0 {
 		return 0, nil
 	}
-	remainingLease := m.unsafeRemainingLease()
+	remainingLease := m.remainingLease()
 	m.writerId = writerId
 	m.writerAddr = writerAddr
 	m.writerLease = lease
@@ -207,7 +207,7 @@ func (m *streamStorage) UpdateWriter(
 	panic.OnErr(m.sess.TxCommit())
 	return remainingLease, nil
 }
-func (m *streamStorage) unsafeRemainingLease() time.Duration {
+func (m *streamStorage) remainingLease() time.Duration {
 	return m.renewedLease.Add(m.writerLease).Sub(time.Now())
 }
 func (m *streamStorage) RenewLease(
@@ -296,19 +296,19 @@ func (m *streamStorage) CommitEntry(entryId int64, entryXX uint64) error {
 	if m.sess.Closed() {
 		return status.Errorf(codes.NotFound, "%s not found", m.streamURI)
 	}
-	return m.unsafeCommitEntry(entryId, entryXX, false)
+	return m.commitEntry(entryId, entryXX, false)
 }
 
 // Updates committedEntry, assuming m.mx is acquired. Returns False, if entryId is too far in the future
 // and local storage doesn't yet know about missing entries in between.
-func (m *streamStorage) unsafeCommitEntry(entryId int64, entryXX uint64, newGap bool) error {
+func (m *streamStorage) commitEntry(entryId int64, entryXX uint64, newGap bool) error {
 	if entryId <= m.committed {
 		return nil
 	}
 	if entryId > m.tailEntry.EntryId {
 		return status.Errorf(codes.OutOfRange, "commit entryId: %d > %d", entryId, m.tailEntry.EntryId)
 	}
-	existingEntry := m.unsafeReadEntry(entryId)
+	existingEntry := m.readEntry(entryId)
 	if existingEntry == nil {
 		return status.Errorf(
 			codes.Internal, "uncommitted entry %d: missing [%d..%d]", entryId, m.committed, m.tailEntry.EntryId)
@@ -360,7 +360,7 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error 
 		if !isCommitted {
 			return status.Errorf(codes.OutOfRange, "put entryId: %d > %d + 1", entry.EntryId, m.tailEntry.EntryId)
 		}
-		m.unsafeMakeGapCommit(entry)
+		m.makeGapCommit(entry)
 		return nil
 	}
 	if entry.EntryId <= m.committed {
@@ -371,16 +371,16 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error 
 			return nil // not missing, and not last committed entry.
 		}
 		if entry.EntryId == m.committed {
-			e := m.unsafeReadEntry(entry.EntryId)
+			e := m.readEntry(entry.EntryId)
 			if e != nil && bytes.Compare(e.WriterId, entry.WriterId) >= 0 {
 				return nil
 			}
 		}
-		m.unsafeInsertEntry(entry)
+		m.insertEntry(entry)
 		return nil
 	}
 
-	prevEntry := m.unsafeReadEntry(entry.EntryId - 1)
+	prevEntry := m.readEntry(entry.EntryId - 1)
 	panic.OnNotOk(prevEntry != nil, "gap in uncommitted entries!")
 	expectedXX := wallelib.CalculateChecksumXX(prevEntry.ChecksumXX, entry.Data)
 	if expectedXX != entry.ChecksumXX {
@@ -398,14 +398,14 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error 
 				entry.EntryId, entry.ChecksumXX, expectedXX,
 				entryWriterId, WriterId(prevEntry.WriterId))
 		}
-		m.unsafeMakeGapCommit(entry)
+		m.makeGapCommit(entry)
 		return nil
 	}
 
 	entryExists := false
 	needsTrim := false
 	if m.tailEntry.EntryId >= entry.EntryId {
-		existingEntry := m.unsafeReadEntry(entry.EntryId)
+		existingEntry := m.readEntry(entry.EntryId)
 		cmpWriterId := bytes.Compare(existingEntry.WriterId, entryWriterId)
 		if cmpWriterId > 0 {
 			return status.Errorf(
@@ -422,13 +422,13 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error 
 		// commit of just trimming the entries without inserting the new entry can cause data corruption
 		// otherwise.
 		panic.OnErr(m.sess.TxBegin())
-		m.unsafeRemoveAllEntriesFrom(entry.EntryId, entry)
+		m.removeAllEntriesFrom(entry.EntryId, entry)
 	}
 	if !entryExists {
-		m.unsafeInsertEntry(entry)
+		m.insertEntry(entry)
 	}
 	if isCommitted {
-		err := m.unsafeCommitEntry(entry.EntryId, entry.ChecksumXX, false)
+		err := m.commitEntry(entry.EntryId, entry.ChecksumXX, false)
 		panic.OnErr(err) // This commit entry mustn't fail. Failure would mean data corrution.
 	}
 	if needsTrim {
@@ -437,19 +437,19 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error 
 	return nil
 }
 
-func (m *streamStorage) unsafeMakeGapCommit(entry *walleapi.Entry) {
+func (m *streamStorage) makeGapCommit(entry *walleapi.Entry) {
 	// Clear out all uncommitted entries, and create a GAP.
 	panic.OnErr(m.sess.TxBegin())
-	m.unsafeRemoveAllEntriesFrom(m.committed+1, entry)
-	m.unsafeInsertEntry(entry)
-	err := m.unsafeCommitEntry(entry.EntryId, entry.ChecksumXX, true)
+	m.removeAllEntriesFrom(m.committed+1, entry)
+	m.insertEntry(entry)
+	err := m.commitEntry(entry.EntryId, entry.ChecksumXX, true)
 	panic.OnErr(err) // This commit entry mustn't fail. Failure would mean data corrution.
 	panic.OnErr(m.sess.TxCommit())
 }
 
-// Reads entry from storage. Can return `nil` if entry is missing from local storage.
+// readEntry reads entry from storage. Can return `nil` if entry is missing from local storage.
 // Assumes m.mx is acquired.
-func (m *streamStorage) unsafeReadEntry(entryId int64) *walleapi.Entry {
+func (m *streamStorage) readEntry(entryId int64) *walleapi.Entry {
 	if entryId == m.tailEntry.EntryId {
 		return m.tailEntry
 	}
@@ -463,9 +463,9 @@ func (m *streamStorage) unsafeReadEntry(entryId int64) *walleapi.Entry {
 	panic.OnErr(m.streamR.Reset())
 	return entry
 }
-func (m *streamStorage) unsafeInsertEntry(entry *walleapi.Entry) {
+func (m *streamStorage) insertEntry(entry *walleapi.Entry) {
 	if entry.EntryId > m.tailEntry.EntryId {
-		m.unsafeUpdateTailEntry(entry)
+		m.updateTailEntry(entry)
 	}
 	binary.BigEndian.PutUint64(m.buf8, uint64(entry.EntryId))
 	entryB, err := entry.Marshal()
@@ -474,15 +474,15 @@ func (m *streamStorage) unsafeInsertEntry(entry *walleapi.Entry) {
 }
 
 // Deletes all entries [entryId...) from storage, and sets new tailEntry afterwards.
-func (m *streamStorage) unsafeRemoveAllEntriesFrom(entryId int64, tailEntry *walleapi.Entry) {
+func (m *streamStorage) removeAllEntriesFrom(entryId int64, tailEntry *walleapi.Entry) {
 	for eId := entryId; eId <= m.tailEntry.EntryId; eId++ {
 		binary.BigEndian.PutUint64(m.buf8, uint64(eId))
 		panic.OnErr(m.streamW.Remove(m.buf8))
 	}
-	m.unsafeUpdateTailEntry(tailEntry)
+	m.updateTailEntry(tailEntry)
 }
 
-func (m *streamStorage) unsafeUpdateTailEntry(e *walleapi.Entry) {
+func (m *streamStorage) updateTailEntry(e *walleapi.Entry) {
 	if e.EntryId != m.tailEntry.EntryId {
 		close(m.tailEntryNotify)
 		m.tailEntryNotify = make(chan struct{})

@@ -153,7 +153,7 @@ func (c *client) ForStream(streamURI string) (ApiClient, error) {
 				idx = majorityN + (offset+i)%minorityN
 			}
 			serverId := preferredIds[idx]
-			conn, err := c.unsafeServerConn(serverId)
+			conn, err := c.serverConn(serverId)
 			if err != nil {
 				continue
 			}
@@ -184,7 +184,7 @@ func (w *wrapClient) IsPreferred() bool {
 func (c *client) ForServer(serverId string) (walle_pb.WalleClient, error) {
 	c.mx.Lock()
 	defer c.mx.Unlock()
-	conn, err := c.unsafeServerConn(serverId)
+	conn, err := c.serverConn(serverId)
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +194,9 @@ func (c *client) ForServer(serverId string) (walle_pb.WalleClient, error) {
 	return walle_pb.NewWalleClient(conn), nil
 }
 
-func (c *client) unsafeServerConn(serverId string) (*grpc.ClientConn, error) {
+// serverConn returns connection for given serverId.
+// assumes c.mx is locked.
+func (c *client) serverConn(serverId string) (*grpc.ClientConn, error) {
 	conn, ok := c.conns[serverId]
 	if !ok {
 		serverInfo, ok := c.topology.Servers[serverId]
