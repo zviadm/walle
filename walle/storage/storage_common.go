@@ -52,8 +52,7 @@ var (
 		ChecksumXX: 0,
 		WriterId:   make([]byte, writerIdLen),
 	}
-	entry0B, _    = Entry0.Marshal()
-	maxEntryIdKey = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+	entry0B, _ = Entry0.Marshal()
 )
 
 // MakeWriterId creates new WriterId. WriterId is part random, part based on timestamp,

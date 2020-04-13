@@ -16,6 +16,13 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const (
+	// streamStorage keeps 8 bytes of ChecksumXX for each uncommitted entry. This leads
+	// to 32KB of memory use per stream. This is pretty small compared to all other buffers and
+	// caches that exist in the stream for each stream.
+	maxUncommittedEntries = 4 * 1024
+)
+
 type streamStorage struct {
 	serverId  string
 	streamURI string
@@ -45,6 +52,9 @@ type streamStorage struct {
 
 	tailEntry   *walleapi.Entry
 	tailEntryId atomic.Int64
+	// tailEntryXX is a circular buffer that contains entry.ChecksumXX for entries:
+	// [committed..tailEntryId]. EntryId maps to index: EntryId%(len(tailEntryXX)).
+	tailEntryXX [maxUncommittedEntries]uint64
 
 	committedIdG metrics.Gauge
 	gapStartIdG  metrics.Gauge
@@ -87,24 +97,26 @@ func openStreamStorage(
 	metaR, err := sess.Scan(metadataDS)
 	panic.OnErr(err)
 	defer func() { panic.OnErr(metaR.Close()) }()
-	metaW, err := sess.Mutate(metadataDS)
-	panic.OnErr(err)
 	r := &streamStorage{
 		serverId:  serverId,
 		streamURI: streamURI,
 
-		sess:            sess,
-		sessRO:          sessRO,
-		metaW:           metaW,
-		committedNotify: make(chan struct{}),
+		sess:   sess,
+		sessRO: sessRO,
 
-		buf8: make([]byte, 8),
+		buf8:            make([]byte, 8),
+		committedNotify: make(chan struct{}),
 
 		committedIdG: committedIdGauge.V(metrics.KV{"stream_uri": streamURI}),
 		gapStartIdG:  gapStartIdGauge.V(metrics.KV{"stream_uri": streamURI}),
 		gapEndIdG:    gapEndIdGauge.V(metrics.KV{"stream_uri": streamURI}),
 		tailIdG:      tailIdGauge.V(metrics.KV{"stream_uri": streamURI}),
 	}
+	r.metaW, err = sess.Mutate(metadataDS)
+	panic.OnErr(err)
+	r.streamW, err = sess.Mutate(streamDS(streamURI))
+	panic.OnErr(err)
+
 	v, err := metaR.ReadValue([]byte(streamURI + sfxWriterId))
 	panic.OnErr(err)
 	r.writerId = WriterId(v)
@@ -128,15 +140,23 @@ func openStreamStorage(
 	r.gapEndId = int64(binary.BigEndian.Uint64(v))
 	r.gapEndIdG.Set(float64(r.gapEndId))
 
+	// Read all tail entries from storage to populate: r.tailEntryXX array.
 	r.streamR, err = sess.Scan(streamDS(streamURI))
 	panic.OnErr(err)
 	defer func() { panic.OnErr(r.streamR.Reset()) }()
-	r.streamW, err = sess.Mutate(streamDS(streamURI))
+	binary.BigEndian.PutUint64(r.buf8, uint64(r.committed))
+	err = r.streamR.Search(r.buf8)
 	panic.OnErr(err)
-	nearType, err := r.streamR.SearchNear(maxEntryIdKey)
-	panic.OnErr(err)
-	panic.OnNotOk(nearType == wt.MatchedSmaller, "must return SmallerMatch when searching with maxEntryIdKey")
-	tailEntry := unmarshalValue(r.streamURI, r.committed, r.streamR)
+	var tailEntry *walleapi.Entry
+	for {
+		tailEntry = unmarshalValue(r.streamURI, r.committed, r.streamR)
+		r.tailEntryXX[tailEntry.EntryId%int64(len(r.tailEntryXX))] = tailEntry.ChecksumXX
+		err := r.streamR.Next()
+		if err != nil && wt.ErrCode(err) == wt.ErrNotFound {
+			break
+		}
+		panic.OnErr(err)
+	}
 	r.updateTailEntry(tailEntry)
 	return r
 }
@@ -409,6 +429,15 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error 
 		needsTrim = (cmpWriterId < 0)
 		entryExists = (cmpWriterId == 0) && (existingEntry.ChecksumXX == entry.ChecksumXX)
 	}
+
+	if !isCommitted && m.tailEntry.EntryId-m.committed >= int64(len(m.tailEntryXX)) {
+		// This should never happen unless client is really buggy. No client should allow
+		// uncommitted entries to grow unbounded.
+		return status.Errorf(
+			codes.OutOfRange, "put entry can't succeed for: %d, too many uncommitted entries: %d .. %d",
+			entry.EntryId, m.committed, m.tailEntry.EntryId)
+	}
+
 	if needsTrim {
 		// If trimming is needed, it is important to run the whole operation in a transaction. Partial
 		// commit of just trimming the entries without inserting the new entry can cause data corruption
@@ -456,6 +485,9 @@ func (m *streamStorage) readEntry(entryId int64) *walleapi.Entry {
 	return entry
 }
 func (m *streamStorage) readEntryXX(entryId int64) (uint64, bool) {
+	if entryId >= m.committed && entryId <= m.tailEntry.EntryId {
+		return m.tailEntryXX[entryId%int64(len(m.tailEntryXX))], true
+	}
 	entry := m.readEntry(entryId)
 	if entry == nil {
 		return 0, false
@@ -466,6 +498,10 @@ func (m *streamStorage) insertEntry(entry *walleapi.Entry) {
 	if entry.EntryId > m.tailEntry.EntryId {
 		m.updateTailEntry(entry)
 	}
+	if entry.EntryId >= m.committed && entry.EntryId <= m.tailEntry.EntryId {
+		m.tailEntryXX[entry.EntryId%int64(len(m.tailEntryXX))] = entry.ChecksumXX
+	}
+
 	binary.BigEndian.PutUint64(m.buf8, uint64(entry.EntryId))
 	entryB, err := entry.Marshal()
 	panic.OnErr(err)
