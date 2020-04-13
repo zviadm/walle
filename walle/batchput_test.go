@@ -28,7 +28,7 @@ var (
 	benchData = []byte("test data for benchmarking")
 )
 
-// BenchmarkPutEntrySerial-4 - 5.00 cgocalls/op - 2788 B/op - 43 allocs/op
+// BenchmarkPutEntrySerial-4 - 3.00 cgocalls/op - 2061 B/op - 33 allocs/op
 func BenchmarkPutEntrySerial(b *testing.B) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -51,7 +51,7 @@ func BenchmarkPutEntrySerial(b *testing.B) {
 	b.ReportMetric(float64(runtime.NumCgoCall()-cgoCalls0)/float64(b.N), "cgocalls/op")
 }
 
-// BenchmarkPutEntryPipeline-4 - 1.24 cgocalls/op - 1827 B/op - 30 allocs/op
+// BenchmarkPutEntryPipeline-4 - 1.24 cgocalls/op - 1835 B/op - 30 allocs/op
 func BenchmarkPutEntryPipeline(b *testing.B) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
