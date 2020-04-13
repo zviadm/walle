@@ -3,6 +3,7 @@ package pipeline
 import (
 	"bytes"
 	"math"
+	"sort"
 	"sync"
 
 	"github.com/zviadm/stats-go/metrics"
@@ -16,7 +17,7 @@ type queue struct {
 	minId int64 // Lower bound on smallest EntryId stored in `v`
 	v     map[int64]queueItem
 	// Notifications are sent if either smallest element changes in the queue
-	// or new committed entry gets added into the queue.
+	// or if any of max committedId-s changes.
 	notifyC chan struct{}
 
 	maxReadyCommittedId int64
@@ -95,18 +96,18 @@ func (q *queue) EntryXX(entryId int64) (uint64, bool) {
 func (q *queue) PopReady(tailId int64, forceSkip bool, r []queueItem) ([]queueItem, <-chan struct{}) {
 	q.mx.Lock()
 	defer q.mx.Unlock()
-	if len(q.v) == 0 {
-		return nil, q.notifyC
-	}
 	if r != nil {
 		r = r[:0]
 	}
-	r = q.popEntriesTill(r, tailId)
+	if len(q.v) == 0 {
+		return r, q.notifyC
+	}
+	popTillId := tailId
 	item, ok := q.v[tailId+1]
 	if ok && item.R.IsReady(tailId) {
-		q.remove(item.R)
-		r = append(r, item)
+		popTillId += 1
 	}
+	r = q.popEntriesTill(r, popTillId)
 	if len(r) == 0 && forceSkip {
 		popTillId := int64(math.MaxInt64)
 		item, ok := q.v[q.maxReadyCommittedId]
@@ -123,7 +124,10 @@ func (q *queue) popEntriesTill(r []queueItem, endId int64) []queueItem {
 	if endId < q.minId {
 		return r
 	}
-	if endId-q.minId+1 > int64(len(q.v)) {
+	rangeN := endId - q.minId + 1
+	if rangeN > 10 && rangeN > int64(len(q.v)) {
+		// Slow path, this should be very rare. This can happen if there is a large stall
+		// that causes entries to arrive greatly out of order.
 		for entryId, item := range q.v {
 			if entryId > endId {
 				continue
@@ -131,6 +135,7 @@ func (q *queue) popEntriesTill(r []queueItem, endId int64) []queueItem {
 			q.remove(item.R)
 			r = append(r, item)
 		}
+		sort.Slice(r, func(i, j int) bool { return r[i].R.EntryId < r[j].R.EntryId })
 	} else {
 		for entryId := q.minId; entryId <= endId; entryId++ {
 			item, ok := q.v[entryId]
@@ -153,7 +158,7 @@ func (q *queue) remove(r *request) {
 func (q *queue) Queue(r *request) *ResultCtx {
 	q.mx.Lock()
 	defer q.mx.Unlock()
-	wasEmpty := len(q.v) == 0
+	shouldNotify := len(q.v) == 0
 	item, ok := q.v[r.EntryId]
 	if !ok {
 		res := newResult()
@@ -184,17 +189,20 @@ func (q *queue) Queue(r *request) *ResultCtx {
 		}
 	}
 	q.v[item.R.EntryId] = item
-	if wasEmpty || item.R.Committed || item.R.EntryId <= q.minId {
-		q.notify()
-	}
-	if item.R.EntryId < q.minId {
+	if item.R.EntryId <= q.minId {
 		q.minId = item.R.EntryId
+		shouldNotify = true
 	}
 	if item.R.Committed && (item.R.EntryId > q.maxCommittedId) {
 		q.maxCommittedId = item.R.EntryId
+		shouldNotify = true
 	}
 	if item.R.Committed && item.R.Entry != nil && (item.R.EntryId > q.maxReadyCommittedId) {
 		q.maxReadyCommittedId = item.R.EntryId
+		shouldNotify = true
+	}
+	if shouldNotify {
+		q.notify()
 	}
 	return item.Res
 }
