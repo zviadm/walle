@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"runtime"
 	"runtime/debug"
 	"sync/atomic"
 	"syscall"
@@ -29,6 +30,8 @@ import (
 	"github.com/zviadm/walle/walle/topomgr"
 	"github.com/zviadm/walle/wallelib"
 )
+
+var memBallast []byte
 
 func main() {
 	var storageDir = flag.String("walle.storage_dir", "", "Path where database and discovery data will be stored.")
@@ -83,10 +86,10 @@ func main() {
 
 	// Memory allocation:
 	// 50% goes to WT Cache. (non-GO memory)
-	// 50% goes to memory ballast + GC overhead.
+	// 50% goes to (Static heap + Memory ballast) + GC overhead.
 	debug.SetGCPercent(100) // GOGC=100, not tuneable.
 	cacheSizeMB := *targetMemMB / 2
-	_ = make([]byte, *targetMemMB*1024*1024/4)
+	ballastSize := *targetMemMB * 1024 * 1024 / 4
 
 	zlog.Infof("initializing storage: %s...", dbPath)
 	ss, err := storage.Init(dbPath, storage.InitOpts{
@@ -110,6 +113,16 @@ func main() {
 			"bootstrapped %s, server: %s - %s",
 			*bootstrapRootURI, ss.ServerId(), serverInfo)
 		return
+	}
+
+	// Ballast allocation must happen after storage is initialzied
+	// but before anything else gets initialized. This way we get more correct
+	// statically allocated heap size that storage module is using.
+	var memstats runtime.MemStats
+	runtime.ReadMemStats(&memstats)
+	ballastSize -= int(memstats.HeapAlloc)
+	if ballastSize > 0 {
+		memBallast = make([]byte, ballastSize)
 	}
 
 	rootPb, err := wallelib.TopologyFromFile(rootFile)
