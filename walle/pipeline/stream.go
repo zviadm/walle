@@ -71,8 +71,7 @@ func (p *stream) process(ctx context.Context) {
 	var reqs []queueItem
 	var qNotify <-chan struct{}
 	for ctx.Err() == nil && !p.ss.IsClosed() {
-		tailId, tailNotify := p.ss.TailEntryId()
-		reqs, qNotify = p.q.PopReady(tailId, forceSkip, reqs)
+		reqs, qNotify = p.q.PopReady(p.ss.TailEntryId(), forceSkip, reqs)
 		if len(reqs) == 0 {
 			if skipTimeout == nil && p.q.CanSkip() {
 				skipTimeout = time.After(p.timeoutAdjusted())
@@ -84,7 +83,6 @@ func (p *stream) process(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-qNotify:
-			case <-tailNotify:
 			case <-skipTimeout:
 				forceSkip = true
 				skipTimeout = nil
@@ -113,29 +111,25 @@ func (p *stream) process(ctx context.Context) {
 }
 
 func (p *stream) QueueCommit(entryId int64, entryXX uint64) *ResultCtx {
-	res, ok := p.q.Queue(&request{
+	if entryId <= p.ss.TailEntryId() {
+		err := p.ss.CommitEntry(entryId, entryXX)
+		return newResultWithErr(err)
+	}
+	return p.q.Queue(&request{
 		EntryId:   entryId,
 		EntryXX:   entryXX,
 		Committed: true,
 	})
-	if !ok {
-		res = newResult()
-		err := p.ss.CommitEntry(entryId, entryXX)
-		res.set(err)
-	}
-	return res
 }
 func (p *stream) QueuePut(e *walleapi.Entry, isCommitted bool) *ResultCtx {
-	res, ok := p.q.Queue(&request{
+	if e.EntryId <= p.ss.TailEntryId() {
+		err := p.ss.PutEntry(e, isCommitted)
+		return newResultWithErr(err)
+	}
+	return p.q.Queue(&request{
 		EntryId:   e.EntryId,
 		EntryXX:   e.ChecksumXX,
 		Committed: isCommitted,
 		Entry:     e,
 	})
-	if !ok {
-		res = newResult()
-		err := p.ss.PutEntry(e, isCommitted)
-		res.set(err)
-	}
-	return res
 }

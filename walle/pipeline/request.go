@@ -30,8 +30,19 @@ type ResultCtx struct {
 	err  error
 }
 
+var (
+	closedDone = func() chan struct{} {
+		r := make(chan struct{})
+		close(r)
+		return r
+	}()
+)
+
 func newResult() *ResultCtx {
 	return &ResultCtx{done: make(chan struct{})}
+}
+func newResultWithErr(err error) *ResultCtx {
+	return &ResultCtx{done: closedDone, err: err}
 }
 func (r *ResultCtx) set(err error) {
 	r.mx.Lock()

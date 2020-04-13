@@ -11,6 +11,7 @@ import (
 	"github.com/zviadm/walle/walle/panic"
 	"github.com/zviadm/walle/wallelib"
 	"github.com/zviadm/wt"
+	"go.uber.org/atomic"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -39,10 +40,10 @@ type streamStorage struct {
 	gapEndId        int64
 	committedNotify chan struct{}
 
-	entryBuf        *walleapi.Entry
-	tailEntry       *walleapi.Entry
-	tailEntryNotify chan struct{}
-	buf8            []byte
+	entryBuf    *walleapi.Entry
+	tailEntry   *walleapi.Entry
+	tailEntryId atomic.Int64
+	buf8        []byte
 
 	committedIdG metrics.Gauge
 	gapStartIdG  metrics.Gauge
@@ -96,9 +97,7 @@ func openStreamStorage(
 		metaW:           metaW,
 		committedNotify: make(chan struct{}),
 
-		buf8:            make([]byte, 8),
-		tailEntry:       new(walleapi.Entry),
-		tailEntryNotify: make(chan struct{}),
+		buf8: make([]byte, 8),
 
 		committedIdG: committedIdGauge.V(metrics.KV{"stream_uri": streamURI}),
 		gapStartIdG:  gapStartIdGauge.V(metrics.KV{"stream_uri": streamURI}),
@@ -136,8 +135,8 @@ func openStreamStorage(
 	nearType, err := r.streamR.SearchNear(maxEntryIdKey)
 	panic.OnErr(err)
 	panic.OnNotOk(nearType == wt.MatchedSmaller, "must return SmallerMatch when searching with maxEntryIdKey")
-	r.tailEntry = unmarshalValue(r.streamURI, r.committed, r.streamR)
-	r.tailIdG.Set(float64(r.tailEntry.EntryId))
+	tailEntry := unmarshalValue(r.streamURI, r.committed, r.streamR)
+	r.updateTailEntry(tailEntry)
 	return r
 }
 
@@ -153,7 +152,6 @@ func (m *streamStorage) close() {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	panic.OnErr(m.sess.Close())
-	close(m.tailEntryNotify)
 	close(m.committedNotify)
 }
 func (m *streamStorage) IsClosed() bool {
@@ -257,10 +255,8 @@ func (m *streamStorage) CommittedEntryId() (committedId int64, notify <-chan str
 	defer m.mx.Unlock()
 	return m.committed, m.committedNotify
 }
-func (m *streamStorage) TailEntryId() (int64, <-chan struct{}) {
-	m.mx.Lock()
-	defer m.mx.Unlock()
-	return m.tailEntry.EntryId, m.tailEntryNotify
+func (m *streamStorage) TailEntryId() int64 {
+	return m.tailEntryId.Load()
 }
 func (m *streamStorage) GapRange() (startId int64, endId int64) {
 	m.mx.Lock()
@@ -482,10 +478,7 @@ func (m *streamStorage) removeAllEntriesFrom(entryId int64, tailEntry *walleapi.
 }
 
 func (m *streamStorage) updateTailEntry(e *walleapi.Entry) {
-	if e.EntryId != m.tailEntry.EntryId {
-		close(m.tailEntryNotify)
-		m.tailEntryNotify = make(chan struct{})
-	}
 	m.tailEntry = e
+	m.tailEntryId.Store(e.EntryId)
 	m.tailIdG.Set(float64(m.tailEntry.EntryId))
 }

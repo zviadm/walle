@@ -33,8 +33,9 @@ type Stream interface {
 
 	// Returns EntryId for maximum committed entry.
 	CommittedEntryId() (committedId int64, notify <-chan struct{})
-	// Returns EntryId for maximum entry that has been stored. May not be committed.
-	TailEntryId() (entryId int64, notify <-chan struct{})
+	// Returns EntryId for last entry that is stored. May not be committed. TailEntryId can decrease
+	// if uncommitted entries get removed due to a writer change.
+	TailEntryId() int64
 	// Returns range that covers all potentially missing entries: [startId...endId)
 	// Returns 0, 0, if there are no missing entries.
 	GapRange() (startId int64, endId int64)
