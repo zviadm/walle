@@ -108,7 +108,7 @@ func (m *Manager) UpdateServerIds(
 			return nil, err
 		}
 		zlog.Infof(
-			"[tm] updated members: %s : %s -> %s", req.ClusterUri, prevServerIds, req.ServerIds)
+			"[tm] updated members: %s : %s -> %s", req.StreamUri, prevServerIds, req.ServerIds)
 	}
 	return &empty.Empty{}, nil
 }

@@ -7,7 +7,6 @@ import (
 
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
-	"github.com/zviadm/walle/walle/broadcast"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -33,11 +32,9 @@ func (s *Server) PollStream(
 			ctx, reqDeadline.Sub(time.Now())*4/5)
 		defer cancel()
 	}
-	var committedId int64
 	for {
-		var notify <-chan struct{}
-		committedId, notify = ss.CommittedEntryId()
-		if req.PollEntryId <= committedId {
+		committedId, notify := ss.CommittedEntryId()
+		if committedId >= req.PollEntryId {
 			break
 		}
 		_, writerAddr, _, remainingLease := ss.WriterInfo()
@@ -191,9 +188,14 @@ func (s *Server) fetchCommittedEntry(
 		return nil, status.Errorf(codes.NotFound, "no other servers available to fetch entry from")
 	}
 	entriesC := make(chan *walleapi.Entry, len(serverIds))
-	_, err := broadcast.Call(
-		ctx, s.c, serverIds, time.Minute, 0,
-		func(c walle_pb.WalleClient, ctx context.Context, serverId string) error {
+	errC := make(chan error, len(serverIds))
+	for _, serverId := range serverIds {
+		c, err := s.c.ForServer(serverId)
+		if err != nil {
+			errC <- err
+			continue
+		}
+		go func(c walle_pb.WalleClient, serverId string) {
 			entries, err := readEntriesAll(ctx, c, &walle_pb.ReadEntriesRequest{
 				ServerId:      serverId,
 				StreamUri:     ss.StreamURI(),
@@ -203,18 +205,21 @@ func (s *Server) fetchCommittedEntry(
 				EndEntryId:    committedEntryId + 1,
 			})
 			if len(entries) < 1 {
-				return err
+				errC <- err
 			}
 			entriesC <- entries[0]
-			cancel()
-			return nil
-		})
-	select {
-	case entry := <-entriesC:
-		return entry, nil
-	default:
-		return nil, err
+		}(c, serverId)
 	}
+	var errs []error
+	for range serverIds {
+		select {
+		case entry := <-entriesC:
+			return entry, nil
+		case err := <-errC:
+			errs = append(errs, err)
+		}
+	}
+	return nil, status.Errorf(codes.Unavailable, "errs: %d / %d - %s", len(errs), len(serverIds), errs)
 }
 
 // readEntriesAll makes ReadEntries request and consumes all entries from the stream. Keeping streams open

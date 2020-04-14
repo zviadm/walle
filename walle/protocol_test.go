@@ -105,11 +105,13 @@ func TestProtocolClaim01(t *testing.T) {
 	select {
 	case <-pCtx.Done():
 		t.Fatal("put mustn't succeed")
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(wallelib.LeaseMinimum):
 		// Makes sure put happens in server: 01.
 	}
-
 	w.Close()
+	<-pCtx.Done() // Make sure put resolves with an error.
+	require.Error(t, pCtx.Err())
+
 	m.Toggle("01", false)
 	m.Toggle("02", true)
 	m.Toggle("03", true)
