@@ -87,8 +87,8 @@ func main() {
 	// Memory allocation:
 	// 60% goes to WT Cache. (non-GO memory)
 	// 40% goes to (Static heap + Memory ballast) + GC overhead.
-	debug.SetGCPercent(100)                  // GOGC=100, not tuneable.
-	cacheSizeMB := *targetMemMB * 6 / 10 / 2 // NOTE(zviad): extra /2, because WT seems to use 2x cacheSizeMB for some reason.
+	debug.SetGCPercent(100) // GOGC=100, make it predictable and not tuneable.
+	cacheSizeMB := *targetMemMB * 6 / 10
 	ballastSize := *targetMemMB * 1024 * 1024 * 4 / 10 / 2
 
 	zlog.Infof("initializing storage: %s...", dbPath)
