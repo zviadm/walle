@@ -206,6 +206,7 @@ func (s *Server) fetchCommittedEntry(
 			})
 			if len(entries) < 1 {
 				errC <- err
+				return
 			}
 			entriesC <- entries[0]
 		}(c, serverId)
