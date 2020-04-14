@@ -44,6 +44,8 @@ func claimWriter(
 	if err != nil {
 		return nil, err
 	}
+	// Make first hearbeat call synchronously to refresh lease timer before returning
+	// the writer object.
 	commitTime := time.Now()
 	_, err = cli.PutEntry(ctx, &walleapi.PutEntryRequest{
 		StreamUri:        streamURI,
@@ -85,7 +87,6 @@ func WaitAndClaim(
 					return false, false, err
 				}
 				if status.RemainingLeaseMs <= 0 {
-					// zlog.Info("DEBUG: expired lease ", streamURI, " ", writerAddr, " prev: ", status.WriterAddr, " ", status.RemainingLeaseMs)
 					break
 				}
 				sleepTime := time.Duration(status.RemainingLeaseMs)*time.Millisecond +

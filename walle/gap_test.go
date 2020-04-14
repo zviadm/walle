@@ -11,6 +11,7 @@ import (
 )
 
 func TestProtocolGapRecovery(t *testing.T) {
+	t.SkipNow() // TODO(zviad): Enable this test once gap is enabled again.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	m, c := newMockSystem(ctx, cluster3Node, storage.TestTmpDir())

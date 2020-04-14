@@ -39,8 +39,9 @@ type Stream interface {
 	// Returns range that covers all potentially missing entries: [startId...endId)
 	// Returns 0, 0, if there are no missing entries.
 	GapRange() (startId int64, endId int64)
-	// Returns last committed entry and all the following not-yet committed entries.
-	TailEntries() ([]*walleapi.Entry, error)
+	// Returns last committed entry and all the following not-yet committed entries. If `n` is 0, will
+	// return all entries, if `n` > 0, will return only up to `n` entries.
+	TailEntries(n int) ([]*walleapi.Entry, error)
 	// Returns cursor to read committed entries starting at entryId.
 	ReadFrom(entryId int64) (Cursor, error)
 

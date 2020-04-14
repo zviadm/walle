@@ -18,6 +18,55 @@ const (
 	maxSizeToSend = 4 * 1024 * 1024
 )
 
+// PollStream implements WalleApiServer interface.
+func (s *Server) PollStream(
+	ctx context.Context,
+	req *walleapi.PollStreamRequest) (*walleapi.Entry, error) {
+	ss, ok := s.s.Stream(req.GetStreamUri())
+	if !ok {
+		return nil, status.Errorf(codes.NotFound, "%s not found", req.GetStreamUri())
+	}
+	reqDeadline, ok := ctx.Deadline()
+	if ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(
+			ctx, reqDeadline.Sub(time.Now())*4/5)
+		defer cancel()
+	}
+	var committedId int64
+	for {
+		var notify <-chan struct{}
+		committedId, notify = ss.CommittedEntryId()
+		if req.PollEntryId <= committedId {
+			break
+		}
+		_, writerAddr, _, remainingLease := ss.WriterInfo()
+		minimumLease := time.Duration(0)
+		if isInternalWriter(writerAddr) {
+			minimumLease = -reResolveTimeout
+		}
+		checkForLease := remainingLease - minimumLease
+		if checkForLease < 0 {
+			return nil, status.Errorf(codes.Unavailable,
+				"writer: %s lease expired for streamURI: %s", writerAddr, req.StreamUri)
+		}
+		select {
+		case <-s.rootCtx.Done():
+			return nil, s.rootCtx.Err()
+		case <-ctx.Done():
+			return nil, status.Errorf(codes.OutOfRange,
+				"committed id: %d < %d", committedId, req.PollEntryId)
+		case <-notify:
+		case <-time.After(checkForLease):
+		}
+	}
+	entries, err := ss.TailEntries(1)
+	if err != nil {
+		return nil, err
+	}
+	return entries[0], nil
+}
+
 // StreamEntries implements WalleApiServer interface.
 func (s *Server) StreamEntries(
 	req *walleapi.StreamEntriesRequest,

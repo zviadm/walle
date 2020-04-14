@@ -5,6 +5,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/zviadm/stats-go/metrics"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
@@ -25,9 +26,11 @@ const (
 	putEntryBgWait   = pipeline.QueueMaxTimeout
 )
 
+var emptyOk = &empty.Empty{}
+
 // PutEntry implements WalleApiServer interface.
 func (s *Server) PutEntry(
-	ctx context.Context, req *walleapi.PutEntryRequest) (*walleapi.PutEntryResponse, error) {
+	ctx context.Context, req *walleapi.PutEntryRequest) (*empty.Empty, error) {
 	if len(req.Entry.GetWriterId()) == 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "writer_id must be set")
 	}
@@ -57,7 +60,7 @@ func (s *Server) PutEntry(
 	if err != nil {
 		return nil, err
 	}
-	return &walleapi.PutEntryResponse{}, nil
+	return emptyOk, nil
 }
 
 // PutEntryInternal implements WalleServer interface.

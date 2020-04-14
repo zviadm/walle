@@ -257,7 +257,7 @@ func (s *Server) TailEntries(
 	if err != nil {
 		return err
 	}
-	entries, err := ss.TailEntries()
+	entries, err := ss.TailEntries(0)
 	if err != nil {
 		return err
 	}

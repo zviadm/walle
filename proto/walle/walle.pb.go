@@ -682,7 +682,9 @@ type WalleClient interface {
 	// There are never any gaps in uncommitted entries.
 	TailEntries(ctx context.Context, in *TailEntriesRequest, opts ...grpc.CallOption) (Walle_TailEntriesClient, error)
 	// NOTE: ReadEntries only returns committed entries. If it hits a GAP or end of the stream,
-	// it will return NOT_FOUND error. Returns entries in range: [start_id...end_id).
+	// it will return NOT_FOUND error. Returns entries in range: [start_id...end_id). Can also
+	// return early if streamed data is too large. Caller can make another call to fetch
+	// rest of the entries.
 	ReadEntries(ctx context.Context, in *ReadEntriesRequest, opts ...grpc.CallOption) (Walle_ReadEntriesClient, error)
 }
 
@@ -794,7 +796,9 @@ type WalleServer interface {
 	// There are never any gaps in uncommitted entries.
 	TailEntries(*TailEntriesRequest, Walle_TailEntriesServer) error
 	// NOTE: ReadEntries only returns committed entries. If it hits a GAP or end of the stream,
-	// it will return NOT_FOUND error. Returns entries in range: [start_id...end_id).
+	// it will return NOT_FOUND error. Returns entries in range: [start_id...end_id). Can also
+	// return early if streamed data is too large. Caller can make another call to fetch
+	// rest of the entries.
 	ReadEntries(*ReadEntriesRequest, Walle_ReadEntriesServer) error
 }
 

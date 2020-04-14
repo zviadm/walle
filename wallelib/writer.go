@@ -31,7 +31,7 @@ const (
 
 	connectTimeout  = time.Second
 	putEntryTimeout = 5 * time.Second
-	watchTimeout    = 5 * time.Second
+	pollTimeout     = 5 * time.Second
 	// ReconnectDelay is maximum backoff timeout for establishing connections.
 	ReconnectDelay = 5 * time.Second
 )

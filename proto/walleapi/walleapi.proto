@@ -1,10 +1,19 @@
 syntax = "proto3";
 option go_package = "github.com/zviadm/walle/proto/walleapi";
 
+import "google/protobuf/empty.proto";
+
 service WalleApi {
 	rpc ClaimWriter(ClaimWriterRequest) returns (ClaimWriterResponse) {}
 	rpc WriterStatus(WriterStatusRequest) returns (WriterStatusResponse) {}
-	rpc PutEntry(PutEntryRequest) returns (PutEntryResponse) {}
+	rpc PutEntry(PutEntryRequest) returns (google.protobuf.Empty) {}
+
+	// PollStream polls stream for last committed entry. This rpc can be used as
+	// a long poll to wait for changes on the stream. If no changes happen within
+	// deadline, will exit early and return OutOfRange error instead of timing out
+	// and hitting DeadlineExceeded error. This is to make it easy to distinguish
+	// between real timeout errors and just long poll expiring.
+	rpc PollStream(PollStreamRequest) returns (Entry) {}
 
 	// StreamEntries streams committed entries from a given starting point. StreamEntries
 	// might exit early as long as it returns at least one successful entry. Note that
@@ -25,8 +34,9 @@ message Entry {
 
 message ClaimWriterRequest {
 	string stream_uri = 1;
-	// Free form address that can be used to identify and reach this Writer.
-	// Expected to be: <host>:<port> pair, but can be application specific.
+	// writer_addr is a free form address that can be used to identify and
+	// reach this Writer. Expected to be: <host>:<port> pair, but can be
+	// custom and application specific.
 	string writer_addr = 2;
 	int64 lease_ms = 3;
 }
@@ -51,7 +61,11 @@ message PutEntryRequest {
 	int64 committed_entry_id = 3;
 	uint64 committed_entry_x_x = 4;
 }
-message PutEntryResponse {
+
+message PollStreamRequest {
+	string stream_uri = 1;
+	// poll_entry_id can be provided to wait until committed_id >= poll_entry_id.
+	int64 poll_entry_id = 2;
 }
 
 message StreamEntriesRequest {

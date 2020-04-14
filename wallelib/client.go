@@ -1,4 +1,15 @@
-// Package wallelib provides client libraries to interact with WALLE servers
+// Package wallelib provides client libraries to interact with WALLE servers.
+//
+// Simple exclusive "writer" usage:
+//
+//		rootPb, err := RootPbFromEnv()
+//		// ... handle error
+// 		c, err := NewClientFromRootPb(ctx, rootPb, ...)
+//		// ... handle error
+//		w, err := WaitAndClaim(ctx, c, ...)
+//		// ... handle error
+//		// `w` can be used to check on last committed entry and write new entries
+//		// in the stream as an exclusive writer.
 package wallelib
 
 import (

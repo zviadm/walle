@@ -255,7 +255,7 @@ func (m *streamStorage) RenewLease(
 	return nil
 }
 
-func (m *streamStorage) TailEntries() ([]*walleapi.Entry, error) {
+func (m *streamStorage) TailEntries(n int) ([]*walleapi.Entry, error) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	if m.sess.Closed() {
@@ -265,7 +265,12 @@ func (m *streamStorage) TailEntries() ([]*walleapi.Entry, error) {
 	mType, err := m.streamR.SearchNear(m.buf8)
 	panic.OnErr(err)
 	panic.OnNotOk(mType == wt.MatchedExact, "committed entries mustn't have any gaps")
-	r := make([]*walleapi.Entry, int(m.tailEntry.EntryId-m.committed+1))
+
+	tailN := int(m.tailEntry.EntryId - m.committed + 1)
+	if n > 0 && n < tailN {
+		tailN = n
+	}
+	r := make([]*walleapi.Entry, tailN)
 	for idx := range r {
 		r[idx] = unmarshalValue(m.streamURI, m.committed, m.streamR)
 		panic.OnNotOk(

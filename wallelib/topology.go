@@ -2,7 +2,6 @@ package wallelib
 
 import (
 	"context"
-	"io"
 	"io/ioutil"
 	"os"
 	"sync"
@@ -39,8 +38,8 @@ func (d *StaticDiscovery) Topology() (*walleapi.Topology, <-chan struct{}) {
 	return d.T, nil
 }
 
-// NewRootDiscovery creates discovery for root cluster. If waitForRefresh is true,
-// will wait for a bit to try to fetch most up to date topology information from
+// NewRootDiscovery creates discovery for the root cluster. If waitForRefresh is true,
+// will wait for a bit to try to fetch most up to date topology information from the
 // root cluster.
 func NewRootDiscovery(
 	ctx context.Context,
@@ -54,7 +53,7 @@ func NewRootDiscovery(
 	_, notify := d.Topology()
 	go d.watcher(ctx)
 	if waitForRefresh {
-		initCtx, cancel := context.WithTimeout(ctx, 2*watchTimeout)
+		initCtx, cancel := context.WithTimeout(ctx, 2*pollTimeout)
 		defer cancel()
 		select {
 		case <-notify:
@@ -75,7 +74,7 @@ func NewDiscovery(
 	d := newDiscovery(root, clusterURI, topology)
 	_, notify := d.Topology()
 	go d.watcher(ctx)
-	initCtx, cancel := context.WithTimeout(ctx, 2*watchTimeout)
+	initCtx, cancel := context.WithTimeout(ctx, 2*pollTimeout)
 	defer cancel()
 	select {
 	case <-notify:
@@ -102,18 +101,16 @@ func newDiscovery(
 }
 
 func (d *discovery) watcher(ctx context.Context) {
-	var version int64 = -1
+	version := d.topology.GetVersion()
 	for {
 		err := KeepTryingWithBackoff(
-			ctx, connectTimeout, watchTimeout,
+			ctx, connectTimeout, pollTimeout,
 			func(retryN uint) (bool, bool, error) {
-				cli, err := d.root.ForStream(d.clusterURI)
+				topology, err := d.pollForUpdate(ctx, version)
 				if err != nil {
-					return false, false, err
-				}
-				topology, err := streamUpdates(ctx, cli, d.clusterURI, version)
-				if err != nil {
-					if err == io.EOF {
+					if status.Convert(err).Code() == codes.OutOfRange {
+						// This is expected, just a timeout on long poll. Return
+						// success and retry again from the beginning.
 						return true, false, nil
 					}
 					return false, false, err
@@ -126,6 +123,25 @@ func (d *discovery) watcher(ctx context.Context) {
 			return
 		}
 	}
+}
+
+func (d *discovery) pollForUpdate(
+	ctx context.Context, pollEntryId int64) (*walleapi.Topology, error) {
+	cli, err := d.root.ForStream(d.clusterURI)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, pollTimeout)
+	defer cancel()
+	entry, err := cli.PollStream(
+		ctx, &walleapi.PollStreamRequest{
+			StreamUri:   d.clusterURI,
+			PollEntryId: pollEntryId,
+		})
+	if err != nil {
+		return nil, err
+	}
+	return TopologyFromEntry(entry)
 }
 
 func (d *discovery) updateTopology(topology *walleapi.Topology) {
@@ -142,34 +158,6 @@ func (d *discovery) Topology() (*walleapi.Topology, <-chan struct{}) {
 	d.mx.Lock()
 	defer d.mx.Unlock()
 	return d.topology, d.notify
-}
-
-func streamUpdates(
-	ctx context.Context,
-	cli walleapi.WalleApiClient,
-	clusterURI string,
-	fromEntryId int64) (*walleapi.Topology, error) {
-	streamCtx, cancel := context.WithTimeout(ctx, watchTimeout)
-	defer cancel()
-	r, err := cli.StreamEntries(streamCtx, &walleapi.StreamEntriesRequest{
-		StreamUri:   clusterURI,
-		FromEntryId: fromEntryId,
-	})
-	if err != nil {
-		return nil, err
-	}
-	var entry *walleapi.Entry
-	for {
-		entryNew, err := r.Recv()
-		if err != nil {
-			if entry == nil {
-				return nil, err
-			}
-			break
-		}
-		entry = entryNew
-	}
-	return TopologyFromEntry(entry)
 }
 
 // TopologyFromFile reads and parses topology from a file.
