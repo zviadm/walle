@@ -35,6 +35,11 @@ type streamStorage struct {
 	roMX   sync.Mutex
 	sessRO *wt.Session
 
+	// Separate session for writing Gap entries.
+	backfillMX  sync.Mutex
+	sessFill    *wt.Session
+	streamFillW *wt.Mutator
+
 	// mx protects all non-atomic variables below. and also protects
 	// WT sess and all its cursors.
 	mx       sync.Mutex
@@ -66,7 +71,8 @@ func createStreamStorage(
 	serverId string,
 	streamURI string,
 	sess *wt.Session,
-	sessRO *wt.Session) Stream {
+	sessRO *wt.Session,
+	sessFill *wt.Session) Stream {
 	panic.OnErr(ValidateStreamURI(streamURI))
 	panic.OnErr(sess.Create(streamDS(streamURI), wt.DataSourceCfg{BlockCompressor: "snappy"}))
 
@@ -86,14 +92,15 @@ func createStreamStorage(
 	panic.OnErr(sess.TxCommit())
 	panic.OnErr(metaW.Close())
 	panic.OnErr(streamW.Close())
-	return openStreamStorage(serverId, streamURI, sess, sessRO)
+	return openStreamStorage(serverId, streamURI, sess, sessRO, sessFill)
 }
 
 func openStreamStorage(
 	serverId string,
 	streamURI string,
 	sess *wt.Session,
-	sessRO *wt.Session) Stream {
+	sessRO *wt.Session,
+	sessFill *wt.Session) Stream {
 	metaR, err := sess.Scan(metadataDS)
 	panic.OnErr(err)
 	defer func() { panic.OnErr(metaR.Close()) }()
@@ -101,8 +108,9 @@ func openStreamStorage(
 		serverId:  serverId,
 		streamURI: streamURI,
 
-		sess:   sess,
-		sessRO: sessRO,
+		sess:     sess,
+		sessRO:   sessRO,
+		sessFill: sessFill,
 
 		buf8:            make([]byte, 8),
 		committedNotify: make(chan struct{}),
@@ -115,6 +123,8 @@ func openStreamStorage(
 	r.metaW, err = sess.Mutate(metadataDS)
 	panic.OnErr(err)
 	r.streamW, err = sess.Mutate(streamDS(streamURI))
+	panic.OnErr(err)
+	r.streamFillW, err = sessFill.Mutate(streamDS(streamURI))
 	panic.OnErr(err)
 
 	v, err := metaR.ReadValue([]byte(streamURI + sfxWriterId))
@@ -169,6 +179,10 @@ func (m *streamStorage) close() {
 	m.roMX.Lock()
 	panic.OnErr(m.sessRO.Close())
 	m.roMX.Unlock()
+
+	m.backfillMX.Lock()
+	panic.OnErr(m.sessFill.Close())
+	m.backfillMX.Unlock()
 
 	m.mx.Lock()
 	defer m.mx.Unlock()
@@ -454,6 +468,21 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error 
 	}
 	if needsTrim {
 		panic.OnErr(m.sess.TxCommit())
+	}
+	return nil
+}
+
+func (m *streamStorage) PutGapEntries(entries []*walleapi.Entry) error {
+	m.backfillMX.Lock()
+	defer m.backfillMX.Unlock()
+	if m.sessFill.Closed() {
+		return status.Errorf(codes.NotFound, "%s not found", m.streamURI)
+	}
+	for _, entry := range entries {
+		binary.BigEndian.PutUint64(m.buf8, uint64(entry.EntryId))
+		entryB, err := entry.Marshal()
+		panic.OnErr(err)
+		panic.OnErr(m.streamFillW.Insert(m.buf8, entryB))
 	}
 	return nil
 }

@@ -52,7 +52,7 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 	cfg := wt.ConnCfg{
 		Create:     wt.Bool(opts.Create),
 		Log:        "enabled,compressor=snappy",
-		SessionMax: opts.MaxLocalStreams*2 + 30, // +30 is as a buffer since WT internal threads also use sessions.
+		SessionMax: opts.MaxLocalStreams*3 + 30, // +30 is as a buffer since WT internal threads also use sessions.
 		CacheSize:  opts.CacheSizeMB * 1024 * 1024,
 
 		// Statistics:    []wt.Statistics{wt.StatsFast},
@@ -146,7 +146,9 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 		panic.OnErr(err)
 		sessRO, err := c.OpenSession()
 		panic.OnErr(err)
-		r.streams[streamURI] = openStreamStorage(r.serverId, streamURI, sess, sessRO)
+		sessFill, err := c.OpenSession()
+		panic.OnErr(err)
+		r.streams[streamURI] = openStreamStorage(r.serverId, streamURI, sess, sessRO, sessFill)
 		r.streams[streamURI].setTopology(topology)
 		zlog.Infof("stream (local): %s %s (v: %d)", streamURI, topology.ServerIds, topology.Version)
 	}
@@ -250,6 +252,8 @@ func (m *storage) makeLocalStream(streamURI string) Stream {
 	panic.OnErr(err)
 	sessRO, err := m.c.OpenSession()
 	panic.OnErr(err)
-	s := createStreamStorage(m.serverId, streamURI, sess, sessRO)
+	sessFill, err := m.c.OpenSession()
+	panic.OnErr(err)
+	s := createStreamStorage(m.serverId, streamURI, sess, sessRO, sessFill)
 	return s
 }

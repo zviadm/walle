@@ -139,11 +139,9 @@ func (s *Server) fetchAndStoreEntries(
 			cancel()
 			if len(entries) > 0 {
 				// TODO(zviad): This PutEntry calls need to happen in a batch.
-				for _, entry := range entries {
-					err = ss.PutEntry(entry, true)
-					if err != nil {
-						return err
-					}
+				err := ss.PutGapEntries(entries)
+				if err != nil {
+					return err
 				}
 				for _, entry := range entries {
 					if processEntry != nil {

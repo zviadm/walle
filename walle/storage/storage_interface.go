@@ -44,8 +44,16 @@ type Stream interface {
 	// Returns cursor to read committed entries starting at entryId.
 	ReadFrom(entryId int64) (Cursor, error)
 
-	CommitEntry(entryId int64, entryXX uint64) error
+	// PutEntry puts new entry in storage. PutEntry can handle all types of entries, will return an
+	// error if put can't succeed either due to missing data or due to checksum mismatch.
 	PutEntry(entry *walleapi.Entry, isCommitted bool) error
+	// CommitEntry marks entry with given EntryId and checksum as committed. Can return an error
+	// if entry is missing locally.
+	CommitEntry(entryId int64, entryXX uint64) error
+
+	// PutGapEntries is an optimized call for backfilling missing entries. It is callers responsibility
+	// to make sure entries are all valid and smaller than CommittedEntryId.
+	PutGapEntries(entries []*walleapi.Entry) error
 	UpdateGapStart(entryId int64)
 }
 
