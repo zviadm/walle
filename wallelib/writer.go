@@ -230,6 +230,14 @@ func (w *Writer) processor(ctx context.Context) {
 		if ctx.Err() == nil {
 			panic("Must exit only when context is done!")
 		}
+		go func() {
+			// This can block if reqQ is full. Thus do the closing in a separate
+			// go routine, if reqQ was full, rest of the cleanup will drain entries from
+			// it and this lock should become available at some point.
+			w.reqQmx.Lock()
+			defer w.reqQmx.Unlock()
+			close(w.reqQ)
+		}()
 
 		inflightWG.Wait()
 		close(resultQ)
@@ -242,10 +250,6 @@ func (w *Writer) processor(ctx context.Context) {
 		if nextReq != nil {
 			nextReq.set(ctx.Err())
 		}
-
-		w.reqQmx.Lock()
-		defer w.reqQmx.Unlock()
-		close(w.reqQ)
 		for req := range w.reqQ {
 			req.set(ctx.Err())
 		}
