@@ -2,14 +2,12 @@ package walle
 
 import (
 	"context"
-	"io"
 	"time"
 
 	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/storage"
-	"github.com/zviadm/walle/wallelib"
 	"github.com/zviadm/zlog"
 )
 
@@ -118,7 +116,6 @@ func (s *Server) fetchAndStoreEntries(
 
 	ssTopology := ss.Topology()
 	var errs []error
-Main:
 	for _, serverId := range ssTopology.ServerIds {
 		if serverId == s.s.ServerId() {
 			continue
@@ -126,53 +123,44 @@ Main:
 
 		c, err := s.c.ForServer(serverId)
 		if err != nil {
-			if err != wallelib.ErrConnUnavailable {
-				errs = append(errs, err)
-			}
-			continue
-		}
-		streamCtx, cancel := context.WithCancel(ctx)
-		defer cancel()
-		r, err := c.ReadEntries(streamCtx, &walle_pb.ReadEntriesRequest{
-			ServerId:      serverId,
-			StreamUri:     ss.StreamURI(),
-			StreamVersion: ssTopology.Version,
-			FromServerId:  s.s.ServerId(),
-			StartEntryId:  startId,
-			EndEntryId:    endId,
-		})
-		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 		for {
-			entry, err := r.Recv()
-			if err != nil {
-				if err == io.EOF {
-					if startId != endId {
-						zlog.Errorf(
-							"ERR_FATAL; unreachable code. %s server: %s is buggy!", ss.StreamURI(), serverId)
-						continue Main
+			streamCtx, cancel := context.WithCancel(ctx)
+			entries, readErr := readEntriesAll(streamCtx, c, &walle_pb.ReadEntriesRequest{
+				ServerId:      serverId,
+				StreamUri:     ss.StreamURI(),
+				StreamVersion: ssTopology.Version,
+				FromServerId:  s.s.ServerId(),
+				StartEntryId:  startId,
+				EndEntryId:    endId,
+			})
+			cancel()
+			if len(entries) > 0 {
+				// TODO(zviad): This PutEntry calls need to happen in a batch.
+				for _, entry := range entries {
+					err = ss.PutEntry(entry, true)
+					if err != nil {
+						return err
 					}
+				}
+				for _, entry := range entries {
+					if processEntry != nil {
+						if err := processEntry(entry); err != nil {
+							return err
+						}
+					}
+				}
+
+				startId = entries[len(entries)-1].EntryId + 1
+				if startId >= endId {
 					return nil
 				}
-				errs = append(errs, err)
-				continue Main
 			}
-			if entry.EntryId != startId {
-				zlog.Errorf(
-					"ERR_FATAL; unreachable code. %s server: %s is buggy!", ss.StreamURI(), serverId)
-				continue Main
-			}
-			startId += 1
-			err = ss.PutEntry(entry, true)
-			if err != nil {
-				return err
-			}
-			if processEntry != nil {
-				if err := processEntry(entry); err != nil {
-					return err
-				}
+			if readErr != nil {
+				errs = append(errs, readErr)
+				break
 			}
 		}
 	}

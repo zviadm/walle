@@ -2,6 +2,7 @@ package walle
 
 import (
 	"context"
+	"io"
 	"time"
 
 	walle_pb "github.com/zviadm/walle/proto/walle"
@@ -64,12 +65,17 @@ func (s *Server) StreamEntries(
 		}
 	}
 
+	streamedSize := 0
 	oneOk := false
 	sendEntry := func(e *walleapi.Entry) error {
 		if err := stream.Send(e); err != nil {
 			return err
 		}
+		streamedSize += e.Size()
 		oneOk = true
+		if streamedSize > maxSizeToSend {
+			return io.EOF
+		}
 		return nil
 	}
 	err := s.readAndProcessEntries(
@@ -139,7 +145,7 @@ func (s *Server) fetchCommittedEntry(
 	_, err := broadcast.Call(
 		ctx, s.c, serverIds, time.Minute, 0,
 		func(c walle_pb.WalleClient, ctx context.Context, serverId string) error {
-			r, err := c.ReadEntries(ctx, &walle_pb.ReadEntriesRequest{
+			entries, err := readEntriesAll(ctx, c, &walle_pb.ReadEntriesRequest{
 				ServerId:      serverId,
 				StreamUri:     ss.StreamURI(),
 				StreamVersion: ssTopology.Version,
@@ -147,14 +153,10 @@ func (s *Server) fetchCommittedEntry(
 				StartEntryId:  committedEntryId,
 				EndEntryId:    committedEntryId + 1,
 			})
-			if err != nil {
+			if len(entries) < 1 {
 				return err
 			}
-			entry, err := r.Recv()
-			if err != nil {
-				return err
-			}
-			entriesC <- entry
+			entriesC <- entries[0]
 			cancel()
 			return nil
 		})
@@ -163,5 +165,28 @@ func (s *Server) fetchCommittedEntry(
 		return entry, nil
 	default:
 		return nil, err
+	}
+}
+
+// readEntriesAll makes ReadEntries request and consumes all entries from the stream. Keeping streams open
+// for too long makes code more complicated, it is better to stream and process things large chunk by chunk.
+func readEntriesAll(
+	ctx context.Context,
+	c walle_pb.WalleClient,
+	req *walle_pb.ReadEntriesRequest) ([]*walleapi.Entry, error) {
+	var entries []*walleapi.Entry
+	r, err := c.ReadEntries(ctx, req)
+	if err != nil {
+		return entries, err
+	}
+	for {
+		entry, err := r.Recv()
+		if err != nil {
+			if err == io.EOF {
+				return entries, nil
+			}
+			return entries, err
+		}
+		entries = append(entries, entry)
 	}
 }
