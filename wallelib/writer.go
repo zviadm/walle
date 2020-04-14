@@ -47,9 +47,10 @@ type Writer struct {
 	writerId    []byte
 	longBeat    time.Duration
 
-	tailEntry *walleapi.Entry
-	reqQ      chan *PutCtx
-	reqQmx    sync.Mutex // exists to coordinate writer close.
+	tailEntry  *walleapi.Entry
+	reqQmx     sync.Mutex
+	reqQ       []*PutCtx
+	reqQNotify chan struct{}
 
 	committedEntryMx sync.Mutex
 	committedEntryId int64
@@ -107,10 +108,8 @@ func newWriter(
 		writerId:    writerId,
 		longBeat:    writerLease / 4,
 
-		tailEntry: tailEntry,
-		// Use very large buffer for reqQ to never block. If user fills this queue up,
-		// PutEntry calls will start blocking.
-		reqQ: make(chan *PutCtx, 16384),
+		tailEntry:  tailEntry,
+		reqQNotify: make(chan struct{}, 1),
 
 		committedEntryId: tailEntry.EntryId,
 		committedEntryXX: tailEntry.ChecksumXX,
@@ -174,7 +173,7 @@ func (w *Writer) heartbeater(ctx context.Context) {
 		case <-time.After(shortBeat):
 		}
 		now := time.Now()
-		ts, committedEntryId, _, toCommit := w.safeCommittedEntryId()
+		ts, committedEntryId, _, toCommit := w.commitInfo()
 		if ts.Add(w.longBeat).After(now) &&
 			(committedEntryId == toCommit.EntryId || w.putsQueued.Load() > 0) {
 			// Skip heartbeat if:
@@ -205,7 +204,7 @@ func (w *Writer) heartbeater(ctx context.Context) {
 					errCode := status.Convert(err).Code()
 					return IsErrFinal(errCode), false, err
 				}
-				w.updateCommittedEntryId(now, toCommit.EntryId, toCommit.ChecksumXX, toCommit)
+				w.updateCommitInfo(now, toCommit.EntryId, toCommit.ChecksumXX, toCommit)
 				return true, false, nil
 			})
 		if err != nil {
@@ -223,36 +222,30 @@ type putCtxAndErr struct {
 func (w *Writer) processor(ctx context.Context) {
 	resultQ := make(chan putCtxAndErr, maxInFlightPuts)
 	inflightWG := sync.WaitGroup{}
-	var retryReqs []*PutCtx
-	var nextReq *PutCtx
+	var retryQ []*PutCtx
+	var reqQ []*PutCtx
 
 	defer func() {
 		if ctx.Err() == nil {
 			panic("Must exit only when context is done!")
 		}
-		go func() {
-			// This can block if reqQ is full. Thus do the closing in a separate
-			// go routine, if reqQ was full, rest of the cleanup will drain entries from
-			// it and this lock should become available at some point.
-			w.reqQmx.Lock()
-			defer w.reqQmx.Unlock()
-			close(w.reqQ)
-		}()
-
 		inflightWG.Wait()
 		close(resultQ)
 		for r := range resultQ {
 			r.P.set(ctx.Err())
 		}
-		for _, r := range retryReqs {
+		for _, r := range retryQ {
 			r.set(ctx.Err())
 		}
-		if nextReq != nil {
-			nextReq.set(ctx.Err())
-		}
-		for req := range w.reqQ {
+		for _, req := range reqQ {
 			req.set(ctx.Err())
 		}
+		w.reqQmx.Lock()
+		defer w.reqQmx.Unlock()
+		for _, req := range w.reqQ {
+			req.set(ctx.Err())
+		}
+		w.reqQ = nil
 	}()
 	tryIdx := 0
 	idxByEntry := make(map[int64]int, maxInFlightPuts)
@@ -274,12 +267,12 @@ func (w *Writer) processor(ctx context.Context) {
 			w.cancelWithErr(r.E)
 			return
 		}
-		retryReqs = append(retryReqs, r.P)
-		for idx := len(retryReqs) - 2; idx >= 0; idx-- {
-			if retryReqs[idx].Entry.EntryId < retryReqs[idx+1].Entry.EntryId {
+		retryQ = append(retryQ, r.P)
+		for idx := len(retryQ) - 2; idx >= 0; idx-- {
+			if retryQ[idx].Entry.EntryId < retryQ[idx+1].Entry.EntryId {
 				break
 			}
-			retryReqs[idx], retryReqs[idx+1] = retryReqs[idx+1], retryReqs[idx]
+			retryQ[idx], retryQ[idx+1] = retryQ[idx+1], retryQ[idx]
 		}
 		if idxByEntry[r.P.Entry.EntryId] >= cliSendIdx {
 			cli = nil // Reset client because it isn't successful.
@@ -303,19 +296,24 @@ func (w *Writer) processor(ctx context.Context) {
 			cliSendIdx = tryIdx
 		}
 
-		if nextReq == nil && len(retryReqs) == 0 {
+		if len(reqQ) == 0 && len(retryQ) == 0 {
 			select {
 			case <-ctx.Done():
 				return
-			case nextReq = <-w.reqQ:
+			case <-w.reqQNotify:
+				w.reqQmx.Lock()
+				reqQ = w.reqQ
+				w.reqQ = nil
+				w.reqQmx.Unlock()
+				continue
 			case res := <-resultQ:
 				handleResult(res)
 			}
 			continue
 		}
 		var req *PutCtx
-		if len(retryReqs) > 0 {
-			retryReq := retryReqs[0]
+		if len(retryQ) > 0 {
+			retryReq := retryQ[0]
 			prevIdx, ok := idxByEntry[retryReq.Entry.EntryId-1]
 			if ok && prevIdx < idxByEntry[retryReq.Entry.EntryId] {
 				select {
@@ -327,12 +325,13 @@ func (w *Writer) processor(ctx context.Context) {
 				continue
 			}
 			req = retryReq
-			retryReqs[0] = nil
-			retryReqs = retryReqs[1:]
+			retryQ[0] = nil
+			retryQ = retryQ[1:]
 		} else {
 			// check inflight requirements.
+			req = reqQ[0]
 			if inflightN+1 > maxInFlightPuts ||
-				inflightSize+nextReq.Entry.Size() > maxInFlightSize {
+				inflightSize+req.Entry.Size() > maxInFlightSize {
 				select {
 				case <-ctx.Done():
 					return
@@ -341,7 +340,8 @@ func (w *Writer) processor(ctx context.Context) {
 				}
 				continue
 			}
-			req, nextReq = nextReq, nil
+			reqQ[0] = nil
+			reqQ = reqQ[1:]
 		}
 
 		idxByEntry[req.Entry.EntryId] = tryIdx
@@ -356,12 +356,13 @@ func (w *Writer) processor(ctx context.Context) {
 	}
 }
 
+// putEntry makes actual RPC call to WALLE server.
 func (w *Writer) putEntry(ctx context.Context, cli walleapi.WalleApiClient, entry *walleapi.Entry) error {
 	timeout := putEntryTimeout
 	if w.writerLease > timeout {
 		timeout = w.writerLease
 	}
-	_, _, _, toCommit := w.safeCommittedEntryId()
+	_, _, _, toCommit := w.commitInfo()
 	if toCommit.EntryId >= entry.EntryId {
 		return nil
 	}
@@ -376,13 +377,39 @@ func (w *Writer) putEntry(ctx context.Context, cli walleapi.WalleApiClient, entr
 	})
 	if err == nil {
 		w.putsQueued.Add(-1)
-		w.updateCommittedEntryId(
+		w.updateCommitInfo(
 			now, toCommit.EntryId, toCommit.ChecksumXX, entry)
 	}
 	return err
 }
 
-// PutEntry puts new entry in the stream.
+// commitInfo returns information about last successful commit and also
+// last successful put that may not have been explicitly committed yet.
+func (w *Writer) commitInfo() (time.Time, int64, uint64, *walleapi.Entry) {
+	w.committedEntryMx.Lock()
+	defer w.committedEntryMx.Unlock()
+	return w.commitTime, w.committedEntryId, w.committedEntryXX, w.toCommit
+}
+
+// updateCommitInfo updates information about last successful commit and
+// also last successful put.
+func (w *Writer) updateCommitInfo(
+	ts time.Time, committedEntryId int64, committedEntryXX uint64, toCommit *walleapi.Entry) {
+	w.committedEntryMx.Lock()
+	defer w.committedEntryMx.Unlock()
+	if ts.After(w.commitTime) {
+		w.commitTime = ts
+	}
+	if committedEntryId > w.committedEntryId {
+		w.committedEntryId = committedEntryId
+		w.committedEntryXX = committedEntryXX
+	}
+	if toCommit.EntryId > w.toCommit.EntryId {
+		w.toCommit = toCommit
+	}
+}
+
+// PutEntry puts new entry in the stream. PutEntry call itself doesn't block.
 func (w *Writer) PutEntry(data []byte) *PutCtx {
 	entry := &walleapi.Entry{
 		EntryId:  w.tailEntry.EntryId + 1,
@@ -401,31 +428,13 @@ func (w *Writer) PutEntry(data []byte) *PutCtx {
 		r.set(err)
 	} else {
 		w.putsQueued.Add(1)
-		w.reqQ <- r
+		w.reqQ = append(w.reqQ, r)
+		select {
+		case w.reqQNotify <- struct{}{}:
+		default:
+		}
 	}
 	return r
-}
-
-func (w *Writer) safeCommittedEntryId() (time.Time, int64, uint64, *walleapi.Entry) {
-	w.committedEntryMx.Lock()
-	defer w.committedEntryMx.Unlock()
-	return w.commitTime, w.committedEntryId, w.committedEntryXX, w.toCommit
-}
-
-func (w *Writer) updateCommittedEntryId(
-	ts time.Time, committedEntryId int64, committedEntryXX uint64, toCommit *walleapi.Entry) {
-	w.committedEntryMx.Lock()
-	defer w.committedEntryMx.Unlock()
-	if ts.After(w.commitTime) {
-		w.commitTime = ts
-	}
-	if committedEntryId > w.committedEntryId {
-		w.committedEntryId = committedEntryId
-		w.committedEntryXX = committedEntryXX
-	}
-	if toCommit.EntryId > w.toCommit.EntryId {
-		w.toCommit = toCommit
-	}
 }
 
 // CalculateChecksumXX calculates checksum of new entry given checksum
