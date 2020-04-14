@@ -47,13 +47,9 @@ type Writer struct {
 	writerId    []byte
 	longBeat    time.Duration
 
-	cliMX     sync.Mutex
-	cachedCli ApiClient
-
 	tailEntry *walleapi.Entry
 	reqQ      chan *PutCtx
 	reqQmx    sync.Mutex // exists to coordinate writer close.
-	limiter   *limiter
 
 	committedEntryMx sync.Mutex
 	committedEntryId int64
@@ -114,8 +110,7 @@ func newWriter(
 		tailEntry: tailEntry,
 		// Use very large buffer for reqQ to never block. If user fills this queue up,
 		// PutEntry calls will start blocking.
-		reqQ:    make(chan *PutCtx, 16384),
-		limiter: newLimiter(maxInFlightPuts, maxInFlightSize),
+		reqQ: make(chan *PutCtx, 16384),
 
 		committedEntryId: tailEntry.EntryId,
 		committedEntryXX: tailEntry.ChecksumXX,
@@ -167,53 +162,11 @@ func (w *Writer) Committed() *walleapi.Entry {
 	return w.toCommit
 }
 
-func (w *Writer) processor(ctx context.Context) {
-	defer func() {
-		w.reqQmx.Lock()
-		defer w.reqQmx.Unlock()
-		if ctx.Err() == nil {
-			panic("Must exit only when context is done!")
-		}
-		close(w.reqQ)
-		for req := range w.reqQ {
-			req.set(ctx.Err())
-		}
-	}()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case req := <-w.reqQ:
-			for {
-				ok, notify := w.limiter.Put(req.Entry.Size())
-				if ok {
-					go w.process(ctx, req)
-					break
-				}
-				select {
-				case <-ctx.Done():
-					return
-				case <-notify:
-				}
-			}
-		}
-	}
-}
-
-func (w *Writer) cli(cliWithErr ApiClient) (ApiClient, error) {
-	w.cliMX.Lock()
-	defer w.cliMX.Unlock()
-	var err error
-	if w.cachedCli == nil || w.cachedCli == cliWithErr || !w.cachedCli.IsPreferred() {
-		w.cachedCli, err = w.c.ForStream(w.streamURI)
-	}
-	return w.cachedCli, err
-}
-
 // Heartbeater makes requests to the server if there are no active PutEntry calls happening.
 // This makes sure that entries will be marked as committed fast, even if there are no PutEntry calls,
 // and also makes sure that servers are aware that writer is still alive.
 func (w *Writer) heartbeater(ctx context.Context) {
+	var cli ApiClient
 	for {
 		select {
 		case <-ctx.Done():
@@ -229,12 +182,13 @@ func (w *Writer) heartbeater(ctx context.Context) {
 			//   - Either puts are inflight, or there is nothing new to commit.
 			continue
 		}
-		var cli ApiClient
 		err := KeepTryingWithBackoff(
 			ctx, w.longBeat/4, w.longBeat,
 			func(retryN uint) (bool, bool, error) {
 				var err error
-				cli, err = w.cli(cli)
+				if cli == nil || !cli.IsPreferred() || retryN > 0 {
+					cli, err = w.c.ForStream(w.streamURI)
+				}
 				if err != nil {
 					return false, false, err
 				}
@@ -261,54 +215,165 @@ func (w *Writer) heartbeater(ctx context.Context) {
 	}
 }
 
-func (w *Writer) process(ctx context.Context, req *PutCtx) {
-	defer w.limiter.Done(req.Entry.Size())
+type putCtxAndErr struct {
+	P *PutCtx
+	E error
+}
+
+func (w *Writer) processor(ctx context.Context) {
+	resultQ := make(chan putCtxAndErr, maxInFlightPuts)
+	inflightWG := sync.WaitGroup{}
+	var retryReqs []*PutCtx
+	var nextReq *PutCtx
+
+	defer func() {
+		if ctx.Err() == nil {
+			panic("Must exit only when context is done!")
+		}
+
+		inflightWG.Wait()
+		close(resultQ)
+		for r := range resultQ {
+			r.P.set(ctx.Err())
+		}
+		for _, r := range retryReqs {
+			r.set(ctx.Err())
+		}
+		if nextReq != nil {
+			nextReq.set(ctx.Err())
+		}
+
+		w.reqQmx.Lock()
+		defer w.reqQmx.Unlock()
+		close(w.reqQ)
+		for req := range w.reqQ {
+			req.set(ctx.Err())
+		}
+	}()
+	sendIdx := 0
+	idxByEntry := make(map[int64]int, maxInFlightPuts)
+	inflightN := 0
+	inflightSize := 0
+
+	var cli ApiClient
+	cliSendIdx := 0
+	handleResult := func(r putCtxAndErr) {
+		inflightN -= 1
+		inflightSize -= r.P.Entry.Size()
+		if r.E == nil {
+			r.P.set(nil)
+			delete(idxByEntry, r.P.Entry.EntryId)
+			return
+		}
+		if IsErrFinal(status.Convert(r.E).Code()) {
+			r.P.set(r.E)
+			w.cancelWithErr(r.E)
+			return
+		}
+		retryReqs = append(retryReqs, r.P)
+		for idx := len(retryReqs) - 2; idx >= 0; idx-- {
+			if retryReqs[idx].Entry.EntryId < retryReqs[idx+1].Entry.EntryId {
+				break
+			}
+			retryReqs[idx], retryReqs[idx+1] = retryReqs[idx+1], retryReqs[idx]
+		}
+		if idxByEntry[r.P.Entry.EntryId] >= cliSendIdx {
+			cli = nil // Reset client because it isn't successful.
+		}
+	}
+	for {
+		if cli == nil || !cli.IsPreferred() {
+			// First make sure we have connected client to make requests with.
+			var err error
+			cli, err = w.c.ForStream(w.streamURI)
+			if err != nil {
+				select {
+				case <-ctx.Done():
+					return
+				case res := <-resultQ:
+					handleResult(res)
+				case <-time.After(w.longBeat):
+				}
+				continue
+			}
+		}
+		for nextReq == nil && len(retryReqs) == 0 {
+			select {
+			case <-ctx.Done():
+				return
+			case nextReq = <-w.reqQ:
+			case res := <-resultQ:
+				handleResult(res)
+			}
+		}
+		var req *PutCtx
+		if len(retryReqs) > 0 {
+			retryReq := retryReqs[0]
+			prevIdx, ok := idxByEntry[retryReq.Entry.EntryId-1]
+			if ok && prevIdx < idxByEntry[retryReq.Entry.EntryId] {
+				select {
+				case <-ctx.Done():
+					return
+				case res := <-resultQ:
+					handleResult(res)
+				}
+				continue
+			}
+			req = retryReq
+			retryReqs = retryReqs[1:]
+		} else {
+			// check inflight requirements.
+			if inflightN+1 > maxInFlightPuts ||
+				inflightSize+nextReq.Entry.Size() > maxInFlightSize {
+				select {
+				case <-ctx.Done():
+					return
+				case res := <-resultQ:
+					handleResult(res)
+				}
+				continue
+			}
+			req, nextReq = nextReq, nil
+		}
+
+		sendIdx++
+		idxByEntry[req.Entry.EntryId] = sendIdx
+		inflightWG.Add(1)
+		inflightN += 1
+		inflightSize += req.Entry.Size()
+		go func() {
+			err := w.putEntry(ctx, cli, req.Entry)
+			resultQ <- putCtxAndErr{P: req, E: err}
+			inflightWG.Done()
+		}()
+	}
+}
+
+func (w *Writer) putEntry(ctx context.Context, cli walleapi.WalleApiClient, entry *walleapi.Entry) error {
 	timeout := putEntryTimeout
 	if w.writerLease > timeout {
 		timeout = w.writerLease
 	}
-	var cli ApiClient
-	err := KeepTryingWithBackoff(
-		ctx, w.longBeat, w.writerLease,
-		func(retryN uint) (bool, bool, error) {
-			_, _, _, toCommit := w.safeCommittedEntryId()
-			if toCommit.EntryId >= req.Entry.EntryId {
-				return true, false, nil
-			}
-			var err error
-			cli, err = w.cli(cli)
-			if err != nil {
-				silentErr := (req.Entry.EntryId > toCommit.EntryId+1)
-				return false, silentErr, err
-			}
-			putCtx, cancel := context.WithTimeout(ctx, timeout)
-			defer cancel()
-			now := time.Now()
-			w.inflightPuts.Add(1)
-			defer w.inflightPuts.Add(-1)
-			_, err = cli.PutEntry(putCtx, &walleapi.PutEntryRequest{
-				StreamUri:        w.streamURI,
-				Entry:            req.Entry,
-				CommittedEntryId: toCommit.EntryId,
-				CommittedEntryXX: toCommit.ChecksumXX,
-			})
-			if err != nil {
-				_, _, _, toCommit := w.safeCommittedEntryId()
-				if req.Entry.EntryId <= toCommit.EntryId {
-					return true, false, nil
-				}
-				silentErr := (req.Entry.EntryId > toCommit.EntryId+1)
-				errCode := status.Convert(err).Code()
-				return IsErrFinal(errCode), silentErr, err
-			}
-			w.updateCommittedEntryId(
-				now, toCommit.EntryId, toCommit.ChecksumXX, req.Entry)
-			return true, false, nil
-		})
-	if err != nil {
-		w.cancelWithErr(err)
+	_, _, _, toCommit := w.safeCommittedEntryId()
+	if toCommit.EntryId >= entry.EntryId {
+		return nil
 	}
-	req.set(err)
+	putCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	now := time.Now()
+	w.inflightPuts.Add(1)
+	defer w.inflightPuts.Add(-1)
+	_, err := cli.PutEntry(putCtx, &walleapi.PutEntryRequest{
+		StreamUri:        w.streamURI,
+		Entry:            entry,
+		CommittedEntryId: toCommit.EntryId,
+		CommittedEntryXX: toCommit.ChecksumXX,
+	})
+	if err == nil {
+		w.updateCommittedEntryId(
+			now, toCommit.EntryId, toCommit.ChecksumXX, entry)
+	}
+	return err
 }
 
 // PutEntry puts new entry in the stream.
@@ -373,43 +438,4 @@ func CalculateChecksumXX(prevXX uint64, data []byte) uint64 {
 	h.Write(b)
 	h.Write(data)
 	return h.Sum64()
-}
-
-// Limiter for maximum number and size of requests that are in-flight.
-type limiter struct {
-	maxN    int
-	maxSize int
-
-	mx           sync.Mutex
-	inflightN    int
-	inflightSize int
-	notify       chan struct{}
-}
-
-func newLimiter(maxN int, maxSize int) *limiter {
-	return &limiter{
-		maxN:    maxN,
-		maxSize: maxSize,
-		notify:  make(chan struct{}),
-	}
-}
-
-func (l *limiter) Put(size int) (bool, <-chan struct{}) {
-	l.mx.Lock()
-	defer l.mx.Unlock()
-	ok := (l.inflightN+1 <= l.maxN) && (l.inflightSize+size <= l.maxSize)
-	if ok {
-		l.inflightN += 1
-		l.inflightSize += size
-	}
-	return ok, l.notify
-}
-
-func (l *limiter) Done(size int) {
-	l.mx.Lock()
-	defer l.mx.Unlock()
-	l.inflightN -= 1
-	l.inflightSize -= size
-	close(l.notify)
-	l.notify = make(chan struct{})
 }

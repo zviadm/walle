@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/zviadm/stats-go/exporters/datadog"
+	"github.com/zviadm/stats-go/metrics"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/wallelib"
 	"github.com/zviadm/zlog"
@@ -32,6 +34,10 @@ func cmdBench(
 	throughputKBs := f.Int("kbs", 10, "Target total throughput in KB per second.")
 	totalTime := f.Duration("time", 0, "Total bench duration. If 0, will run forever.")
 	f.Parse(args)
+
+	metrics.SetInstanceName("wctl")
+	err := datadog.ExporterGo(ctx)
+	exitOnErr(err)
 
 	c, err := wallelib.NewClientFromRootPb(ctx, rootPb, clusterURI)
 	exitOnErr(err)
