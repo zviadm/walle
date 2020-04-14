@@ -250,7 +250,7 @@ func (w *Writer) processor(ctx context.Context) {
 			req.set(ctx.Err())
 		}
 	}()
-	sendIdx := 0
+	tryIdx := 0
 	idxByEntry := make(map[int64]int, maxInFlightPuts)
 	inflightN := 0
 	inflightSize := 0
@@ -281,7 +281,7 @@ func (w *Writer) processor(ctx context.Context) {
 			cli = nil // Reset client because it isn't successful.
 		}
 	}
-	for {
+	for ; ctx.Err() == nil; tryIdx++ {
 		if cli == nil || !cli.IsPreferred() {
 			// First make sure we have connected client to make requests with.
 			var err error
@@ -296,8 +296,10 @@ func (w *Writer) processor(ctx context.Context) {
 				}
 				continue
 			}
+			cliSendIdx = tryIdx
 		}
-		for nextReq == nil && len(retryReqs) == 0 {
+
+		if nextReq == nil && len(retryReqs) == 0 {
 			select {
 			case <-ctx.Done():
 				return
@@ -305,6 +307,7 @@ func (w *Writer) processor(ctx context.Context) {
 			case res := <-resultQ:
 				handleResult(res)
 			}
+			continue
 		}
 		var req *PutCtx
 		if len(retryReqs) > 0 {
@@ -320,6 +323,7 @@ func (w *Writer) processor(ctx context.Context) {
 				continue
 			}
 			req = retryReq
+			retryReqs[0] = nil
 			retryReqs = retryReqs[1:]
 		} else {
 			// check inflight requirements.
@@ -336,16 +340,15 @@ func (w *Writer) processor(ctx context.Context) {
 			req, nextReq = nextReq, nil
 		}
 
-		sendIdx++
-		idxByEntry[req.Entry.EntryId] = sendIdx
+		idxByEntry[req.Entry.EntryId] = tryIdx
 		inflightWG.Add(1)
 		inflightN += 1
 		inflightSize += req.Entry.Size()
-		go func() {
+		go func(cli walleapi.WalleApiClient, req *PutCtx) {
 			err := w.putEntry(ctx, cli, req.Entry)
 			resultQ <- putCtxAndErr{P: req, E: err}
 			inflightWG.Done()
-		}()
+		}(cli, req)
 	}
 }
 
