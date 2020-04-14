@@ -36,35 +36,32 @@ func cmdScan(
 	exitOnErr(err)
 	streamCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	stream, err := c.StreamEntries(streamCtx, &walleapi.StreamEntriesRequest{
-		StreamUri:   streamURI,
-		FromEntryId: int64(*entryId),
-	})
-	exitOnErr(err)
-	if *count == 0 {
-		*count = math.MaxInt64
-	}
-	var finalEntry *walleapi.Entry
-	for i := 0; i < *count; i++ {
-		entry, err := stream.Recv()
-		if err == io.EOF {
-			break
-		}
+	fromEntryId := int64(*entryId)
+	for {
+		stream, err := c.StreamEntries(streamCtx, &walleapi.StreamEntriesRequest{
+			StreamUri:   streamURI,
+			FromEntryId: fromEntryId,
+		})
 		exitOnErr(err)
-		if i%10000 == 0 {
-			fmt.Printf(
-				"%d: w:%s checksum:%d\n",
-				entry.EntryId, hex.EncodeToString(entry.WriterId), entry.ChecksumXX)
+		if *count == 0 {
+			*count = math.MaxInt64
 		}
-		finalEntry = entry
+		for i := 0; i < *count; i++ {
+			entry, err := stream.Recv()
+			if err == io.EOF {
+				break
+			}
+			exitOnErr(err)
+			fromEntryId = entry.EntryId
+			if i%10000 == 0 {
+				fmt.Printf(
+					"%d: w:%s checksum:%d\n",
+					entry.EntryId, hex.EncodeToString(entry.WriterId), entry.ChecksumXX)
+			}
+		}
 	}
-	if finalEntry == nil {
-		return
-	}
-	entryB, err := finalEntry.Marshal()
-	exitOnErr(err)
-	fmt.Printf(
-		"%d: w:%s checksum:%d\nDATA (%d): %v\nENCODED (%d): %v\n",
-		finalEntry.EntryId, hex.EncodeToString(finalEntry.WriterId), finalEntry.ChecksumXX,
-		len(finalEntry.Data), finalEntry.Data[:100], len(entryB), entryB[:100])
+	// fmt.Printf(
+	// 	"%d: w:%s checksum:%d\nDATA (%d): %v\nENCODED (%d): %v\n",
+	// 	finalEntry.EntryId, hex.EncodeToString(finalEntry.WriterId), finalEntry.ChecksumXX,
+	// 	len(finalEntry.Data), finalEntry.Data[:100], len(entryB), entryB[:100])
 }
