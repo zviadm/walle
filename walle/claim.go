@@ -10,19 +10,11 @@ import (
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/broadcast"
-	"github.com/zviadm/walle/walle/pipeline"
 	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/walle/wallelib"
+	"github.com/zviadm/zlog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-)
-
-const (
-	// Broadcast for PutEntry calls will wait `putEntryLiveWait` amount of time for all calls to finish
-	// within request itself. And will continue waiting upto `putEntryBgWait` amount of time in the background
-	// before canceling context. This is useful to make sure live healthy servers aren't falling too far behind.
-	putEntryLiveWait = 10 * time.Millisecond
-	putEntryBgWait   = pipeline.QueueMaxTimeout
 )
 
 // ClaimWriter implements WalleApiServer interface.
@@ -231,122 +223,48 @@ func (s *Server) commitMaxEntry(
 	return committed, nil
 }
 
-// WriterStatus implements WalleApiServer interface.
-func (s *Server) WriterStatus(
+// NewWriter implements WalleServer interface.
+func (s *Server) NewWriter(
 	ctx context.Context,
-	req *walleapi.WriterStatusRequest) (*walleapi.WriterStatusResponse, error) {
-	ss, ok := s.s.Stream(req.GetStreamUri())
-	if !ok {
-		return nil, status.Errorf(codes.NotFound, "%s not found", req.GetStreamUri())
-	}
-
-	writerInfo, err := broadcast.WriterInfo(
-		ctx, s.c, s.s.ServerId(), ss.StreamURI(), ss.Topology())
+	req *walle_pb.NewWriterRequest) (*walle_pb.NewWriterResponse, error) {
+	ss, err := s.processRequestHeader(req)
 	if err != nil {
 		return nil, err
 	}
-	return &walleapi.WriterStatusResponse{
-		WriterAddr:       writerInfo.WriterAddr,
-		LeaseMs:          writerInfo.LeaseMs,
-		RemainingLeaseMs: writerInfo.RemainingLeaseMs,
-		StreamVersion:    writerInfo.StreamVersion,
-	}, nil
-}
-
-// PutEntry implements WalleApiServer interface.
-func (s *Server) PutEntry(
-	ctx context.Context, req *walleapi.PutEntryRequest) (*walleapi.PutEntryResponse, error) {
-	if len(req.Entry.GetWriterId()) == 0 {
-		return nil, status.Errorf(codes.InvalidArgument, "writer_id must be set")
-	}
-	if len(req.Entry.Data) > wallelib.MaxEntrySize {
-		return nil, status.Errorf(
-			codes.InvalidArgument, "entry too large: %d > %d", len(req.Entry.Data), wallelib.MaxEntrySize)
-	}
-
-	ss, ok := s.s.Stream(req.GetStreamUri())
-	if !ok {
-		return nil, status.Errorf(codes.NotFound, "%s not found", req.GetStreamUri())
-	}
-	ssTopology := ss.Topology()
-	_, err := broadcast.Call(ctx, s.c, ssTopology.ServerIds, putEntryLiveWait, putEntryBgWait,
-		func(c walle_pb.WalleClient, ctx context.Context, serverId string) error {
-			_, err := c.PutEntryInternal(ctx, &walle_pb.PutEntryInternalRequest{
-				ServerId:         serverId,
-				StreamUri:        req.StreamUri,
-				StreamVersion:    ssTopology.Version,
-				FromServerId:     s.s.ServerId(),
-				Entry:            req.Entry,
-				CommittedEntryId: req.CommittedEntryId,
-				CommittedEntryXX: req.CommittedEntryXX,
-			})
-			return err
-		})
+	reqWriterId := storage.WriterId(req.WriterId)
+	zlog.Infof(
+		"[%s] writerId update: %s (%s)", ss.StreamURI(), req.WriterAddr, reqWriterId)
+	remainingLease, err := ss.UpdateWriter(reqWriterId, req.WriterAddr, time.Duration(req.LeaseMs)*time.Millisecond)
 	if err != nil {
 		return nil, err
 	}
-	return &walleapi.PutEntryResponse{}, nil
+	// Need to wait `remainingLease` duration before returning. However, we also need to make sure new
+	// lease doesn't expire since writer client can't heartbeat until this call succeeds.
+	if remainingLease > 0 {
+		err := ss.RenewLease(reqWriterId, remainingLease)
+		if err != nil {
+			return nil, err
+		}
+		time.Sleep(remainingLease)
+	}
+	return &walle_pb.NewWriterResponse{}, nil
 }
 
-// StreamEntries implements WalleApiServer interface.
-func (s *Server) StreamEntries(
-	req *walleapi.StreamEntriesRequest,
-	stream walleapi.WalleApi_StreamEntriesServer) error {
-	ss, ok := s.s.Stream(req.GetStreamUri())
-	if !ok {
-		return status.Errorf(codes.NotFound, "%s not found", req.GetStreamUri())
-	}
-	entryId := req.FromEntryId
-	internalCtx := stream.Context()
-	reqDeadline, ok := stream.Context().Deadline()
-	if ok {
-		var cancel context.CancelFunc
-		internalCtx, cancel = context.WithTimeout(
-			internalCtx, reqDeadline.Sub(time.Now())*4/5)
-		defer cancel()
-	}
-	var committedId int64
-	for {
-		var notify <-chan struct{}
-		committedId, notify = ss.CommittedEntryId()
-		if entryId < 0 {
-			entryId = committedId
-		}
-		if entryId <= committedId {
-			break
-		}
-		_, writerAddr, _, remainingLease := ss.WriterInfo()
-		minimumLease := time.Duration(0)
-		if isInternalWriter(writerAddr) {
-			minimumLease = -reResolveTimeout
-		}
-		if remainingLease < minimumLease {
-			return status.Errorf(codes.Unavailable,
-				"writer: %s lease expired for streamURI: %s", writerAddr, req.StreamUri)
-		}
-		select {
-		case <-s.rootCtx.Done():
-			return nil
-		case <-internalCtx.Done():
-			return nil
-		case <-stream.Context().Done():
-			return stream.Context().Err()
-		case <-notify:
-		}
-	}
-
-	oneOk := false
-	sendEntry := func(e *walleapi.Entry) error {
-		if err := stream.Send(e); err != nil {
-			return err
-		}
-		oneOk = true
-		return nil
-	}
-	err := s.readAndProcessEntries(
-		internalCtx, ss, entryId, committedId+1, sendEntry)
-	if !oneOk && err != nil {
+// TailEntries implements WalleServer interface.
+func (s *Server) TailEntries(
+	req *walle_pb.TailEntriesRequest, stream walle_pb.Walle_TailEntriesServer) error {
+	ss, err := s.processRequestHeader(req)
+	if err != nil {
 		return err
+	}
+	entries, err := ss.TailEntries()
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if err := stream.Send(entry); err != nil {
+			return err
+		}
 	}
 	return nil
 }

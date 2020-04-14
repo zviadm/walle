@@ -107,9 +107,9 @@ func (s *Server) readAndProcessEntries(
 	return nil
 }
 
-// Fetches committed entries from other servers in range: [startId, endId), and commits them locally.
-// Entries are streamed and stored right away thus, partial success is possible. Returns success only if
-// all entries were successfully fetched and stored locally.
+// fetchAndStoreEntries fetches committed entries from other servers in range: [startId, endId), and commits
+// them locally. Entries are streamed and stored right away thus, partial success is possible. Returns success
+// only if all entries were successfully fetched and stored locally.
 func (s *Server) fetchAndStoreEntries(
 	ctx context.Context,
 	ss storage.Stream,

@@ -13,7 +13,9 @@ service Walle {
 	rpc TailEntries(TailEntriesRequest) returns (stream Entry) {}
 
 	// NOTE: ReadEntries only returns committed entries. If it hits a GAP or end of the stream,
-	// it will return NOT_FOUND error. Returns entries in range: [start_id...end_id).
+	// it will return NOT_FOUND error. Returns entries in range: [start_id...end_id). Can also
+	// return early if streamed data is too large. Caller can make another call to fetch
+	// rest of the entries.
 	rpc ReadEntries(ReadEntriesRequest) returns (stream Entry) {}
 }
 
