@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"math"
 	"os"
 
 	"github.com/zviadm/walle/proto/walleapi"
@@ -37,27 +36,31 @@ func cmdScan(
 	streamCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	fromEntryId := int64(*entryId)
-	for {
+	readN := 0
+	for *count == 0 || readN >= *count {
 		stream, err := c.StreamEntries(streamCtx, &walleapi.StreamEntriesRequest{
 			StreamUri:   streamURI,
 			FromEntryId: fromEntryId,
 		})
 		exitOnErr(err)
-		if *count == 0 {
-			*count = math.MaxInt64
-		}
-		for i := 0; i < *count; i++ {
+		readNew := false
+		for i := 0; ; i++ {
 			entry, err := stream.Recv()
 			if err == io.EOF {
 				break
 			}
 			exitOnErr(err)
+			readN += 1
+			readNew = (i >= 1)
 			fromEntryId = entry.EntryId
 			if i%10000 == 0 {
 				fmt.Printf(
 					"%d: w:%s checksum:%d\n",
 					entry.EntryId, hex.EncodeToString(entry.WriterId), entry.ChecksumXX)
 			}
+		}
+		if !readNew {
+			break
 		}
 	}
 	// fmt.Printf(

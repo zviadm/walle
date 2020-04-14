@@ -16,7 +16,6 @@ for i in {0..2}; do
 done
 
 gcloud compute ssh wctl-0 -- "
-sudo apt-get install -y --no-install-recommends libsnappy-dev &&
 env DD_AGENT_MAJOR_VERSION=7 DD_API_KEY=$DD_API_KEY bash -c \"\$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent/master/cmd/agent/install_script.sh)\"
 "
 for i in {0..2}; do
@@ -25,7 +24,6 @@ sudo mkfs.ext4 -F /dev/nvme0n1
 sudo mkdir -p /mnt/disks/w0
 sudo mount -o discard,defaults,nobarrier /dev/nvme0n1 /mnt/disks/w0
 sudo chmod a+w /mnt/disks/w0 &&
-sudo apt-get install -y --no-install-recommends libsnappy-dev &&
 (echo never | sudo tee /sys/kernel/mm/transparent_hugepage/enabled) &&
 env DD_AGENT_MAJOR_VERSION=7 DD_API_KEY=$DD_API_KEY bash -c \"\$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent/master/cmd/agent/install_script.sh)\"
 "
