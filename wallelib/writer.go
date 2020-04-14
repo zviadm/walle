@@ -14,13 +14,13 @@ import (
 
 const (
 	// LeaseMinimum is absolute minimum that can be provided as writer lease duration.
-	// More realistic range of writer lease would be ~1-10seconds.
+	// More realistic range of writer lease would be ~[1-10] seconds.
 	LeaseMinimum = 100 * time.Millisecond
 
 	// MaxEntrySize is maximum entry size in WALLE. This can't be changed.
 	MaxEntrySize = 1024 * 1024 // 1MB
 
-	maxInFlightSize = 4 * 1024 * 1024 // Maximum put request bytes in-flight.
+	maxInFlightSize = 4 * 1024 * 1024 // Maximum put requests in-flight as bytes.
 	maxInFlightPuts = 128             // Maximum number of put requests in-flight.
 
 	// shortBeat duration defines minimum amount of time it takes for explicit Commit
@@ -56,7 +56,7 @@ type Writer struct {
 	committedEntryXX uint64
 	toCommit         *walleapi.Entry
 	commitTime       time.Time
-	inflightPuts     atomic.Int64
+	putsQueued       atomic.Int64
 
 	rootCtx    context.Context
 	rootCancel context.CancelFunc
@@ -176,10 +176,10 @@ func (w *Writer) heartbeater(ctx context.Context) {
 		now := time.Now()
 		ts, committedEntryId, _, toCommit := w.safeCommittedEntryId()
 		if ts.Add(w.longBeat).After(now) &&
-			(committedEntryId == toCommit.EntryId || w.inflightPuts.Load() > 0) {
+			(committedEntryId == toCommit.EntryId || w.putsQueued.Load() > 0) {
 			// Skip heartbeat if:
 			//   - Long beat hasn't been missed
-			//   - Either puts are inflight, or there is nothing new to commit.
+			//   - Either regular puts are already queued, or there is nothing new to commit.
 			continue
 		}
 		err := KeepTryingWithBackoff(
@@ -364,8 +364,6 @@ func (w *Writer) putEntry(ctx context.Context, cli walleapi.WalleApiClient, entr
 	putCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	now := time.Now()
-	w.inflightPuts.Add(1)
-	defer w.inflightPuts.Add(-1)
 	_, err := cli.PutEntry(putCtx, &walleapi.PutEntryRequest{
 		StreamUri:        w.streamURI,
 		Entry:            entry,
@@ -373,6 +371,7 @@ func (w *Writer) putEntry(ctx context.Context, cli walleapi.WalleApiClient, entr
 		CommittedEntryXX: toCommit.ChecksumXX,
 	})
 	if err == nil {
+		w.putsQueued.Add(-1)
 		w.updateCommittedEntryId(
 			now, toCommit.EntryId, toCommit.ChecksumXX, entry)
 	}
@@ -397,6 +396,7 @@ func (w *Writer) PutEntry(data []byte) *PutCtx {
 	if err := w.rootCtx.Err(); err != nil {
 		r.set(err)
 	} else {
+		w.putsQueued.Add(1)
 		w.reqQ <- r
 	}
 	return r
