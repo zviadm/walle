@@ -36,7 +36,7 @@ func cmdScan(
 	defer cancel()
 	fromEntryId := int64(*entryId)
 	readN := 0
-	for *count == 0 || readN >= *count {
+	for *count == 0 || readN < *count {
 		stream, err := c.StreamEntries(streamCtx, &walleapi.StreamEntriesRequest{
 			StreamUri:   streamURI,
 			FromEntryId: fromEntryId,
@@ -52,7 +52,7 @@ func cmdScan(
 			readN += 1
 			readNew = (i >= 1)
 			fromEntryId = entry.EntryId
-			if i%10000 == 0 {
+			if readN%10000 == 0 {
 				fmt.Printf(
 					"%d: w:%v checksum:%d\n",
 					entry.EntryId, entry.WriterId, entry.ChecksumXX)
@@ -62,8 +62,5 @@ func cmdScan(
 			break
 		}
 	}
-	// fmt.Printf(
-	// 	"%d: w:%s checksum:%d\nDATA (%d): %v\nENCODED (%d): %v\n",
-	// 	finalEntry.EntryId, hex.EncodeToString(finalEntry.WriterId), finalEntry.ChecksumXX,
-	// 	len(finalEntry.Data), finalEntry.Data[:100], len(entryB), entryB[:100])
+	fmt.Printf("%d: read %d\n", fromEntryId, readN)
 }
