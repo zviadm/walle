@@ -11,10 +11,11 @@ import (
 // or due to on disk data corruption issues.
 type Storage interface {
 	ServerId() string
-	// Updates or sets new topology for given streamURI. Can return an error if
+	// Updates or creates new stream with given topology. Can return an error if
 	// local resoures are exhausted and storage can no longer handle adding more streams.
 	// This call is not thread safe. There must be only one thread that makes Update calls.
-	Update(streamURI string, topology *walleapi.StreamTopology) error
+	UpsertStream(streamURI string, topology *walleapi.StreamTopology) error
+
 	Streams(localOnly bool) []string
 	Stream(streamURI string) (Stream, bool)
 

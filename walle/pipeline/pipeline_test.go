@@ -47,7 +47,7 @@ func benchmarkFullPipeline(b *testing.B, nStreams int) {
 	var streams []storage.Stream
 	for idx := 0; idx < nStreams; idx++ {
 		uri := "/test/" + strconv.Itoa(idx)
-		err := s.Update(
+		err := s.UpsertStream(
 			uri, &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
 		require.NoError(b, err)
 		ss, _ := s.Stream(uri)

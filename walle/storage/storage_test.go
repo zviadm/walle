@@ -20,7 +20,7 @@ func TestStorageOpen(t *testing.T) {
 	dbPath := TestTmpDir()
 	s, err := Init(dbPath, InitOpts{Create: true})
 	require.NoError(t, err)
-	err = s.Update("/s/1", &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
+	err = s.UpsertStream("/s/1", &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
 	require.NoError(t, err)
 	s.Close()
 
@@ -38,7 +38,7 @@ func TestStreamStorage(t *testing.T) {
 	s, err := Init(TestTmpDir(), InitOpts{Create: true})
 	require.NoError(t, err)
 	defer s.Close()
-	err = s.Update("/s/1", &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
+	err = s.UpsertStream("/s/1", &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
 	require.NoError(t, err)
 	ss, ok := s.Stream("/s/1")
 	require.True(t, ok)
@@ -133,7 +133,7 @@ func TestStreamStorageRaces(t *testing.T) {
 	s, err := Init(TestTmpDir(), InitOpts{Create: true})
 	require.NoError(t, err)
 	defer s.Close()
-	err = s.Update("/s/1", &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
+	err = s.UpsertStream("/s/1", &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
 	require.NoError(t, err)
 	ss, ok := s.Stream("/s/1")
 	require.True(t, ok)
@@ -192,12 +192,12 @@ func TestStreamLimits(t *testing.T) {
 	require.NoError(t, err)
 	defer s.Close()
 	longURI := "/" + strings.Repeat("a", streamURIMaxLen-1)
-	err = s.Update(longURI, &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
+	err = s.UpsertStream(longURI, &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
 	require.NoError(t, err)
 	_, ok := s.Stream(longURI)
 	require.True(t, ok)
 
-	err = s.Update("/t2", &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
+	err = s.UpsertStream("/t2", &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
 	require.Error(t, err) // MaxLocalStreams limitation.
 }
 
@@ -207,19 +207,19 @@ func TestStreamOpenClose(t *testing.T) {
 	defer s.Close()
 
 	streamURI := "/test1"
-	err = s.Update(streamURI, &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId(), "s2"}})
+	err = s.UpsertStream(streamURI, &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId(), "s2"}})
 	require.NoError(t, err)
 	ss, ok := s.Stream(streamURI)
 	require.True(t, ok)
 	require.False(t, ss.IsClosed())
 
-	err = s.Update(streamURI, &walleapi.StreamTopology{Version: 2, ServerIds: []string{"s2"}})
+	err = s.UpsertStream(streamURI, &walleapi.StreamTopology{Version: 2, ServerIds: []string{"s2"}})
 	require.NoError(t, err)
 	require.True(t, ss.IsClosed())
 	_, ok = s.Stream(streamURI)
 	require.False(t, ok)
 
-	err = s.Update(streamURI, &walleapi.StreamTopology{Version: 3, ServerIds: []string{s.ServerId(), "s2"}})
+	err = s.UpsertStream(streamURI, &walleapi.StreamTopology{Version: 3, ServerIds: []string{s.ServerId(), "s2"}})
 	require.NoError(t, err)
 	require.True(t, ss.IsClosed())
 	ss2, ok := s.Stream(streamURI)
@@ -243,7 +243,7 @@ func benchmarkPutEntry(b *testing.B, committed bool) {
 	defer s.Close()
 
 	streamURI := "/test1"
-	err = s.Update(streamURI, &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
+	err = s.UpsertStream(streamURI, &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
 	require.NoError(b, err)
 	ss, ok := s.Stream(streamURI)
 	require.True(b, ok)

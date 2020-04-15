@@ -23,10 +23,12 @@ type storage struct {
 	flushMX sync.Mutex
 	flushS  *wt.Session
 
-	streamT         map[string]*walleapi.StreamTopology // exists for all streamURIs
-	streamsMX       sync.Mutex
 	maxLocalStreams int
-	streams         map[string]Stream // exists only for local streams
+	nLocalStreams   int
+	// streamT contains topologies for all streams in a cluster.
+	streamT sync.Map // stream_uri -> *walleapi.StreamTopology
+	// streams contains only locally served streams.
+	streams sync.Map // stream_uri -> Stream
 }
 
 var _ Storage = &storage{}
@@ -108,14 +110,12 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 		metaS:           metaS,
 		metaW:           metaW,
 		maxLocalStreams: opts.MaxLocalStreams,
-		streams:         make(map[string]Stream),
 	}
 	if opts.ServerId != "" && opts.ServerId != r.serverId {
 		return nil, errors.Errorf(
 			"storage already has different serverId: %s vs %s", r.serverId, opts.ServerId)
 	}
 
-	r.streamT = make(map[string]*walleapi.StreamTopology)
 	panic.OnErr(metaR.Reset())
 	for {
 		if err := metaR.Next(); err != nil {
@@ -136,11 +136,13 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 		panic.OnErr(topology.Unmarshal(v))
 
 		streamURI := strings.Split(metaKey, ":")[0]
-		r.streamT[streamURI] = topology
+		r.streamT.Store(streamURI, topology)
 	}
-	for streamURI, topology := range r.streamT {
+	r.streamT.Range(func(k, v interface{}) bool {
+		streamURI := k.(string)
+		topology := v.(*walleapi.StreamTopology)
 		if !IsMember(topology, r.serverId) {
-			continue
+			return true
 		}
 		sess, err := c.OpenSession()
 		panic.OnErr(err)
@@ -148,10 +150,13 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 		panic.OnErr(err)
 		sessFill, err := c.OpenSession()
 		panic.OnErr(err)
-		r.streams[streamURI] = openStreamStorage(r.serverId, streamURI, sess, sessRO, sessFill)
-		r.streams[streamURI].setTopology(topology)
+		ss := openStreamStorage(r.serverId, streamURI, sess, sessRO, sessFill)
+		ss.setTopology(topology)
+		r.nLocalStreams += 1
+		r.streams.Store(streamURI, ss)
 		zlog.Infof("stream (local): %s %s (v: %d)", streamURI, topology.ServerIds, topology.Version)
-	}
+		return true
+	})
 	return r, nil
 }
 
@@ -172,79 +177,67 @@ func (m *storage) FlushSync() {
 }
 
 func (m *storage) Streams(localOnly bool) []string {
-	m.streamsMX.Lock()
-	defer m.streamsMX.Unlock()
-	r := make([]string, 0, len(m.streamT))
-	for streamURI := range m.streamT {
-		_, ok := m.streams[streamURI]
-		if localOnly && !ok {
-			continue
-		}
-		r = append(r, streamURI)
+	r := make([]string, 0, m.maxLocalStreams)
+	var mm *sync.Map
+	if localOnly {
+		mm = &m.streams
+	} else {
+		mm = &m.streamT
 	}
+	mm.Range(func(k, v interface{}) bool {
+		r = append(r, k.(string))
+		return true
+	})
 	return r
-}
-func (m *storage) checkAddLocalStream() error {
-	m.streamsMX.Lock()
-	defer m.streamsMX.Unlock()
-	if len(m.streams) < m.maxLocalStreams {
-		return nil
-	}
-	return errors.Errorf("max streams reached: %d", m.maxLocalStreams)
 }
 
 func (m *storage) Stream(streamURI string) (Stream, bool) {
-	m.streamsMX.Lock()
-	defer m.streamsMX.Unlock()
-	r, ok := m.streams[streamURI]
-	return r, ok
+	v, ok := m.streams.Load(streamURI)
+	if !ok {
+		return nil, false
+	}
+	return v.(Stream), true
 }
 
-func (m *storage) Update(
+// UpstertStream call is NOT thread-safe. Must be called from a single
+// thread only.
+func (m *storage) UpsertStream(
 	streamURI string, topology *walleapi.StreamTopology) error {
-	if m.streamT[streamURI].GetVersion() >= topology.Version {
+
+	tt, ok := m.streamT.Load(streamURI)
+	if ok && tt.(*walleapi.StreamTopology).Version >= topology.Version {
 		return nil
 	}
-
-	var ss Stream = nil
 	topologyB, err := topology.Marshal()
 	if err != nil {
 		return err
 	}
-	defer func() {
-		if err != nil {
-			return
-		}
-		panic.OnErr(m.metaS.TxBegin(wt.TxCfg{Sync: wt.True}))
-		panic.OnErr(m.metaW.Insert([]byte(streamURI+sfxTopology), topologyB))
-		panic.OnErr(m.metaS.TxCommit())
-		m.streamsMX.Lock()
-		defer m.streamsMX.Unlock()
-		m.streamT[streamURI] = topology
-		if ss == nil {
-			delete(m.streams, streamURI)
-		} else {
-			m.streams[streamURI] = ss
-			ss.setTopology(topology)
-		}
-	}()
 	isLocal := IsMember(topology, m.serverId)
-	var ok bool
-	ss, ok = m.Stream(streamURI)
-	if ok == isLocal {
-		return nil
-	} else if !isLocal {
-		ss.close()
-		ss = nil
-		return nil
-	} else {
-		err := m.checkAddLocalStream()
-		if err != nil {
-			return err
-		}
-		ss = m.makeLocalStream(streamURI)
-		return nil
+	ss, ok := m.Stream(streamURI)
+	if isLocal && !ok && m.nLocalStreams >= m.maxLocalStreams {
+		return errors.Errorf("max streams reached: %d", m.maxLocalStreams)
 	}
+	// It is very important to update topology in storage first to make sure
+	// that if a server ACKs that it has received a particular version of topology it
+	// won't lose it after a crash.
+	panic.OnErr(m.metaS.TxBegin(wt.TxCfg{Sync: wt.True}))
+	panic.OnErr(m.metaW.Insert([]byte(streamURI+sfxTopology), topologyB))
+	panic.OnErr(m.metaS.TxCommit())
+	m.streamT.Store(streamURI, topology)
+	if ok {
+		ss.setTopology(topology)
+		if !isLocal {
+			m.nLocalStreams -= 1
+			m.streams.Delete(streamURI)
+			ss.close()
+		}
+	} else if isLocal {
+		ss = m.makeLocalStream(streamURI)
+		ss.setTopology(topology)
+		m.nLocalStreams += 1
+		m.streams.Store(streamURI, ss)
+	}
+	return nil
 }
 
 func (m *storage) makeLocalStream(streamURI string) Stream {
