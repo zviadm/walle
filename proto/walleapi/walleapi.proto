@@ -62,9 +62,9 @@ message WriterStatusResponse {
 
 message PutEntryRequest {
 	string stream_uri = 1;
-	Entry entry = 2;
-	int64 committed_entry_id = 3;
-	uint64 committed_entry_x_x = 4;
+	int64 committed_entry_id = 2;
+	uint64 committed_entry_x_x = 3;
+	Entry entry = 4;
 }
 
 message PollStreamRequest {

@@ -52,10 +52,10 @@ message PutEntryInternalRequest {
 	int64 stream_version = 3;
 	string from_server_id = 4;
 
-	Entry entry = 5;
+	bool ignore_lease_renew = 5;
 	int64 committed_entry_id = 6;
 	uint64 committed_entry_x_x = 7;
-	bool ignore_lease_renew = 8;
+	Entry entry = 8;
 }
 message PutEntryInternalResponse{}
 
