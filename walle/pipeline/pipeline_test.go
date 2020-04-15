@@ -43,7 +43,7 @@ func benchmarkFullPipeline(b *testing.B, nStreams int) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	p := New(ctx, s.FlushSync, fakeFetch)
+	p := New(ctx, fakeFetch)
 	var streams []storage.Stream
 	for idx := 0; idx < nStreams; idx++ {
 		uri := "/test/" + strconv.Itoa(idx)

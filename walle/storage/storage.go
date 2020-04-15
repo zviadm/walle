@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"os"
@@ -21,8 +22,10 @@ type storage struct {
 	metaS    *wt.Session
 	metaW    *wt.Mutator
 
-	flushMX sync.Mutex
-	flushS  *wt.Session
+	flushMX     sync.Mutex
+	flusherExit chan struct{}
+	flushQ      chan struct{}
+	flushDone   chan struct{}
 
 	maxLocalStreams int
 	// streams contains only locally served streams.
@@ -101,16 +104,17 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 			"storage already has different serverId: %s vs %s", serverId, opts.ServerId)
 	}
 
-	flushS, err := c.OpenSession()
-	panic.OnErr(err)
 	r := &storage{
 		serverId:        serverId,
 		closeC:          make(chan struct{}),
 		c:               c,
-		flushS:          flushS,
 		metaS:           metaS,
 		metaW:           metaW,
 		maxLocalStreams: opts.MaxLocalStreams,
+
+		flusherExit: make(chan struct{}, 1),
+		flushQ:      make(chan struct{}, 1),
+		flushDone:   make(chan struct{}),
 	}
 	if opts.ServerId != "" && opts.ServerId != r.serverId {
 		return nil, errors.Errorf(
@@ -156,6 +160,10 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 		r.streams.Store(streamURI, ss)
 		zlog.Infof("stream (local): %s %s (v: %d)", streamURI, topology.ServerIds, topology.Version)
 	}
+
+	flushS, err := c.OpenSession()
+	panic.OnErr(err)
+	go r.flusher(flushS)
 	return r, nil
 }
 
@@ -163,10 +171,40 @@ func (m *storage) ServerId() string {
 	return m.serverId
 }
 
-func (m *storage) FlushSync() {
+func (m *storage) flusher(s *wt.Session) {
+	for {
+		select {
+		case <-m.flusherExit:
+			panic.OnErr(s.LogFlush(wt.SyncOn))
+			close(m.flusherExit)
+			return
+		case <-m.flushQ:
+		}
+		m.flushMX.Lock()
+		flushDone := m.flushDone
+		m.flushDone = make(chan struct{})
+		m.flushMX.Unlock()
+
+		panic.OnErr(s.LogFlush(wt.SyncOn))
+		close(flushDone)
+	}
+}
+
+func (m *storage) Flush(ctx context.Context) error {
 	m.flushMX.Lock()
-	defer m.flushMX.Unlock()
-	panic.OnErr(m.flushS.LogFlush(wt.SyncOn))
+	done := m.flushDone
+	m.flushMX.Unlock()
+	select {
+	case m.flushQ <- struct{}{}:
+	default:
+	}
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-done:
+	}
+	return nil
 }
 
 func (m *storage) LocalStreams() []string {
@@ -248,7 +286,8 @@ func (m *storage) Close() {
 		v.(Stream).close()
 		return true
 	})
-	m.FlushSync()
+	m.flusherExit <- struct{}{}
+	<-m.flusherExit
 	panic.OnErr(m.c.Close(wt.ConnCloseCfg{LeakMemory: wt.True}))
 	close(m.closeC)
 }

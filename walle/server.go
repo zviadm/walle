@@ -39,7 +39,7 @@ func NewServer(
 		s:       s,
 	}
 	r.c = wrapClient(c, s.ServerId(), r)
-	r.pipeline = pipeline.New(ctx, s.FlushSync, r.fetchCommittedEntry)
+	r.pipeline = pipeline.New(ctx, r.fetchCommittedEntry)
 
 	r.watchTopology(ctx, d, topoMgr)
 	go r.writerInfoWatcher(ctx)

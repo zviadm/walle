@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"time"
 
 	"github.com/zviadm/walle/proto/walleapi"
@@ -19,7 +20,9 @@ type Storage interface {
 	LocalStreams() []string
 	Stream(streamURI string) (Stream, bool)
 
-	FlushSync() // Forces Flush
+	// Flush queues and waits for flush to succeed. Can return an error if context expires.
+	Flush(ctx context.Context) error
+
 	Close()
 	CloseC() <-chan struct{}
 }
