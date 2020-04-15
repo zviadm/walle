@@ -84,6 +84,14 @@ func main() {
 	}
 	serverInfo := &walleapi.ServerInfo{Address: net.JoinHostPort(*host, *port)}
 
+	// GOMAXPROCS: adjust GOMAXPROCS to larger number since WALLE does a lot
+	// of database writing through CGO calls.
+	maxProcsLimit := *maxLocalStreams
+	if maxProcsLimit > 128 {
+		maxProcsLimit = 128
+	}
+	runtime.GOMAXPROCS(maxProcsLimit + runtime.NumCPU())
+
 	// Memory allocation:
 	// 60% goes to WT Cache. (non-GO memory)
 	// 40% goes to (Static heap + Memory ballast) + GC overhead.
