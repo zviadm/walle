@@ -61,34 +61,6 @@ type Writer struct {
 	rootCancel context.CancelFunc
 }
 
-// PutCtx provides context.Context like interface for PutEntry results.
-type PutCtx struct {
-	Entry *walleapi.Entry // Read-only!
-	mx    sync.Mutex
-	err   error
-	done  chan struct{}
-}
-
-func (p *PutCtx) set(err error) {
-	p.mx.Lock()
-	defer p.mx.Unlock()
-	p.err = err
-	close(p.done)
-}
-
-// Err returns result of PutCtx. Value of Err() is relevant only after
-// Done() channel is closed.
-func (p *PutCtx) Err() error {
-	p.mx.Lock()
-	defer p.mx.Unlock()
-	return p.err
-}
-
-// Done returns channel that will be closed once Err() is set.
-func (p *PutCtx) Done() <-chan struct{} {
-	return p.done
-}
-
 func newWriter(
 	c Client,
 	streamURI string,
@@ -281,20 +253,52 @@ func (w *Writer) updateCommitInfo(
 // PutEntry puts new entry in the stream. PutEntry call itself doesn't block.
 // This call is NOT thread-safe.
 func (w *Writer) PutEntry(data []byte) *PutCtx {
-	entry := &walleapi.Entry{
-		EntryId:  w.tailEntry.EntryId + 1,
-		WriterId: w.writerId,
-		Data:     data,
-	}
-	entry.ChecksumXX = CalculateChecksumXX(w.tailEntry.ChecksumXX, data)
-	w.tailEntry = entry
-	r := &PutCtx{
-		Entry: entry,
-		done:  make(chan struct{}),
-	}
+	r := makePutCtx(w.tailEntry, w.writerId, data)
+	w.tailEntry = r.Entry
 	w.putsQueued.Add(1)
 	w.p.Queue(r)
 	return r
+}
+
+// PutCtx provides context.Context like interface for PutEntry results.
+type PutCtx struct {
+	Entry *walleapi.Entry // Read-only!
+	mx    sync.Mutex
+	err   error
+	done  chan struct{}
+}
+
+func makePutCtx(prevEntry *walleapi.Entry, writerId []byte, data []byte) *PutCtx {
+	entry := &walleapi.Entry{
+		EntryId:  prevEntry.EntryId + 1,
+		WriterId: writerId,
+		Data:     data,
+	}
+	entry.ChecksumXX = CalculateChecksumXX(prevEntry.ChecksumXX, data)
+	return &PutCtx{
+		Entry: entry,
+		done:  make(chan struct{}),
+	}
+}
+
+func (p *PutCtx) set(err error) {
+	p.mx.Lock()
+	defer p.mx.Unlock()
+	p.err = err
+	close(p.done)
+}
+
+// Err returns result of PutCtx. Value of Err() is relevant only after
+// Done() channel is closed.
+func (p *PutCtx) Err() error {
+	p.mx.Lock()
+	defer p.mx.Unlock()
+	return p.err
+}
+
+// Done returns channel that will be closed once Err() is set.
+func (p *PutCtx) Done() <-chan struct{} {
+	return p.done
 }
 
 // CalculateChecksumXX calculates checksum of new entry given checksum
