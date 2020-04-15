@@ -10,6 +10,7 @@ import (
 
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/panic"
+	"github.com/zviadm/walle/wallelib"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -36,6 +37,8 @@ var (
 	// Entry0 is root entry for every WALLE stream.
 	Entry0     = &walleapi.Entry{}
 	entry0B, _ = Entry0.Marshal()
+
+	entryMaxSerializedSize = wallelib.MaxEntrySize + 1024 // Add extra 1KB just for safety.
 )
 
 // MakeWriterId creates new WriterId. WriterId is part random, part based on timestamp,

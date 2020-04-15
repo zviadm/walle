@@ -25,24 +25,28 @@ const (
 type streamStorage struct {
 	serverId  string
 	streamURI string
-	sess      *wt.Session
-	metaW     *wt.Mutator
-	streamR   *wt.Scanner
-	streamW   *wt.Mutator
 
 	// Separate read only session and lock for ReadFrom calls.
 	roMX   sync.Mutex
 	sessRO *wt.Session
+	roBuf8 []byte
 
 	// Separate session for writing Gap entries.
-	backfillMX  sync.Mutex
-	sessFill    *wt.Session
-	streamFillW *wt.Mutator
+	backfillMX       sync.Mutex
+	sessFill         *wt.Session
+	streamFillW      *wt.Mutator
+	backfillBuf8     []byte
+	backfillEntryBuf []byte
 
 	// mx protects all non-atomic variables below. and also protects
 	// WT sess and all its cursors.
 	mx       sync.Mutex
+	sess     *wt.Session
+	metaW    *wt.Mutator
+	streamR  *wt.Scanner
+	streamW  *wt.Mutator
 	buf8     []byte
+	entryBuf []byte
 	topology atomic.Value // Type is: *walleapi.StreamTopology
 
 	writerId        walleapi.WriterId
@@ -109,12 +113,17 @@ func openStreamStorage(
 		serverId:  serverId,
 		streamURI: streamURI,
 
-		sess:     sess,
-		sessRO:   sessRO,
-		sessFill: sessFill,
-
+		sess:            sess,
 		buf8:            make([]byte, 8),
+		entryBuf:        make([]byte, entryMaxSerializedSize),
 		committedNotify: make(chan struct{}),
+
+		sessRO: sessRO,
+		roBuf8: make([]byte, 8),
+
+		sessFill:         sessFill,
+		backfillBuf8:     make([]byte, 8),
+		backfillEntryBuf: make([]byte, entryMaxSerializedSize),
 
 		committedIdG: committedIdGauge.V(metrics.KV{"stream_uri": streamURI}),
 		gapStartIdG:  gapStartIdGauge.V(metrics.KV{"stream_uri": streamURI}),
@@ -479,21 +488,6 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error 
 	return nil
 }
 
-func (m *streamStorage) PutGapEntries(entries []*walleapi.Entry) error {
-	m.backfillMX.Lock()
-	defer m.backfillMX.Unlock()
-	if m.sessFill.Closed() {
-		return status.Errorf(codes.NotFound, "%s not found", m.streamURI)
-	}
-	for _, entry := range entries {
-		binary.BigEndian.PutUint64(m.buf8, uint64(entry.EntryId))
-		entryB, err := entry.Marshal()
-		panic.OnErr(err)
-		panic.OnErr(m.streamFillW.Insert(m.buf8, entryB))
-	}
-	return nil
-}
-
 func (m *streamStorage) makeGapCommit(entry *walleapi.Entry) {
 	// Clear out all uncommitted entries, and create a GAP.
 	panic.OnErr(m.sess.TxBegin())
@@ -539,9 +533,9 @@ func (m *streamStorage) insertEntry(entry *walleapi.Entry) {
 	}
 
 	binary.BigEndian.PutUint64(m.buf8, uint64(entry.EntryId))
-	entryB, err := entry.Marshal()
+	n, err := entry.MarshalTo(m.entryBuf)
 	panic.OnErr(err)
-	panic.OnErr(m.streamW.Insert(m.buf8, entryB))
+	panic.OnErr(m.streamW.Insert(m.buf8, m.entryBuf[:n]))
 }
 
 // Deletes all entries [entryId...) from storage, and sets new tailEntry afterwards.

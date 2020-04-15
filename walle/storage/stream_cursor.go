@@ -29,9 +29,8 @@ func (m *streamStorage) ReadFrom(entryId int64) (Cursor, error) {
 		committedId: committedId,
 		needsNext:   false,
 	}
-	var buf8 [8]byte
-	binary.BigEndian.PutUint64(buf8[:], uint64(entryId))
-	mType, err := cursor.SearchNear(buf8[:])
+	binary.BigEndian.PutUint64(m.roBuf8, uint64(entryId))
+	mType, err := cursor.SearchNear(m.roBuf8)
 	panic.OnErr(err)
 	if mType == wt.MatchedSmaller {
 		r.needsNext = true

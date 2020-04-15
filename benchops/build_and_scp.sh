@@ -17,7 +17,6 @@ docker run -i -t --rm \
 
 if [[ -z $N || -n "$COPYONLY" ]]; then
 	gcloud compute scp $HOME/.tt_cache/goroot/bin/wctl wctl-0:
-	exit 0
 fi
 if [[ -z $N ]]; then
 	exit 0
