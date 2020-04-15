@@ -277,10 +277,6 @@ func (m *storage) makeLocalStream(streamURI string) Stream {
 	return s
 }
 
-// Closing storage will leak underlying memory that is held by WiredTiger C library.
-// Assumption is that, after closing storage, program will exit promptly.
-// Close is not thread safe, and should be called by same thread that calls UpsertStream
-// method.
 func (m *storage) Close() {
 	m.streams.Range(func(k, v interface{}) bool {
 		v.(Stream).close()

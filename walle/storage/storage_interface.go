@@ -16,15 +16,20 @@ type Storage interface {
 	// local resoures are exhausted and storage can no longer handle adding more streams.
 	// This call is not thread safe. There must be only one thread that makes Update calls.
 	UpsertStream(streamURI string, topology *walleapi.StreamTopology) error
+	// Close closes storage. Closing can leak underlying memory that is held by WiredTiger
+	// C library. Assumption is that, after closing storage, program will exit promptly.
+	// Close is not thread safe, and should be called by same thread that calls UpsertStream
+	// method.
+	Close()
+	// CloseC returns channel that will be closed once storage is closed.
+	CloseC() <-chan struct{}
 
 	LocalStreams() []string
 	Stream(streamURI string) (Stream, bool)
 
-	// Flush queues and waits for flush to succeed. Can return an error if context expires.
+	// Flush queues and waits for storage write ahead log flush to succeed. Can return
+	// an error if context expires.
 	Flush(ctx context.Context) error
-
-	Close()
-	CloseC() <-chan struct{}
 }
 
 // Stream is expected to be thread-safe.
