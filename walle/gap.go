@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	maxGapBatch = 100000 // Maximum GAP entries processed in one batch.
+	maxGapBatch = 10000 // Maximum GAP entries processed in one batch.
 )
 
 // Gap handler detects and fills gaps in streams in background.
@@ -69,14 +69,22 @@ func (s *Server) readAndProcessEntries(
 	startId int64,
 	endId int64,
 	processEntry func(entry *walleapi.Entry) error) error {
-	cursor, err := ss.ReadFrom(startId)
-	if err != nil {
-		return err
-	}
-	defer cursor.Close()
+	var cursor storage.Cursor
+	defer func() {
+		if cursor != nil {
+			cursor.Close()
+		}
+	}()
 
 	entryId := startId
 	for entryId < endId {
+		if cursor == nil {
+			var err error
+			cursor, err = ss.ReadFrom(entryId)
+			if err != nil {
+				return err
+			}
+		}
 		entryIdLocal, ok := cursor.Next()
 		if !ok {
 			return errors.Errorf(
@@ -87,6 +95,8 @@ func (s *Server) readAndProcessEntries(
 			if entryIdLocal > endId {
 				entryIdLocal = endId // This ends processing.
 			}
+			// cursor.Close()
+			// cursor = nil
 			err := s.fetchAndStoreEntries(
 				ctx, ss, entryId, entryIdLocal, processEntry)
 			if err != nil {
@@ -137,7 +147,6 @@ func (s *Server) fetchAndStoreEntries(
 			})
 			cancel()
 			if len(entries) > 0 {
-				// TODO(zviad): This PutEntry calls need to happen in a batch.
 				err := ss.PutGapEntries(entries)
 				if err != nil {
 					return err

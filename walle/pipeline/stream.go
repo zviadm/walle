@@ -73,6 +73,7 @@ func (p *stream) backfiller(ctx context.Context) {
 			continue
 		}
 		p.backfillsC.Count(1)
+		zlog.Infof("[sp] stream: %s, fforward to: %d", p.ss.StreamURI(), entry.EntryId)
 		_ = p.QueuePut(entry, true)
 	}
 }
