@@ -16,7 +16,7 @@ type Storage interface {
 	// This call is not thread safe. There must be only one thread that makes Update calls.
 	UpsertStream(streamURI string, topology *walleapi.StreamTopology) error
 
-	Streams(localOnly bool) []string
+	LocalStreams() []string
 	Stream(streamURI string) (Stream, bool)
 
 	FlushSync() // Forces Flush

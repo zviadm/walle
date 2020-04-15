@@ -18,7 +18,7 @@ const (
 // Gap handler detects and fills gaps in streams in background.
 func (s *Server) gapHandler(ctx context.Context) {
 	for {
-		for _, streamURI := range s.s.Streams(true) {
+		for _, streamURI := range s.s.LocalStreams() {
 			ss, ok := s.s.Stream(streamURI)
 			if !ok {
 				continue

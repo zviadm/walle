@@ -90,7 +90,7 @@ func (s *Server) writerInfoWatcher(ctx context.Context) {
 			return
 		case <-ticker.C:
 		}
-		streamURIs := s.s.Streams(true)
+		streamURIs := s.s.LocalStreams()
 		for _, streamURI := range streamURIs {
 			ss, ok := s.s.Stream(streamURI)
 			if !ok {

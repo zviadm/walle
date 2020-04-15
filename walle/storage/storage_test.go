@@ -27,7 +27,7 @@ func TestStorageOpen(t *testing.T) {
 	s, err = Init(dbPath, InitOpts{Create: false})
 	require.NoError(t, err)
 	defer s.Close()
-	require.EqualValues(t, s.Streams(false), []string{"/s/1"})
+	require.EqualValues(t, s.LocalStreams(), []string{"/s/1"})
 
 	ss, ok := s.Stream("/s/1")
 	require.True(t, ok)

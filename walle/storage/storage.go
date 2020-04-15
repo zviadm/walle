@@ -24,14 +24,13 @@ type storage struct {
 	flushS  *wt.Session
 
 	maxLocalStreams int
-	nLocalStreams   int
-	// streamT contains topologies for all streams in a cluster.
-	streamT sync.Map // stream_uri -> *walleapi.StreamTopology
 	// streams contains only locally served streams.
 	streams sync.Map // stream_uri -> Stream
-}
 
-var _ Storage = &storage{}
+	// streamT and nLocalStreams are only acccessed from a single thread.
+	streamT       map[string]*walleapi.StreamTopology // contains topologies for all streams in a cluster.
+	nLocalStreams int
+}
 
 // InitOpts contains initialization options for Init call.
 type InitOpts struct {
@@ -116,6 +115,7 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 			"storage already has different serverId: %s vs %s", r.serverId, opts.ServerId)
 	}
 
+	r.streamT = make(map[string]*walleapi.StreamTopology)
 	panic.OnErr(metaR.Reset())
 	for {
 		if err := metaR.Next(); err != nil {
@@ -136,13 +136,11 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 		panic.OnErr(topology.Unmarshal(v))
 
 		streamURI := strings.Split(metaKey, ":")[0]
-		r.streamT.Store(streamURI, topology)
+		r.streamT[streamURI] = topology
 	}
-	r.streamT.Range(func(k, v interface{}) bool {
-		streamURI := k.(string)
-		topology := v.(*walleapi.StreamTopology)
+	for streamURI, topology := range r.streamT {
 		if !IsMember(topology, r.serverId) {
-			return true
+			continue
 		}
 		sess, err := c.OpenSession()
 		panic.OnErr(err)
@@ -155,8 +153,7 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 		r.nLocalStreams += 1
 		r.streams.Store(streamURI, ss)
 		zlog.Infof("stream (local): %s %s (v: %d)", streamURI, topology.ServerIds, topology.Version)
-		return true
-	})
+	}
 	return r, nil
 }
 
@@ -176,15 +173,9 @@ func (m *storage) FlushSync() {
 	panic.OnErr(m.flushS.LogFlush(wt.SyncOn))
 }
 
-func (m *storage) Streams(localOnly bool) []string {
+func (m *storage) LocalStreams() []string {
 	r := make([]string, 0, m.maxLocalStreams)
-	var mm *sync.Map
-	if localOnly {
-		mm = &m.streams
-	} else {
-		mm = &m.streamT
-	}
-	mm.Range(func(k, v interface{}) bool {
+	m.streams.Range(func(k, v interface{}) bool {
 		r = append(r, k.(string))
 		return true
 	})
@@ -204,8 +195,8 @@ func (m *storage) Stream(streamURI string) (Stream, bool) {
 func (m *storage) UpsertStream(
 	streamURI string, topology *walleapi.StreamTopology) error {
 
-	tt, ok := m.streamT.Load(streamURI)
-	if ok && tt.(*walleapi.StreamTopology).Version >= topology.Version {
+	tt, ok := m.streamT[streamURI]
+	if ok && tt.Version >= topology.Version {
 		return nil
 	}
 	topologyB, err := topology.Marshal()
@@ -223,7 +214,7 @@ func (m *storage) UpsertStream(
 	panic.OnErr(m.metaS.TxBegin(wt.TxCfg{Sync: wt.True}))
 	panic.OnErr(m.metaW.Insert([]byte(streamURI+sfxTopology), topologyB))
 	panic.OnErr(m.metaS.TxCommit())
-	m.streamT.Store(streamURI, topology)
+	m.streamT[streamURI] = topology
 	if ok {
 		ss.setTopology(topology)
 		if !isLocal {

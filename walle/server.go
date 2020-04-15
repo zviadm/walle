@@ -46,7 +46,7 @@ func NewServer(
 	go r.gapHandler(ctx)
 
 	// Renew all writer leases at startup.
-	for _, streamURI := range s.Streams(true) {
+	for _, streamURI := range s.LocalStreams() {
 		ss, ok := s.Stream(streamURI)
 		if !ok {
 			continue // can race with topology watcher.
