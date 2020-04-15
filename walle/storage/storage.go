@@ -248,6 +248,7 @@ func (m *storage) Close() {
 		v.(Stream).close()
 		return true
 	})
+	m.FlushSync()
 	panic.OnErr(m.c.Close(wt.ConnCloseCfg{LeakMemory: wt.True}))
 	close(m.closeC)
 }
