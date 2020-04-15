@@ -34,6 +34,7 @@ func (s *Server) watchTopology(ctx context.Context, d wallelib.Discovery, topoMg
 	topology, notify := d.Topology()
 	s.updateTopology(topology, topoMgr)
 	go func() {
+		defer s.s.Close()
 		if topoMgr != nil {
 			defer topoMgr.Close()
 		}

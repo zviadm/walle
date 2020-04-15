@@ -11,9 +11,7 @@ import (
 	"path"
 	"runtime"
 	"runtime/debug"
-	"sync/atomic"
 	"syscall"
-	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/zviadm/stats-go/exporters/datadog"
@@ -58,8 +56,6 @@ func main() {
 			"address to 127.0.0.1 (localhost) only.")
 	flag.Parse()
 	ctx, cancelAll := context.WithCancel(context.Background())
-	var cancelDeadline atomic.Value
-	cancelDeadline.Store(time.Time{})
 
 	err := datadog.ExporterGo(ctx)
 	fatalOnErr(err)
@@ -108,9 +104,7 @@ func main() {
 	fatalOnErr(err)
 	zlog.Infof("initialized storage: %s", ss.ServerId())
 	defer func() {
-		time.Sleep(cancelDeadline.Load().(time.Time).Sub(time.Now()))
-		zlog.Infof("closing storage...")
-		ss.Close()
+		<-ss.CloseC()
 		zlog.Infof("storage closed and flushed")
 	}()
 
@@ -120,6 +114,7 @@ func main() {
 		zlog.Infof(
 			"bootstrapped %s, server: %s - %s",
 			*bootstrapRootURI, ss.ServerId(), serverInfo)
+		ss.Close()
 		return
 	}
 
@@ -177,7 +172,6 @@ func main() {
 		<-notify
 		zlog.Infof("starting graceful shutdown...")
 		cancelAll()
-		cancelDeadline.Store(time.Now().Add(time.Second))
 		s.GracefulStop()
 	}()
 	zlog.Infof("starting server on port:%s...", *port)

@@ -16,6 +16,7 @@ import (
 
 type storage struct {
 	serverId string
+	closeC   chan struct{}
 	c        *wt.Connection
 	metaS    *wt.Session
 	metaW    *wt.Mutator
@@ -104,6 +105,7 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 	panic.OnErr(err)
 	r := &storage{
 		serverId:        serverId,
+		closeC:          make(chan struct{}),
 		c:               c,
 		flushS:          flushS,
 		metaS:           metaS,
@@ -155,12 +157,6 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 		zlog.Infof("stream (local): %s %s (v: %d)", streamURI, topology.ServerIds, topology.Version)
 	}
 	return r, nil
-}
-
-// Closing storage will leak underlying memory that is held by WiredTiger C library.
-// Assumption is that, after closing storage, program will exit promptly.
-func (m *storage) Close() {
-	panic.OnErr(m.c.Close(wt.ConnCloseCfg{LeakMemory: wt.True}))
 }
 
 func (m *storage) ServerId() string {
@@ -241,4 +237,21 @@ func (m *storage) makeLocalStream(streamURI string) Stream {
 	panic.OnErr(err)
 	s := createStreamStorage(m.serverId, streamURI, sess, sessRO, sessFill)
 	return s
+}
+
+// Closing storage will leak underlying memory that is held by WiredTiger C library.
+// Assumption is that, after closing storage, program will exit promptly.
+// Close is not thread safe, and should be called by same thread that calls UpsertStream
+// method.
+func (m *storage) Close() {
+	m.streams.Range(func(k, v interface{}) bool {
+		v.(Stream).close()
+		return true
+	})
+	panic.OnErr(m.c.Close(wt.ConnCloseCfg{LeakMemory: wt.True}))
+	close(m.closeC)
+}
+
+func (m *storage) CloseC() <-chan struct{} {
+	return m.closeC
 }

@@ -21,6 +21,7 @@ type Storage interface {
 
 	FlushSync() // Forces Flush
 	Close()
+	CloseC() <-chan struct{}
 }
 
 // Stream is expected to be thread-safe.
