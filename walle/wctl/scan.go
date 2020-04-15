@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/hex"
 	"flag"
 	"fmt"
 	"io"
@@ -55,8 +54,8 @@ func cmdScan(
 			fromEntryId = entry.EntryId
 			if i%10000 == 0 {
 				fmt.Printf(
-					"%d: w:%s checksum:%d\n",
-					entry.EntryId, hex.EncodeToString(entry.WriterId), entry.ChecksumXX)
+					"%d: w:%v checksum:%d\n",
+					entry.EntryId, entry.WriterId, entry.ChecksumXX)
 			}
 		}
 		if !readNew {

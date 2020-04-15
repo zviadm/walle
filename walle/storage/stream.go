@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"bytes"
 	"encoding/binary"
 	"sync"
 	"time"
@@ -46,7 +45,7 @@ type streamStorage struct {
 	buf8     []byte
 	topology atomic.Value // Type is: *walleapi.StreamTopology
 
-	writerId        WriterId
+	writerId        walleapi.WriterId
 	writerAddr      string
 	writerLease     time.Duration
 	renewedLease    time.Time
@@ -82,7 +81,9 @@ func createStreamStorage(
 	streamW, err := sess.Mutate(streamDS(streamURI))
 	panic.OnErr(err)
 
-	panic.OnErr(metaW.Insert([]byte(streamURI+sfxWriterId), make([]byte, writerIdLen)))
+	writerId0, err := Entry0.WriterId.Marshal()
+	panic.OnErr(err)
+	panic.OnErr(metaW.Insert([]byte(streamURI+sfxWriterId), writerId0))
 	panic.OnErr(metaW.Insert([]byte(streamURI+sfxWriterAddr), []byte{}))
 	panic.OnErr(metaW.Insert([]byte(streamURI+sfxWriterLeaseNs), make([]byte, 8)))
 	panic.OnErr(metaW.Insert([]byte(streamURI+sfxCommittedId), make([]byte, 8)))
@@ -129,7 +130,8 @@ func openStreamStorage(
 
 	v, err := metaR.ReadValue([]byte(streamURI + sfxWriterId))
 	panic.OnErr(err)
-	r.writerId = WriterId(v)
+	err = r.writerId.Unmarshal(v)
+	panic.OnErr(err)
 	v, err = metaR.ReadValue([]byte(streamURI + sfxWriterAddr))
 	panic.OnErr(err)
 	r.writerAddr = string(v)
@@ -202,21 +204,21 @@ func (m *streamStorage) setTopology(t *walleapi.StreamTopology) {
 	m.topology.Store(t)
 }
 
-func (m *streamStorage) WriterInfo() (WriterId, string, time.Duration, time.Duration) {
+func (m *streamStorage) WriterInfo() (walleapi.WriterId, string, time.Duration, time.Duration) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	return m.writerId, m.writerAddr, m.writerLease, m.remainingLease()
 }
 func (m *streamStorage) UpdateWriter(
-	writerId WriterId, writerAddr string, lease time.Duration) (time.Duration, error) {
+	writerId walleapi.WriterId, writerAddr string, lease time.Duration) (time.Duration, error) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	if m.sess.Closed() {
 		return 0, status.Errorf(codes.NotFound, "%s not found", m.streamURI)
 	}
-	cmpWriterId := bytes.Compare(writerId, m.writerId)
+	cmpWriterId := CmpWriterIds(writerId, m.writerId)
 	if cmpWriterId < 0 {
-		return 0, status.Errorf(codes.FailedPrecondition, "%s < %s", writerId, m.writerId)
+		return 0, status.Errorf(codes.FailedPrecondition, "%v < %v", writerId, m.writerId)
 	}
 	if cmpWriterId == 0 {
 		return 0, nil
@@ -227,8 +229,10 @@ func (m *streamStorage) UpdateWriter(
 	m.writerLease = lease
 	m.renewedLease = time.Now()
 
+	writerIdB, err := m.writerId.Marshal()
+	panic.OnErr(err)
 	panic.OnErr(m.sess.TxBegin(wt.TxCfg{Sync: wt.True}))
-	panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxWriterId), []byte(m.writerId)))
+	panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxWriterId), writerIdB))
 	panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxWriterAddr), []byte(m.writerAddr)))
 	binary.BigEndian.PutUint64(m.buf8, uint64(lease.Nanoseconds()))
 	panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxWriterLeaseNs), []byte(m.buf8)))
@@ -239,16 +243,16 @@ func (m *streamStorage) remainingLease() time.Duration {
 	return m.renewedLease.Add(m.writerLease).Sub(time.Now())
 }
 func (m *streamStorage) RenewLease(
-	writerId WriterId, extraBuffer time.Duration) error {
+	writerId walleapi.WriterId, extraBuffer time.Duration) error {
 	m.mx.Lock()
 	defer m.mx.Unlock()
-	cmpWriterId := bytes.Compare(writerId, m.writerId)
+	cmpWriterId := CmpWriterIds(writerId, m.writerId)
 	if cmpWriterId < 0 {
-		return status.Errorf(codes.FailedPrecondition, "%s < %s", writerId, m.writerId)
+		return status.Errorf(codes.FailedPrecondition, "%v < %v", writerId, m.writerId)
 	}
 	if cmpWriterId > 0 {
 		// RenewLease should never be called with newer writerId.
-		return status.Errorf(codes.Internal, "renew lease: %s > %s", writerId, m.writerId)
+		return status.Errorf(codes.Internal, "renew lease: %v > %v", writerId, m.writerId)
 	}
 	panic.OnNotOk(extraBuffer >= 0, "extra buffer must be >=0: %s", extraBuffer)
 	m.renewedLease = time.Now().Add(extraBuffer)
@@ -346,7 +350,7 @@ func (m *streamStorage) commitEntry(entryId int64, entryXX uint64, newGap bool) 
 	}
 	if existingEntryXX != entryXX {
 		return status.Errorf(
-			codes.OutOfRange, "commit checksum mismatch for entry: %d, %d != %d, %s",
+			codes.OutOfRange, "commit checksum mismatch for entry: %d, %d != %d, %v",
 			entryId, entryXX, existingEntryXX, m.writerId)
 	}
 	if newGap {
@@ -380,11 +384,9 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error 
 		return status.Errorf(codes.NotFound, "%s not found", m.streamURI)
 	}
 
-	entryWriterId := WriterId(entry.WriterId)
-	panic.OnNotOk(len(entryWriterId) > 0, "writerId must always be set")
 	// NOTE(zviad): if !isCommitted, writerId needs to be checked here again atomically, in the lock.
-	if !isCommitted && bytes.Compare(entryWriterId, m.writerId) < 0 {
-		return status.Errorf(codes.FailedPrecondition, "%s < %s", entryWriterId, m.writerId)
+	if !isCommitted && CmpWriterIds(entry.WriterId, m.writerId) < 0 {
+		return status.Errorf(codes.FailedPrecondition, "%v < %v", entry.WriterId, m.writerId)
 	}
 	if entry.EntryId > m.tailEntry.EntryId+1 {
 		if !isCommitted {
@@ -402,7 +404,7 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error 
 		}
 		if entry.EntryId == m.committed {
 			e := m.readEntry(entry.EntryId)
-			if e != nil && bytes.Compare(e.WriterId, entry.WriterId) >= 0 {
+			if e != nil && CmpWriterIds(e.WriterId, entry.WriterId) >= 0 {
 				return nil
 			}
 		}
@@ -419,15 +421,15 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error 
 	if expectedXX != entry.ChecksumXX {
 		if !isCommitted {
 			return status.Errorf(
-				codes.OutOfRange, "put checksum mismatch for new entry: %d, %d != %d, %s",
-				entry.EntryId, entry.ChecksumXX, expectedXX, entryWriterId)
+				codes.OutOfRange, "put checksum mismatch for new entry: %d, %d != %d, %v",
+				entry.EntryId, entry.ChecksumXX, expectedXX, entry.WriterId)
 		}
 		if entry.EntryId-1 <= m.committed {
 			// This mustn't happen. Otherwise probably a sign of data corruption or serious data
 			// consistency bugs.
 			return status.Errorf(
-				codes.DataLoss, "put checksum mismatch for committed entry: %d, %d != %d, %s",
-				entry.EntryId, entry.ChecksumXX, expectedXX, entryWriterId)
+				codes.DataLoss, "put checksum mismatch for committed entry: %d, %d != %d, %v",
+				entry.EntryId, entry.ChecksumXX, expectedXX, entry.WriterId)
 		}
 		m.makeGapCommit(entry)
 		return nil
@@ -437,11 +439,11 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error 
 	needsTrim := false
 	if m.tailEntry.EntryId >= entry.EntryId {
 		existingEntry := m.readEntry(entry.EntryId)
-		cmpWriterId := bytes.Compare(existingEntry.WriterId, entryWriterId)
+		cmpWriterId := CmpWriterIds(existingEntry.WriterId, entry.WriterId)
 		if cmpWriterId > 0 {
 			return status.Errorf(
-				codes.OutOfRange, "put entry writer too old: %d, %s < %s",
-				entry.EntryId, entryWriterId, WriterId(existingEntry.WriterId))
+				codes.OutOfRange, "put entry writer too old: %d, %v < %v",
+				entry.EntryId, entry.WriterId, existingEntry.WriterId)
 		}
 		// Truncate entries, because rest of the uncommitted entries are no longer valid, since a new writer
 		// is writing a previous entry.

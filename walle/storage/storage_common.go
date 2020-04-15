@@ -3,7 +3,6 @@ package storage
 import (
 	"crypto/rand"
 	"encoding/binary"
-	"encoding/hex"
 	"io/ioutil"
 	"regexp"
 	"strings"
@@ -14,17 +13,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
-
-// WriterId provides human readable String() method.
-type WriterId []byte
-
-// Encode casts WriterId back to []byte type to be used in Protobufs.
-func (w WriterId) Encode() []byte {
-	return w
-}
-func (w WriterId) String() string {
-	return "w:0x" + hex.EncodeToString(w)
-}
 
 const (
 	metadataDS = "table:metadata"
@@ -41,27 +29,41 @@ const (
 	sfxGapStartId    = ":gap_start_id"
 	sfxGapEndId      = ":gap_end_id"
 
-	writerIdLen     = 16
 	streamURIMaxLen = 100
 )
 
 var (
 	// Entry0 is root entry for every WALLE stream.
-	Entry0 = &walleapi.Entry{
-		EntryId:    0,
-		ChecksumXX: 0,
-		WriterId:   make([]byte, writerIdLen),
-	}
+	Entry0     = &walleapi.Entry{}
 	entry0B, _ = Entry0.Marshal()
 )
 
 // MakeWriterId creates new WriterId. WriterId is part random, part based on timestamp,
 // so that newer WriterId-s are lexicographically larger.
-func MakeWriterId() WriterId {
-	writerId := make([]byte, writerIdLen)
-	binary.BigEndian.PutUint64(writerId[0:8], uint64(time.Now().UnixNano()))
-	rand.Read(writerId[8:writerIdLen])
-	return WriterId(writerId)
+func MakeWriterId() walleapi.WriterId {
+	id := make([]byte, 8)
+	rand.Read(id)
+	return walleapi.WriterId{
+		Ts: uint64(time.Now().UnixNano()),
+		Id: binary.LittleEndian.Uint64(id),
+	}
+}
+
+// CmpWriterIds compares two writerIds to each other.
+func CmpWriterIds(w1, w2 walleapi.WriterId) int {
+	if w1.Ts < w2.Ts {
+		return -1
+	} else if w1.Ts == w2.Ts {
+		if w1.Id < w2.Id {
+			return -1
+		} else if w1.Id == w2.Id {
+			return 0
+		} else {
+			return 1
+		}
+	} else {
+		return 1
+	}
 }
 
 func streamDS(streamURI string) string {

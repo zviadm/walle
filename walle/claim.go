@@ -1,7 +1,6 @@
 package walle
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"time"
@@ -41,7 +40,7 @@ func (s *Server) ClaimWriter(
 				StreamUri:     req.StreamUri,
 				StreamVersion: ssTopology.Version,
 				FromServerId:  s.s.ServerId(),
-				WriterId:      writerId.Encode(),
+				WriterId:      writerId,
 				WriterAddr:    req.WriterAddr,
 				LeaseMs:       req.LeaseMs,
 			})
@@ -99,7 +98,7 @@ func (s *Server) ClaimWriter(
 	var committedEntryXX uint64
 	for serverId, es := range entries {
 		e := es[len(es)-1]
-		cmpWriterId := bytes.Compare(e.WriterId, maxEntry.GetWriterId())
+		cmpWriterId := storage.CmpWriterIds(e.WriterId, maxEntry.GetWriterId())
 		if maxEntry == nil || cmpWriterId > 0 ||
 			(cmpWriterId == 0 && e.EntryId > maxEntry.EntryId) {
 			maxWriterServerId = serverId
@@ -114,7 +113,7 @@ func (s *Server) ClaimWriter(
 		return nil, err
 	}
 	maxEntry = proto.Clone(maxEntry).(*walleapi.Entry)
-	maxEntry.WriterId = writerId.Encode()
+	maxEntry.WriterId = writerId
 	_, err = c.PutEntryInternal(ctx, &walle_pb.PutEntryInternalRequest{
 		ServerId:         maxWriterServerId,
 		StreamUri:        req.StreamUri,
@@ -149,7 +148,7 @@ func (s *Server) ClaimWriter(
 		}
 		for idx := startIdx; idx < len(maxEntries); idx++ {
 			entry := proto.Clone(maxEntries[idx]).(*walleapi.Entry)
-			entry.WriterId = writerId.Encode()
+			entry.WriterId = writerId
 			_, err = c.PutEntryInternal(ctx, &walle_pb.PutEntryInternalRequest{
 				ServerId:         serverId,
 				StreamUri:        req.StreamUri,
@@ -182,7 +181,7 @@ func (s *Server) ClaimWriter(
 			return nil, err
 		}
 	}
-	return &walleapi.ClaimWriterResponse{WriterId: writerId.Encode(), TailEntry: maxEntry}, nil
+	return &walleapi.ClaimWriterResponse{WriterId: writerId, TailEntry: maxEntry}, nil
 }
 
 func (s *Server) commitMaxEntry(
@@ -231,17 +230,16 @@ func (s *Server) NewWriter(
 	if err != nil {
 		return nil, err
 	}
-	reqWriterId := storage.WriterId(req.WriterId)
 	zlog.Infof(
-		"[%s] writerId update: %s (%s)", ss.StreamURI(), req.WriterAddr, reqWriterId)
-	remainingLease, err := ss.UpdateWriter(reqWriterId, req.WriterAddr, time.Duration(req.LeaseMs)*time.Millisecond)
+		"[%s] writerId update: %s %v", ss.StreamURI(), req.WriterAddr, req.WriterId)
+	remainingLease, err := ss.UpdateWriter(req.WriterId, req.WriterAddr, time.Duration(req.LeaseMs)*time.Millisecond)
 	if err != nil {
 		return nil, err
 	}
 	// Need to wait `remainingLease` duration before returning. However, we also need to make sure new
 	// lease doesn't expire since writer client can't heartbeat until this call succeeds.
 	if remainingLease > 0 {
-		err := ss.RenewLease(reqWriterId, remainingLease)
+		err := ss.RenewLease(req.WriterId, remainingLease)
 		if err != nil {
 			return nil, err
 		}

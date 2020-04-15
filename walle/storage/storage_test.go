@@ -119,7 +119,7 @@ func TestStreamStorage(t *testing.T) {
 	// Make sure putting last committed entry again with new WriterId,
 	// causes WriterId to update.
 	entry5new := proto.Clone(entries[5]).(*walleapi.Entry)
-	entry5new.WriterId = MakeWriterId().Encode()
+	entry5new.WriterId = MakeWriterId()
 	_, err = ss.UpdateWriter(entry5new.WriterId, "", 0)
 	require.NoError(t, err)
 	err = ss.PutEntry(entry5new, true)

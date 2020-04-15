@@ -1,6 +1,7 @@
 syntax = "proto3";
 option go_package = "github.com/zviadm/walle/proto/walle";
 
+import "gogo.proto";
 import "walleapi/walleapi.proto";
 
 service Walle {
@@ -25,7 +26,7 @@ message NewWriterRequest {
 	int64 stream_version = 3;
 	string from_server_id = 4;
 
-	bytes writer_id = 5;
+	WriterId writer_id = 5 [(gogoproto.nullable) = false];
 	string writer_addr = 6;
 	int64 lease_ms = 7;
 }
@@ -38,7 +39,7 @@ message WriterInfoRequest {
 	string from_server_id = 4;
 }
 message WriterInfoResponse {
-	bytes writer_id = 1;
+	WriterId writer_id = 1 [(gogoproto.nullable) = false];
 	string writer_addr = 2;
 	int64 lease_ms = 3;
 	int64 remaining_lease_ms = 4;

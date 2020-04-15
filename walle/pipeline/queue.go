@@ -1,7 +1,6 @@
 package pipeline
 
 import (
-	"bytes"
 	"math"
 	"sort"
 	"sync"
@@ -174,16 +173,16 @@ func (q *queue) Queue(r *request) *ResultCtx {
 			if item.R.Entry == nil {
 				item.R.Entry = r.Entry
 			} else {
-				writerCmp := bytes.Compare(item.R.Entry.WriterId, r.Entry.WriterId)
+				writerCmp := storage.CmpWriterIds(item.R.Entry.WriterId, r.Entry.WriterId)
 				if writerCmp < 0 {
 					item.Res.set(status.Errorf(codes.FailedPrecondition,
-						"%s: %s < %s", q.streamURI, storage.WriterId(item.R.Entry.WriterId), storage.WriterId(r.Entry.WriterId)))
+						"%s: %v < %v", q.streamURI, item.R.Entry.WriterId, r.Entry.WriterId))
 					item.Res = newResult()
 					item.R.Entry = r.Entry
 				} else if writerCmp > 0 {
 					return newResultWithErr(
 						status.Errorf(codes.FailedPrecondition,
-							"%s: %s < %s", q.streamURI, storage.WriterId(r.Entry.WriterId), storage.WriterId(item.R.Entry.WriterId)))
+							"%s: %v < %v", q.streamURI, r.Entry.WriterId, item.R.Entry.WriterId))
 				}
 			}
 			sizeDelta := len(r.Entry.Data) - len(prevEntry.GetData())

@@ -43,7 +43,7 @@ func (s *Server) WriterInfo(
 	}
 	writerId, writerAddr, lease, remainingLease := ss.WriterInfo()
 	return &walle_pb.WriterInfoResponse{
-		WriterId:         writerId.Encode(),
+		WriterId:         writerId,
 		WriterAddr:       writerAddr,
 		LeaseMs:          lease.Nanoseconds() / time.Millisecond.Nanoseconds(),
 		RemainingLeaseMs: remainingLease.Nanoseconds() / time.Millisecond.Nanoseconds(),

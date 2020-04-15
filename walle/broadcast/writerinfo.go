@@ -1,7 +1,6 @@
 package broadcast
 
 import (
-	"bytes"
 	"context"
 	"sort"
 	"sync"
@@ -9,6 +8,7 @@ import (
 
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/walle/walle/storage"
 )
 
 // WriterInfo broadcasts WriterInfo rpc to all servers and merges result into a
@@ -44,7 +44,7 @@ func WriterInfo(
 			}
 			respMx.Lock()
 			defer respMx.Unlock()
-			if respMax == nil || bytes.Compare(resp.WriterId, respMax.WriterId) > 0 {
+			if respMax == nil || storage.CmpWriterIds(resp.WriterId, respMax.WriterId) > 0 {
 				respMax = resp
 			}
 			remainingMs = append(remainingMs, resp.RemainingLeaseMs)

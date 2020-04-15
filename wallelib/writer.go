@@ -44,7 +44,7 @@ type Writer struct {
 	streamURI   string
 	writerLease time.Duration
 	writerAddr  string
-	writerId    []byte
+	writerId    walleapi.WriterId
 	longBeat    time.Duration
 
 	p         *processor
@@ -66,7 +66,7 @@ func newWriter(
 	streamURI string,
 	writerLease time.Duration,
 	writerAddr string,
-	writerId []byte,
+	writerId walleapi.WriterId,
 	tailEntry *walleapi.Entry,
 	commitTime time.Time) *Writer {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -268,7 +268,7 @@ type PutCtx struct {
 	done  chan struct{}
 }
 
-func makePutCtx(prevEntry *walleapi.Entry, writerId []byte, data []byte) *PutCtx {
+func makePutCtx(prevEntry *walleapi.Entry, writerId walleapi.WriterId, data []byte) *PutCtx {
 	entry := &walleapi.Entry{
 		EntryId:  prevEntry.EntryId + 1,
 		WriterId: writerId,

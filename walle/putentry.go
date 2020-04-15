@@ -1,7 +1,6 @@
 package walle
 
 import (
-	"bytes"
 	"context"
 	"time"
 
@@ -30,8 +29,8 @@ var emptyOk = &walleapi.Empty{}
 // PutEntry implements WalleApiServer interface.
 func (s *Server) PutEntry(
 	ctx context.Context, req *walleapi.PutEntryRequest) (*walleapi.Empty, error) {
-	if len(req.Entry.GetWriterId()) == 0 {
-		return nil, status.Errorf(codes.InvalidArgument, "writer_id must be set")
+	if req.Entry == nil {
+		return nil, status.Errorf(codes.InvalidArgument, "req.Entry must be set for WriterId")
 	}
 	if len(req.Entry.Data) > wallelib.MaxEntrySize {
 		return nil, status.Errorf(
@@ -70,7 +69,7 @@ func (s *Server) PutEntryInternal(
 	if err != nil {
 		return nil, err
 	}
-	writerId := storage.WriterId(req.Entry.WriterId)
+	writerId := req.Entry.WriterId
 	isCommitted := req.CommittedEntryId >= req.Entry.EntryId
 	err = s.checkAndUpdateWriterId(ctx, ss, writerId)
 	if err != nil && (!req.IgnoreLeaseRenew || !isCommitted) {
@@ -116,28 +115,27 @@ func (s *Server) PutEntryInternal(
 func (s *Server) checkAndUpdateWriterId(
 	ctx context.Context,
 	ss storage.Metadata,
-	writerId storage.WriterId) error {
+	writerId walleapi.WriterId) error {
 	for {
 		ssWriterId, writerAddr, _, _ := ss.WriterInfo()
-		cmpWriterId := bytes.Compare(writerId, ssWriterId)
+		cmpWriterId := storage.CmpWriterIds(writerId, ssWriterId)
 		if cmpWriterId == 0 {
 			return nil
 		}
 		if cmpWriterId < 0 {
 			return status.Errorf(
-				codes.FailedPrecondition, "writer no longer active: %s < %s (%s)", writerId, ssWriterId, writerAddr)
+				codes.FailedPrecondition, "writer no longer active: %v < %v (%s)", writerId, ssWriterId, writerAddr)
 		}
 		resp, err := broadcast.WriterInfo(ctx, s.c, s.s.ServerId(), ss.StreamURI(), ss.Topology())
 		if err != nil {
 			return err
 		}
-		respWriterId := storage.WriterId(resp.WriterId)
-		if bytes.Compare(respWriterId, ssWriterId) <= 0 {
-			return status.Errorf(codes.Internal, "writerId is newer than majority?: %s > %s", writerId, ssWriterId)
+		if storage.CmpWriterIds(resp.WriterId, ssWriterId) <= 0 {
+			return status.Errorf(codes.Internal, "writerId is newer than majority?: %v > %v", writerId, ssWriterId)
 		}
 		zlog.Infof(
-			"[%s] writerId update: %s (%s) -> %s (%s)",
-			ss.StreamURI(), writerAddr, ssWriterId, resp.WriterAddr, respWriterId)
-		ss.UpdateWriter(respWriterId, resp.WriterAddr, time.Duration(resp.LeaseMs)*time.Millisecond)
+			"[%s] writerId update: %s %v -> %s %v",
+			ss.StreamURI(), writerAddr, ssWriterId, resp.WriterAddr, resp.WriterId)
+		ss.UpdateWriter(resp.WriterId, resp.WriterAddr, time.Duration(resp.LeaseMs)*time.Millisecond)
 	}
 }
