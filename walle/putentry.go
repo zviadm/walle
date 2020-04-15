@@ -64,7 +64,7 @@ func (s *Server) PutEntry(
 // PutEntryInternal implements WalleServer interface.
 func (s *Server) PutEntryInternal(
 	ctx context.Context,
-	req *walle_pb.PutEntryInternalRequest) (*walle_pb.PutEntryInternalResponse, error) {
+	req *walle_pb.PutEntryInternalRequest) (*walleapi.Empty, error) {
 	ss, err := s.processRequestHeader(req)
 	if err != nil {
 		return nil, err
@@ -106,7 +106,7 @@ func (s *Server) PutEntryInternal(
 				return nil, err
 			}
 		}
-		return &walle_pb.PutEntryInternalResponse{}, nil
+		return &walleapi.Empty{}, nil
 	}
 }
 

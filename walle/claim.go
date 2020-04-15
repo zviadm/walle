@@ -225,7 +225,7 @@ func (s *Server) commitMaxEntry(
 // NewWriter implements WalleServer interface.
 func (s *Server) NewWriter(
 	ctx context.Context,
-	req *walle_pb.NewWriterRequest) (*walle_pb.NewWriterResponse, error) {
+	req *walle_pb.NewWriterRequest) (*walleapi.Empty, error) {
 	ss, err := s.processRequestHeader(req)
 	if err != nil {
 		return nil, err
@@ -245,7 +245,7 @@ func (s *Server) NewWriter(
 		}
 		time.Sleep(remainingLease)
 	}
-	return &walle_pb.NewWriterResponse{}, nil
+	return &walleapi.Empty{}, nil
 }
 
 // TailEntries implements WalleServer interface.

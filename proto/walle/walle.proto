@@ -5,9 +5,9 @@ import "gogo.proto";
 import "walleapi/walleapi.proto";
 
 service Walle {
-	rpc NewWriter(NewWriterRequest) returns (NewWriterResponse) {}
+	rpc NewWriter(NewWriterRequest) returns (Empty) {}
 	rpc WriterInfo(WriterInfoRequest) returns (WriterInfoResponse) {}
-	rpc PutEntryInternal(PutEntryInternalRequest) returns (PutEntryInternalResponse) {}
+	rpc PutEntryInternal(PutEntryInternalRequest) returns (Empty) {}
 
 	// Returns last committed entry and all following uncommitted entries from the server.
 	// There are never any gaps in uncommitted entries.
@@ -30,7 +30,6 @@ message NewWriterRequest {
 	string writer_addr = 6;
 	int64 lease_ms = 7;
 }
-message NewWriterResponse {}
 
 message WriterInfoRequest {
 	string server_id = 1;
@@ -57,7 +56,6 @@ message PutEntryInternalRequest {
 	uint64 committed_entry_x_x = 7;
 	Entry entry = 8;
 }
-message PutEntryInternalResponse{}
 
 message TailEntriesRequest {
 	string server_id = 1;

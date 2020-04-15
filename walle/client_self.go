@@ -35,14 +35,14 @@ type clientSelf struct{ s *Server }
 func (c *clientSelf) PutEntryInternal(
 	ctx context.Context,
 	in *walle_pb.PutEntryInternalRequest,
-	opts ...grpc.CallOption) (*walle_pb.PutEntryInternalResponse, error) {
+	opts ...grpc.CallOption) (*walleapi.Empty, error) {
 	return c.s.PutEntryInternal(ctx, in)
 }
 
 func (c *clientSelf) NewWriter(
 	ctx context.Context,
 	in *walle_pb.NewWriterRequest,
-	opts ...grpc.CallOption) (*walle_pb.NewWriterResponse, error) {
+	opts ...grpc.CallOption) (*walleapi.Empty, error) {
 	return c.s.NewWriter(ctx, in)
 }
 
