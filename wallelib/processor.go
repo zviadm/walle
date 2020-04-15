@@ -29,8 +29,7 @@ type processor struct {
 	reqQ       []*PutCtx
 	reqQNotify chan struct{}
 
-	inflightWG sync.WaitGroup
-	resultQ    chan putCtxAndErr
+	resultQ chan putCtxAndErr
 
 	// variables below are only accessed in processLoop go routine.
 	primaryQ     []*PutCtx
@@ -96,11 +95,11 @@ func (p *processor) cleanup() {
 	if p.ctx.Err() == nil {
 		panic("cleanup mustn't be called until context is closed")
 	}
-	p.inflightWG.Wait()
-	close(p.resultQ)
-	for r := range p.resultQ {
+	for i := 0; i < p.inflightN; i++ {
+		r := <-p.resultQ
 		r.P.set(p.ctx.Err())
 	}
+	close(p.resultQ)
 	for _, req := range p.primaryQ {
 		req.set(p.ctx.Err())
 	}
@@ -158,13 +157,11 @@ func (p *processor) processLoop() {
 			continue
 		}
 		p.idxByEntry[req.Entry.EntryId] = sendIdx
-		p.inflightWG.Add(1)
 		p.inflightN += 1
 		p.inflightSize += req.Entry.Size()
 		go func(c entryPutter, req *PutCtx) {
 			err := c.Put(p.ctx, req.Entry)
 			p.resultQ <- putCtxAndErr{P: req, E: err}
-			p.inflightWG.Done()
 		}(p.putter, req)
 	}
 }
@@ -179,7 +176,8 @@ func (p *processor) waitOnQs() {
 	case <-p.reqQNotify:
 		p.reqQmx.Lock()
 		defer p.reqQmx.Unlock()
-		p.primaryQ, p.reqQ = p.reqQ, nil
+		p.primaryQ = p.reqQ
+		p.reqQ = make([]*PutCtx, 0, len(p.reqQ))
 	}
 	return
 }
