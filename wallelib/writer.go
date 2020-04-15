@@ -47,10 +47,8 @@ type Writer struct {
 	writerId    []byte
 	longBeat    time.Duration
 
-	tailEntry  *walleapi.Entry
-	reqQmx     sync.Mutex
-	reqQ       []*PutCtx
-	reqQNotify chan struct{}
+	p         *processor
+	tailEntry *walleapi.Entry
 
 	committedEntryMx sync.Mutex
 	committedEntryId int64
@@ -108,8 +106,7 @@ func newWriter(
 		writerId:    writerId,
 		longBeat:    writerLease / 4,
 
-		tailEntry:  tailEntry,
-		reqQNotify: make(chan struct{}, 1),
+		tailEntry: tailEntry,
 
 		committedEntryId: tailEntry.EntryId,
 		committedEntryXX: tailEntry.ChecksumXX,
@@ -119,7 +116,8 @@ func newWriter(
 		rootCtx:    ctx,
 		rootCancel: cancel,
 	}
-	go w.processor(ctx)
+	w.p = newProcessor(
+		ctx, w.cancelCtx, w.newPutter, maxInFlightPuts, maxInFlightSize)
 	go w.heartbeater(ctx)
 	return w
 }
@@ -130,7 +128,7 @@ func (w *Writer) Close() {
 	w.rootCancel()
 }
 
-func (w *Writer) cancelWithErr(err error) {
+func (w *Writer) cancelCtx(err error) {
 	if w.rootCtx.Err() != nil {
 		return
 	}
@@ -208,176 +206,47 @@ func (w *Writer) heartbeater(ctx context.Context) {
 				return true, false, nil
 			})
 		if err != nil {
-			w.cancelWithErr(err)
+			w.cancelCtx(err)
 			return
 		}
 	}
 }
 
-type putCtxAndErr struct {
-	P *PutCtx
-	E error
+func (w *Writer) newPutter() (entryPutter, error) {
+	c, err := w.c.ForStream(w.streamURI)
+	if err != nil {
+		return nil, err
+	}
+	return wPutter{ApiClient: c, w: w}, nil
 }
 
-func (w *Writer) processor(ctx context.Context) {
-	resultQ := make(chan putCtxAndErr, maxInFlightPuts)
-	inflightWG := sync.WaitGroup{}
-	var retryQ []*PutCtx
-	var reqQ []*PutCtx
-
-	defer func() {
-		if ctx.Err() == nil {
-			panic("Must exit only when context is done!")
-		}
-		inflightWG.Wait()
-		close(resultQ)
-		for r := range resultQ {
-			r.P.set(ctx.Err())
-		}
-		for _, r := range retryQ {
-			r.set(ctx.Err())
-		}
-		for _, req := range reqQ {
-			req.set(ctx.Err())
-		}
-		w.reqQmx.Lock()
-		defer w.reqQmx.Unlock()
-		for _, req := range w.reqQ {
-			req.set(ctx.Err())
-		}
-		w.reqQ = nil
-	}()
-	tryIdx := 0
-	idxByEntry := make(map[int64]int, maxInFlightPuts)
-	inflightN := 0
-	inflightSize := 0
-
-	var cli ApiClient
-	cliSendIdx := 0
-	handleResult := func(r putCtxAndErr) {
-		inflightN -= 1
-		inflightSize -= r.P.Entry.Size()
-		if r.E == nil {
-			r.P.set(nil)
-			delete(idxByEntry, r.P.Entry.EntryId)
-			return
-		}
-		if IsErrFinal(status.Convert(r.E).Code()) {
-			r.P.set(r.E)
-			w.cancelWithErr(r.E)
-			return
-		}
-		retryQ = append(retryQ, r.P)
-		for idx := len(retryQ) - 2; idx >= 0; idx-- {
-			if retryQ[idx].Entry.EntryId < retryQ[idx+1].Entry.EntryId {
-				break
-			}
-			retryQ[idx], retryQ[idx+1] = retryQ[idx+1], retryQ[idx]
-		}
-		if idxByEntry[r.P.Entry.EntryId] >= cliSendIdx {
-			cli = nil // Reset client because it isn't successful.
-		}
-	}
-	for ; ctx.Err() == nil; tryIdx++ {
-		if cli == nil || !cli.IsPreferred() {
-			// First make sure we have connected client to make requests with.
-			var err error
-			cli, err = w.c.ForStream(w.streamURI)
-			if err != nil {
-				select {
-				case <-ctx.Done():
-					return
-				case res := <-resultQ:
-					handleResult(res)
-				case <-time.After(w.longBeat):
-				}
-				continue
-			}
-			cliSendIdx = tryIdx
-		}
-
-		if len(reqQ) == 0 && len(retryQ) == 0 {
-			select {
-			case <-ctx.Done():
-				return
-			case <-w.reqQNotify:
-				w.reqQmx.Lock()
-				reqQ = w.reqQ
-				w.reqQ = nil
-				w.reqQmx.Unlock()
-				continue
-			case res := <-resultQ:
-				handleResult(res)
-			}
-			continue
-		}
-		var req *PutCtx
-		if len(retryQ) > 0 {
-			retryReq := retryQ[0]
-			prevIdx, ok := idxByEntry[retryReq.Entry.EntryId-1]
-			if ok && prevIdx < idxByEntry[retryReq.Entry.EntryId] {
-				select {
-				case <-ctx.Done():
-					return
-				case res := <-resultQ:
-					handleResult(res)
-				}
-				continue
-			}
-			req = retryReq
-			retryQ[0] = nil
-			retryQ = retryQ[1:]
-		} else {
-			// check inflight requirements.
-			req = reqQ[0]
-			if inflightN+1 > maxInFlightPuts ||
-				inflightSize+req.Entry.Size() > maxInFlightSize {
-				select {
-				case <-ctx.Done():
-					return
-				case res := <-resultQ:
-					handleResult(res)
-				}
-				continue
-			}
-			reqQ[0] = nil
-			reqQ = reqQ[1:]
-		}
-
-		idxByEntry[req.Entry.EntryId] = tryIdx
-		inflightWG.Add(1)
-		inflightN += 1
-		inflightSize += req.Entry.Size()
-		go func(cli walleapi.WalleApiClient, req *PutCtx) {
-			err := w.putEntry(ctx, cli, req.Entry)
-			resultQ <- putCtxAndErr{P: req, E: err}
-			inflightWG.Done()
-		}(cli, req)
-	}
+type wPutter struct {
+	ApiClient
+	w *Writer
 }
 
-// putEntry makes actual RPC call to WALLE server.
-func (w *Writer) putEntry(ctx context.Context, cli walleapi.WalleApiClient, entry *walleapi.Entry) error {
+// Put implements entryPutter interface and makes actual RPC call to WALLE server.
+func (p wPutter) Put(ctx context.Context, entry *walleapi.Entry) error {
 	timeout := putEntryTimeout
-	if w.writerLease > timeout {
-		timeout = w.writerLease
+	if p.w.writerLease > timeout {
+		timeout = p.w.writerLease
 	}
-	_, _, _, toCommit := w.commitInfo()
+	_, _, _, toCommit := p.w.commitInfo()
 	if toCommit.EntryId >= entry.EntryId {
 		return nil
 	}
 	putCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	now := time.Now()
-	_, err := cli.PutEntry(putCtx, &walleapi.PutEntryRequest{
-		StreamUri:        w.streamURI,
+	_, err := p.PutEntry(putCtx, &walleapi.PutEntryRequest{
+		StreamUri:        p.w.streamURI,
 		Entry:            entry,
 		CommittedEntryId: toCommit.EntryId,
 		CommittedEntryXX: toCommit.ChecksumXX,
 	})
 	if err == nil {
-		w.putsQueued.Add(-1)
-		w.updateCommitInfo(
+		p.w.putsQueued.Add(-1)
+		p.w.updateCommitInfo(
 			now, toCommit.EntryId, toCommit.ChecksumXX, entry)
 	}
 	return err
@@ -410,6 +279,7 @@ func (w *Writer) updateCommitInfo(
 }
 
 // PutEntry puts new entry in the stream. PutEntry call itself doesn't block.
+// This call is NOT thread-safe.
 func (w *Writer) PutEntry(data []byte) *PutCtx {
 	entry := &walleapi.Entry{
 		EntryId:  w.tailEntry.EntryId + 1,
@@ -422,18 +292,8 @@ func (w *Writer) PutEntry(data []byte) *PutCtx {
 		Entry: entry,
 		done:  make(chan struct{}),
 	}
-	w.reqQmx.Lock()
-	defer w.reqQmx.Unlock()
-	if err := w.rootCtx.Err(); err != nil {
-		r.set(err)
-	} else {
-		w.putsQueued.Add(1)
-		w.reqQ = append(w.reqQ, r)
-		select {
-		case w.reqQNotify <- struct{}{}:
-		default:
-		}
-	}
+	w.putsQueued.Add(1)
+	w.p.Queue(r)
 	return r
 }
 
