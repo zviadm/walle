@@ -208,23 +208,24 @@ func (m *storage) UpsertStream(
 	if isLocal && !ok && m.nLocalStreams >= m.maxLocalStreams {
 		return errors.Errorf("max streams reached: %d", m.maxLocalStreams)
 	}
-	// It is very important to update topology in storage first to make sure
-	// that if a server ACKs that it has received a particular version of topology it
-	// won't lose it after a crash.
+	if isLocal && !ok {
+		ss = m.makeLocalStream(streamURI)
+	}
+	// It is very important to update topology in storage first before in m.streamT or
+	// before in m.streams map, to make sure server doesn't ACK that it has received particular
+	// version of topology that it might lose in a crash.
 	panic.OnErr(m.metaS.TxBegin(wt.TxCfg{Sync: wt.True}))
 	panic.OnErr(m.metaW.Insert([]byte(streamURI+sfxTopology), topologyB))
 	panic.OnErr(m.metaS.TxCommit())
 	m.streamT[streamURI] = topology
-	if ok {
+	if ss != nil {
 		ss.setTopology(topology)
-		if !isLocal {
-			m.nLocalStreams -= 1
-			m.streams.Delete(streamURI)
-			ss.close()
-		}
-	} else if isLocal {
-		ss = m.makeLocalStream(streamURI)
-		ss.setTopology(topology)
+	}
+	if ok && !isLocal {
+		m.nLocalStreams -= 1
+		m.streams.Delete(streamURI)
+		ss.close()
+	} else if !ok && isLocal {
 		m.nLocalStreams += 1
 		m.streams.Store(streamURI, ss)
 	}
