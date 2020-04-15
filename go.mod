@@ -3,7 +3,7 @@ module github.com/zviadm/walle
 go 1.14
 
 require (
-	github.com/golang/protobuf v1.3.5
+	github.com/gogo/protobuf v1.3.1
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.5.1
 	github.com/zviadm/stats-go v0.0.2

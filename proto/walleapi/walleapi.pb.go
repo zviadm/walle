@@ -6,11 +6,13 @@ package walleapi
 import (
 	context "context"
 	fmt "fmt"
-	proto "github.com/golang/protobuf/proto"
-	empty "github.com/golang/protobuf/ptypes/empty"
+	proto "github.com/gogo/protobuf/proto"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	io "io"
 	math "math"
+	math_bits "math/bits"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -22,17 +24,14 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
 type Entry struct {
 	EntryId  int64  `protobuf:"varint,1,opt,name=entry_id,json=entryId,proto3" json:"entry_id,omitempty"`
 	WriterId []byte `protobuf:"bytes,2,opt,name=writer_id,json=writerId,proto3" json:"writer_id,omitempty"`
 	Data     []byte `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`
 	// checksum_x_x is a rolling xxHash64 for all `data`.
-	ChecksumXX           uint64   `protobuf:"varint,4,opt,name=checksum_x_x,json=checksumXX,proto3" json:"checksum_x_x,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	ChecksumXX uint64 `protobuf:"varint,4,opt,name=checksum_x_x,json=checksumXX,proto3" json:"checksum_x_x,omitempty"`
 }
 
 func (m *Entry) Reset()         { *m = Entry{} }
@@ -49,7 +48,7 @@ func (m *Entry) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Entry.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -101,11 +100,8 @@ type ClaimWriterRequest struct {
 	// writer_addr is a free form address that can be used to identify and
 	// reach this Writer. Expected to be: <host>:<port> pair, but can be
 	// custom and application specific.
-	WriterAddr           string   `protobuf:"bytes,2,opt,name=writer_addr,json=writerAddr,proto3" json:"writer_addr,omitempty"`
-	LeaseMs              int64    `protobuf:"varint,3,opt,name=lease_ms,json=leaseMs,proto3" json:"lease_ms,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	WriterAddr string `protobuf:"bytes,2,opt,name=writer_addr,json=writerAddr,proto3" json:"writer_addr,omitempty"`
+	LeaseMs    int64  `protobuf:"varint,3,opt,name=lease_ms,json=leaseMs,proto3" json:"lease_ms,omitempty"`
 }
 
 func (m *ClaimWriterRequest) Reset()         { *m = ClaimWriterRequest{} }
@@ -122,7 +118,7 @@ func (m *ClaimWriterRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_ClaimWriterRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -163,11 +159,8 @@ func (m *ClaimWriterRequest) GetLeaseMs() int64 {
 }
 
 type ClaimWriterResponse struct {
-	WriterId             []byte   `protobuf:"bytes,1,opt,name=writer_id,json=writerId,proto3" json:"writer_id,omitempty"`
-	TailEntry            *Entry   `protobuf:"bytes,2,opt,name=tail_entry,json=tailEntry,proto3" json:"tail_entry,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	WriterId  []byte `protobuf:"bytes,1,opt,name=writer_id,json=writerId,proto3" json:"writer_id,omitempty"`
+	TailEntry *Entry `protobuf:"bytes,2,opt,name=tail_entry,json=tailEntry,proto3" json:"tail_entry,omitempty"`
 }
 
 func (m *ClaimWriterResponse) Reset()         { *m = ClaimWriterResponse{} }
@@ -184,7 +177,7 @@ func (m *ClaimWriterResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte,
 		return xxx_messageInfo_ClaimWriterResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -218,10 +211,7 @@ func (m *ClaimWriterResponse) GetTailEntry() *Entry {
 }
 
 type WriterStatusRequest struct {
-	StreamUri            string   `protobuf:"bytes,1,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	StreamUri string `protobuf:"bytes,1,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
 }
 
 func (m *WriterStatusRequest) Reset()         { *m = WriterStatusRequest{} }
@@ -238,7 +228,7 @@ func (m *WriterStatusRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte,
 		return xxx_messageInfo_WriterStatusRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -265,13 +255,10 @@ func (m *WriterStatusRequest) GetStreamUri() string {
 }
 
 type WriterStatusResponse struct {
-	WriterAddr           string   `protobuf:"bytes,1,opt,name=writer_addr,json=writerAddr,proto3" json:"writer_addr,omitempty"`
-	LeaseMs              int64    `protobuf:"varint,2,opt,name=lease_ms,json=leaseMs,proto3" json:"lease_ms,omitempty"`
-	RemainingLeaseMs     int64    `protobuf:"varint,3,opt,name=remaining_lease_ms,json=remainingLeaseMs,proto3" json:"remaining_lease_ms,omitempty"`
-	StreamVersion        int64    `protobuf:"varint,4,opt,name=stream_version,json=streamVersion,proto3" json:"stream_version,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	WriterAddr       string `protobuf:"bytes,1,opt,name=writer_addr,json=writerAddr,proto3" json:"writer_addr,omitempty"`
+	LeaseMs          int64  `protobuf:"varint,2,opt,name=lease_ms,json=leaseMs,proto3" json:"lease_ms,omitempty"`
+	RemainingLeaseMs int64  `protobuf:"varint,3,opt,name=remaining_lease_ms,json=remainingLeaseMs,proto3" json:"remaining_lease_ms,omitempty"`
+	StreamVersion    int64  `protobuf:"varint,4,opt,name=stream_version,json=streamVersion,proto3" json:"stream_version,omitempty"`
 }
 
 func (m *WriterStatusResponse) Reset()         { *m = WriterStatusResponse{} }
@@ -288,7 +275,7 @@ func (m *WriterStatusResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte
 		return xxx_messageInfo_WriterStatusResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -336,13 +323,10 @@ func (m *WriterStatusResponse) GetStreamVersion() int64 {
 }
 
 type PutEntryRequest struct {
-	StreamUri            string   `protobuf:"bytes,1,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
-	Entry                *Entry   `protobuf:"bytes,2,opt,name=entry,proto3" json:"entry,omitempty"`
-	CommittedEntryId     int64    `protobuf:"varint,3,opt,name=committed_entry_id,json=committedEntryId,proto3" json:"committed_entry_id,omitempty"`
-	CommittedEntryXX     uint64   `protobuf:"varint,4,opt,name=committed_entry_x_x,json=committedEntryXX,proto3" json:"committed_entry_x_x,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	StreamUri        string `protobuf:"bytes,1,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
+	Entry            *Entry `protobuf:"bytes,2,opt,name=entry,proto3" json:"entry,omitempty"`
+	CommittedEntryId int64  `protobuf:"varint,3,opt,name=committed_entry_id,json=committedEntryId,proto3" json:"committed_entry_id,omitempty"`
+	CommittedEntryXX uint64 `protobuf:"varint,4,opt,name=committed_entry_x_x,json=committedEntryXX,proto3" json:"committed_entry_x_x,omitempty"`
 }
 
 func (m *PutEntryRequest) Reset()         { *m = PutEntryRequest{} }
@@ -359,7 +343,7 @@ func (m *PutEntryRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, err
 		return xxx_messageInfo_PutEntryRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -409,10 +393,7 @@ func (m *PutEntryRequest) GetCommittedEntryXX() uint64 {
 type PollStreamRequest struct {
 	StreamUri string `protobuf:"bytes,1,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
 	// poll_entry_id can be provided to wait until committed_id >= poll_entry_id.
-	PollEntryId          int64    `protobuf:"varint,2,opt,name=poll_entry_id,json=pollEntryId,proto3" json:"poll_entry_id,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	PollEntryId int64 `protobuf:"varint,2,opt,name=poll_entry_id,json=pollEntryId,proto3" json:"poll_entry_id,omitempty"`
 }
 
 func (m *PollStreamRequest) Reset()         { *m = PollStreamRequest{} }
@@ -429,7 +410,7 @@ func (m *PollStreamRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, e
 		return xxx_messageInfo_PollStreamRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -463,11 +444,8 @@ func (m *PollStreamRequest) GetPollEntryId() int64 {
 }
 
 type StreamEntriesRequest struct {
-	StreamUri            string   `protobuf:"bytes,1,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
-	FromEntryId          int64    `protobuf:"varint,2,opt,name=from_entry_id,json=fromEntryId,proto3" json:"from_entry_id,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	StreamUri   string `protobuf:"bytes,1,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
+	FromEntryId int64  `protobuf:"varint,2,opt,name=from_entry_id,json=fromEntryId,proto3" json:"from_entry_id,omitempty"`
 }
 
 func (m *StreamEntriesRequest) Reset()         { *m = StreamEntriesRequest{} }
@@ -484,7 +462,7 @@ func (m *StreamEntriesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte
 		return xxx_messageInfo_StreamEntriesRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -525,10 +503,7 @@ type Topology struct {
 	// Maps streamURI -> StreamTopology
 	Streams map[string]*StreamTopology `protobuf:"bytes,3,rep,name=streams,proto3" json:"streams,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	// Maps ServerID -> ServerInfo
-	Servers              map[string]*ServerInfo `protobuf:"bytes,4,rep,name=servers,proto3" json:"servers,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	XXX_NoUnkeyedLiteral struct{}               `json:"-"`
-	XXX_unrecognized     []byte                 `json:"-"`
-	XXX_sizecache        int32                  `json:"-"`
+	Servers map[string]*ServerInfo `protobuf:"bytes,4,rep,name=servers,proto3" json:"servers,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
 func (m *Topology) Reset()         { *m = Topology{} }
@@ -545,7 +520,7 @@ func (m *Topology) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Topology.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -597,10 +572,7 @@ type StreamTopology struct {
 	// TODO(zviad): describe topology transition and its safety.
 	Version int64 `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
 	// Current serverIds for the stream.
-	ServerIds            []string `protobuf:"bytes,2,rep,name=server_ids,json=serverIds,proto3" json:"server_ids,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	ServerIds []string `protobuf:"bytes,2,rep,name=server_ids,json=serverIds,proto3" json:"server_ids,omitempty"`
 }
 
 func (m *StreamTopology) Reset()         { *m = StreamTopology{} }
@@ -617,7 +589,7 @@ func (m *StreamTopology) XXX_Marshal(b []byte, deterministic bool) ([]byte, erro
 		return xxx_messageInfo_StreamTopology.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -651,10 +623,7 @@ func (m *StreamTopology) GetServerIds() []string {
 }
 
 type ServerInfo struct {
-	Address              string   `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	Address string `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
 }
 
 func (m *ServerInfo) Reset()         { *m = ServerInfo{} }
@@ -671,7 +640,7 @@ func (m *ServerInfo) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_ServerInfo.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -697,6 +666,42 @@ func (m *ServerInfo) GetAddress() string {
 	return ""
 }
 
+type Empty struct {
+}
+
+func (m *Empty) Reset()         { *m = Empty{} }
+func (m *Empty) String() string { return proto.CompactTextString(m) }
+func (*Empty) ProtoMessage()    {}
+func (*Empty) Descriptor() ([]byte, []int) {
+	return fileDescriptor_3b522378fad0fbf4, []int{11}
+}
+func (m *Empty) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *Empty) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_Empty.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *Empty) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Empty.Merge(m, src)
+}
+func (m *Empty) XXX_Size() int {
+	return m.Size()
+}
+func (m *Empty) XXX_DiscardUnknown() {
+	xxx_messageInfo_Empty.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Empty proto.InternalMessageInfo
+
 func init() {
 	proto.RegisterType((*Entry)(nil), "Entry")
 	proto.RegisterType((*ClaimWriterRequest)(nil), "ClaimWriterRequest")
@@ -711,60 +716,60 @@ func init() {
 	proto.RegisterMapType((map[string]*StreamTopology)(nil), "Topology.StreamsEntry")
 	proto.RegisterType((*StreamTopology)(nil), "StreamTopology")
 	proto.RegisterType((*ServerInfo)(nil), "ServerInfo")
+	proto.RegisterType((*Empty)(nil), "Empty")
 }
 
 func init() { proto.RegisterFile("walleapi/walleapi.proto", fileDescriptor_3b522378fad0fbf4) }
 
 var fileDescriptor_3b522378fad0fbf4 = []byte{
-	// 761 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x55, 0xcd, 0x6e, 0x1a, 0x49,
-	0x10, 0x66, 0x00, 0x1b, 0x28, 0xf0, 0xcf, 0x36, 0xd8, 0xcb, 0xe2, 0x5d, 0x96, 0x1d, 0xc9, 0x16,
-	0x5a, 0x25, 0x83, 0x45, 0xa2, 0xc8, 0xb2, 0x94, 0x83, 0x13, 0x59, 0x11, 0x4a, 0x22, 0x59, 0xe3,
-	0xc4, 0xc6, 0xb9, 0x8c, 0xc6, 0x4c, 0x1b, 0xb7, 0x3c, 0x43, 0x93, 0xe9, 0x1e, 0xff, 0xe4, 0x49,
-	0x72, 0xc9, 0x39, 0x87, 0x3c, 0x41, 0xde, 0x20, 0xc7, 0x3c, 0x42, 0xe4, 0xbc, 0x48, 0xd4, 0x3f,
-	0x03, 0x0c, 0xa0, 0x88, 0x5b, 0x57, 0x55, 0xd7, 0x57, 0x5f, 0x55, 0x75, 0x55, 0xc3, 0x9f, 0x37,
-	0xae, 0xef, 0x63, 0x77, 0x48, 0x5a, 0xf1, 0xc1, 0x1a, 0x86, 0x94, 0xd3, 0xda, 0x56, 0x9f, 0xd2,
-	0xbe, 0x8f, 0x5b, 0x52, 0x3a, 0x8f, 0x2e, 0x5a, 0x38, 0x18, 0xf2, 0x3b, 0x65, 0x34, 0x23, 0x58,
-	0x3a, 0x1c, 0xf0, 0xf0, 0x0e, 0xfd, 0x05, 0x79, 0x2c, 0x0e, 0x0e, 0xf1, 0xaa, 0x46, 0xc3, 0x68,
-	0x66, 0xec, 0x9c, 0x94, 0x3b, 0x1e, 0xda, 0x82, 0xc2, 0x4d, 0x48, 0x38, 0x0e, 0x85, 0x2d, 0xdd,
-	0x30, 0x9a, 0x25, 0x3b, 0xaf, 0x14, 0x1d, 0x0f, 0x21, 0xc8, 0x7a, 0x2e, 0x77, 0xab, 0x19, 0xa9,
-	0x97, 0x67, 0xd4, 0x80, 0x52, 0xef, 0x12, 0xf7, 0xae, 0x58, 0x14, 0x38, 0xb7, 0xce, 0x6d, 0x35,
-	0xdb, 0x30, 0x9a, 0x59, 0x1b, 0x62, 0x5d, 0xb7, 0x6b, 0x52, 0x40, 0xcf, 0x7d, 0x97, 0x04, 0xa7,
-	0x12, 0xc6, 0xc6, 0xef, 0x23, 0xcc, 0x38, 0xfa, 0x07, 0x80, 0xf1, 0x10, 0xbb, 0x81, 0x13, 0x85,
-	0x44, 0xb2, 0x28, 0xd8, 0x05, 0xa5, 0x79, 0x1b, 0x12, 0xf4, 0x2f, 0x14, 0x35, 0x0f, 0xd7, 0xf3,
-	0x42, 0xc9, 0xa4, 0x60, 0x83, 0x52, 0x1d, 0x78, 0x5e, 0x28, 0x72, 0xf0, 0xb1, 0xcb, 0xb0, 0x13,
-	0x30, 0xc9, 0x27, 0x63, 0xe7, 0xa4, 0xfc, 0x9a, 0x99, 0x67, 0x50, 0x4e, 0x04, 0x64, 0x43, 0x3a,
-	0x60, 0x38, 0x99, 0x9a, 0x31, 0x95, 0xda, 0x36, 0x00, 0x77, 0x89, 0xef, 0xc8, 0x3a, 0xc8, 0x70,
-	0xc5, 0xf6, 0xb2, 0x25, 0xcb, 0x65, 0x17, 0x84, 0x45, 0x1e, 0xcd, 0xc7, 0x50, 0x56, 0xa8, 0xc7,
-	0xdc, 0xe5, 0x11, 0x5b, 0x2c, 0x19, 0xf3, 0xb3, 0x01, 0x95, 0xa4, 0x9b, 0xa6, 0x34, 0x95, 0xa5,
-	0xf1, 0xdb, 0x2c, 0xd3, 0x89, 0x2c, 0xd1, 0x03, 0x40, 0x21, 0x0e, 0x5c, 0x32, 0x20, 0x83, 0xbe,
-	0x33, 0x55, 0x8a, 0xf5, 0x91, 0xe5, 0x95, 0xbe, 0xbd, 0x0d, 0xab, 0x9a, 0xe1, 0x35, 0x0e, 0x19,
-	0xa1, 0x03, 0xd9, 0xa8, 0x8c, 0xbd, 0xa2, 0xb4, 0x27, 0x4a, 0x69, 0x7e, 0x31, 0x60, 0xed, 0x28,
-	0xe2, 0x2a, 0xef, 0xc5, 0x3a, 0xf5, 0x37, 0x2c, 0xcd, 0x2b, 0x9a, 0x52, 0x0a, 0x96, 0x3d, 0x1a,
-	0x04, 0x84, 0x73, 0xec, 0x39, 0xa3, 0x47, 0xa7, 0x59, 0x8e, 0x2c, 0x87, 0xfa, 0xf5, 0x3d, 0x84,
-	0xf2, 0xf4, 0xed, 0xf1, 0x9b, 0x9a, 0xba, 0xde, 0xed, 0x9a, 0x27, 0xf0, 0xc7, 0x11, 0xf5, 0xfd,
-	0x63, 0xc9, 0x65, 0x41, 0xba, 0x26, 0xac, 0x0c, 0xa9, 0xef, 0x8f, 0xb9, 0xa8, 0xb2, 0x16, 0x85,
-	0x52, 0xd3, 0x30, 0xcf, 0xa0, 0xa2, 0x30, 0x85, 0x82, 0x60, 0xb6, 0x38, 0xf4, 0x45, 0x48, 0x83,
-	0x19, 0x68, 0xa1, 0x8c, 0xa1, 0xbf, 0xa6, 0x21, 0xff, 0x86, 0x0e, 0xa9, 0x4f, 0xfb, 0x72, 0x0e,
-	0x43, 0x4a, 0xf9, 0x04, 0x5a, 0x4e, 0xc8, 0x02, 0xab, 0x0a, 0xb9, 0xb8, 0x51, 0xba, 0xef, 0x5a,
-	0x44, 0xbb, 0x90, 0x53, 0x21, 0x45, 0xb3, 0x33, 0xcd, 0x62, 0x7b, 0xd3, 0x8a, 0x01, 0x2d, 0xc5,
-	0x9a, 0xa9, 0x0e, 0xc4, 0xd7, 0xa4, 0x07, 0x0e, 0x85, 0x7f, 0x35, 0x3b, 0xe3, 0xa1, 0x0c, 0xb1,
-	0x87, 0x92, 0x6a, 0x2f, 0xa1, 0x34, 0x09, 0x85, 0xd6, 0x21, 0x73, 0x85, 0xef, 0x34, 0x47, 0x71,
-	0x44, 0xdb, 0xb0, 0x74, 0xed, 0xfa, 0x11, 0xd6, 0x5d, 0x5f, 0xd3, 0xa1, 0x63, 0x5c, 0x5b, 0x59,
-	0xf7, 0xd3, 0x7b, 0x46, 0xed, 0x05, 0x94, 0x26, 0xa3, 0xcc, 0x01, 0xfb, 0x2f, 0x09, 0x56, 0xd4,
-	0xac, 0x3a, 0x83, 0x0b, 0x3a, 0x01, 0x64, 0x76, 0x60, 0x35, 0x19, 0x65, 0xb2, 0x4a, 0x46, 0xb2,
-	0x4a, 0xa2, 0x55, 0x12, 0xc4, 0x21, 0x9e, 0x18, 0x9d, 0x8c, 0x6c, 0x95, 0x82, 0xf5, 0x98, 0xb9,
-	0x03, 0x30, 0x8e, 0x21, 0x60, 0xc4, 0xfc, 0x61, 0xc6, 0xe2, 0x36, 0x68, 0xb1, 0xfd, 0x29, 0x0d,
-	0xf9, 0x53, 0xb1, 0x62, 0x0f, 0x86, 0x04, 0xed, 0x43, 0x71, 0x62, 0xaf, 0xa0, 0xb2, 0x35, 0xbb,
-	0xd6, 0x6a, 0x15, 0x6b, 0xce, 0xea, 0x31, 0x53, 0xe8, 0x29, 0x94, 0x26, 0x37, 0x00, 0xaa, 0x58,
-	0x73, 0xf6, 0x48, 0x6d, 0xc3, 0x9a, 0xb7, 0x26, 0xcc, 0x14, 0x7a, 0x02, 0xf9, 0x78, 0x2c, 0xd1,
-	0xba, 0x35, 0x35, 0xa1, 0xb5, 0x4d, 0x4b, 0xad, 0x7d, 0x2b, 0x5e, 0xfb, 0xd6, 0xa1, 0x58, 0xfb,
-	0x66, 0x0a, 0xfd, 0x0f, 0x30, 0x9e, 0x10, 0x84, 0xac, 0x99, 0x71, 0xa9, 0xe9, 0x79, 0x35, 0x53,
-	0xa8, 0x0d, 0x2b, 0x89, 0x57, 0x8f, 0x36, 0xac, 0x79, 0x53, 0x30, 0xf6, 0xd8, 0x35, 0x9e, 0xed,
-	0x7d, 0xbb, 0xaf, 0x1b, 0xdf, 0xef, 0xeb, 0xc6, 0x8f, 0xfb, 0xba, 0xf1, 0xf1, 0x67, 0x3d, 0xf5,
-	0x6e, 0xa7, 0x4f, 0xf8, 0x65, 0x74, 0x6e, 0xf5, 0x68, 0xd0, 0xfa, 0x70, 0x4d, 0x5c, 0x2f, 0x50,
-	0x7f, 0x94, 0xfa, 0x92, 0x46, 0xff, 0xd5, 0xf9, 0xb2, 0x94, 0x1f, 0xfd, 0x0a, 0x00, 0x00, 0xff,
-	0xff, 0x1f, 0xd2, 0x06, 0xaf, 0xcb, 0x06, 0x00, 0x00,
+	// 752 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x55, 0xdb, 0x6e, 0xd3, 0x4c,
+	0x10, 0x8e, 0x73, 0x68, 0x92, 0x49, 0x7a, 0xf8, 0x37, 0xe9, 0xff, 0xe7, 0x0f, 0x10, 0xc2, 0x4a,
+	0xad, 0x22, 0x04, 0x6e, 0x15, 0xb8, 0x40, 0x95, 0x90, 0x28, 0xa8, 0x42, 0x11, 0x20, 0x55, 0x2e,
+	0xb4, 0x29, 0x37, 0x96, 0x1b, 0x6f, 0xdb, 0x55, 0xed, 0x6c, 0xb0, 0xd7, 0x3d, 0xf0, 0x0e, 0x48,
+	0xbc, 0x05, 0x17, 0x3c, 0x01, 0x6f, 0xc0, 0x65, 0x2f, 0xb9, 0x44, 0xed, 0x8b, 0xa0, 0x3d, 0x38,
+	0x89, 0x93, 0x08, 0xe5, 0x6e, 0x67, 0x66, 0xe7, 0x9b, 0x6f, 0x66, 0x76, 0x66, 0xe1, 0xbf, 0x0b,
+	0xc7, 0xf3, 0x88, 0x33, 0xa0, 0x1b, 0xf1, 0xc1, 0x1c, 0x04, 0x8c, 0x33, 0x1c, 0x41, 0x6e, 0xa7,
+	0xcf, 0x83, 0x2b, 0xf4, 0x3f, 0x14, 0x88, 0x38, 0xd8, 0xd4, 0xad, 0x19, 0x4d, 0xa3, 0x95, 0xb1,
+	0xf2, 0x52, 0xee, 0xb8, 0xe8, 0x0e, 0x14, 0x2f, 0x02, 0xca, 0x49, 0x20, 0x6c, 0xe9, 0xa6, 0xd1,
+	0x2a, 0x5b, 0x05, 0xa5, 0xe8, 0xb8, 0x08, 0x41, 0xd6, 0x75, 0xb8, 0x53, 0xcb, 0x48, 0xbd, 0x3c,
+	0xa3, 0x26, 0x94, 0x7b, 0xa7, 0xa4, 0x77, 0x16, 0x46, 0xbe, 0x7d, 0x69, 0x5f, 0xd6, 0xb2, 0x4d,
+	0xa3, 0x95, 0xb5, 0x20, 0xd6, 0x75, 0xbb, 0x98, 0x01, 0x7a, 0xe5, 0x39, 0xd4, 0x3f, 0x90, 0x30,
+	0x16, 0xf9, 0x14, 0x91, 0x90, 0xa3, 0x7b, 0x00, 0x21, 0x0f, 0x88, 0xe3, 0xdb, 0x51, 0x40, 0x25,
+	0x8b, 0xa2, 0x55, 0x54, 0x9a, 0x0f, 0x01, 0x45, 0xf7, 0xa1, 0xa4, 0x79, 0x38, 0xae, 0x1b, 0x48,
+	0x26, 0x45, 0x0b, 0x94, 0x6a, 0xdb, 0x75, 0x03, 0x91, 0x83, 0x47, 0x9c, 0x90, 0xd8, 0x7e, 0x28,
+	0xf9, 0x64, 0xac, 0xbc, 0x94, 0xdf, 0x85, 0xf8, 0x10, 0x2a, 0x89, 0x80, 0xe1, 0x80, 0xf5, 0x43,
+	0x92, 0x4c, 0xcd, 0x98, 0x48, 0x6d, 0x0d, 0x80, 0x3b, 0xd4, 0xb3, 0x65, 0x1d, 0x64, 0xb8, 0x52,
+	0x7b, 0xc1, 0x94, 0xe5, 0xb2, 0x8a, 0xc2, 0x22, 0x8f, 0xf8, 0x29, 0x54, 0x14, 0xea, 0x1e, 0x77,
+	0x78, 0x14, 0xce, 0x97, 0x0c, 0xfe, 0x66, 0x40, 0x35, 0xe9, 0xa6, 0x29, 0x4d, 0x64, 0x69, 0xfc,
+	0x35, 0xcb, 0x74, 0x22, 0x4b, 0xf4, 0x08, 0x50, 0x40, 0x7c, 0x87, 0xf6, 0x69, 0xff, 0xc4, 0x9e,
+	0x28, 0xc5, 0xca, 0xd0, 0xf2, 0x56, 0xdf, 0x5e, 0x83, 0x25, 0xcd, 0xf0, 0x9c, 0x04, 0x21, 0x65,
+	0x7d, 0xd9, 0xa8, 0x8c, 0xb5, 0xa8, 0xb4, 0xfb, 0x4a, 0x89, 0xbf, 0x1b, 0xb0, 0xbc, 0x1b, 0x71,
+	0x95, 0xf7, 0x7c, 0x9d, 0xba, 0x0b, 0xb9, 0x59, 0x45, 0x53, 0x4a, 0xc1, 0xb2, 0xc7, 0x7c, 0x9f,
+	0x72, 0x4e, 0x5c, 0x7b, 0xf8, 0xe8, 0x34, 0xcb, 0xa1, 0x65, 0x47, 0xbf, 0xbe, 0xc7, 0x50, 0x99,
+	0xbc, 0x3d, 0x7a, 0x53, 0x13, 0xd7, 0xbb, 0x5d, 0xbc, 0x0f, 0xff, 0xec, 0x32, 0xcf, 0xdb, 0x93,
+	0x5c, 0xe6, 0xa4, 0x8b, 0x61, 0x71, 0xc0, 0x3c, 0x6f, 0xc4, 0x45, 0x95, 0xb5, 0x24, 0x94, 0x9a,
+	0x06, 0x3e, 0x84, 0xaa, 0xc2, 0x14, 0x0a, 0x4a, 0xc2, 0xf9, 0xa1, 0x8f, 0x03, 0xe6, 0x4f, 0x41,
+	0x0b, 0x65, 0x0c, 0xfd, 0x23, 0x0d, 0x85, 0xf7, 0x6c, 0xc0, 0x3c, 0x76, 0x22, 0xe7, 0x30, 0x60,
+	0x8c, 0x8f, 0xa1, 0xe5, 0x85, 0x2c, 0xb0, 0x6a, 0x90, 0x8f, 0x1b, 0xa5, 0xfb, 0xae, 0x45, 0xb4,
+	0x09, 0x79, 0x15, 0x52, 0x34, 0x3b, 0xd3, 0x2a, 0xb5, 0xff, 0x35, 0x63, 0x40, 0x53, 0xb1, 0x0e,
+	0x55, 0x07, 0xe2, 0x6b, 0xd2, 0x83, 0x04, 0xc2, 0xbf, 0x96, 0x9d, 0xf2, 0x50, 0x86, 0xd8, 0x43,
+	0x49, 0xf5, 0x37, 0x50, 0x1e, 0x87, 0x42, 0x2b, 0x90, 0x39, 0x23, 0x57, 0x9a, 0xa3, 0x38, 0xa2,
+	0x35, 0xc8, 0x9d, 0x3b, 0x5e, 0x44, 0x74, 0xd7, 0x97, 0x75, 0xe8, 0x18, 0xd7, 0x52, 0xd6, 0xad,
+	0xf4, 0x33, 0xa3, 0xfe, 0x1a, 0xca, 0xe3, 0x51, 0x66, 0x80, 0x3d, 0x48, 0x82, 0x95, 0x34, 0xab,
+	0x4e, 0xff, 0x98, 0x8d, 0x01, 0xe1, 0x0e, 0x2c, 0x25, 0xa3, 0x8c, 0x57, 0xc9, 0x48, 0x56, 0x49,
+	0xb4, 0x4a, 0x82, 0xd8, 0xd4, 0x15, 0xa3, 0x93, 0x91, 0xad, 0x52, 0xb0, 0x6e, 0x88, 0xd7, 0x01,
+	0x46, 0x31, 0x04, 0x8c, 0x98, 0x3f, 0x12, 0x86, 0x71, 0x1b, 0xb4, 0x88, 0xf3, 0x90, 0xdb, 0xf1,
+	0x07, 0xfc, 0xaa, 0xfd, 0x25, 0x0d, 0x85, 0x03, 0xb1, 0x4e, 0xb7, 0x07, 0x14, 0x6d, 0x41, 0x69,
+	0x6c, 0xc1, 0xa0, 0x8a, 0x39, 0xbd, 0xdf, 0xea, 0x55, 0x73, 0xc6, 0x0e, 0xc2, 0x29, 0xf4, 0x1c,
+	0xca, 0xe3, 0xab, 0x00, 0x55, 0xcd, 0x19, 0x0b, 0xa5, 0xbe, 0x6a, 0xce, 0xda, 0x17, 0x38, 0x85,
+	0xd6, 0xa1, 0x10, 0xcf, 0x27, 0x5a, 0x31, 0x27, 0x46, 0xb5, 0xbe, 0x60, 0x4a, 0xb6, 0x38, 0x85,
+	0x1e, 0x02, 0x8c, 0x46, 0x03, 0x21, 0x73, 0x6a, 0x4e, 0xea, 0x7a, 0x50, 0x71, 0x0a, 0xb5, 0x61,
+	0x31, 0xf1, 0xdc, 0xd1, 0xaa, 0x39, 0xeb, 0xf9, 0x8f, 0x3c, 0x36, 0x8d, 0x97, 0x2f, 0x7e, 0xde,
+	0x34, 0x8c, 0xeb, 0x9b, 0x86, 0xf1, 0xfb, 0xa6, 0x61, 0x7c, 0xbd, 0x6d, 0xa4, 0xae, 0x6f, 0x1b,
+	0xa9, 0x5f, 0xb7, 0x8d, 0xd4, 0xc7, 0xf5, 0x13, 0xca, 0x4f, 0xa3, 0x23, 0xb3, 0xc7, 0xfc, 0x8d,
+	0xcf, 0xe7, 0xd4, 0x71, 0x7d, 0xf5, 0x0f, 0x6d, 0xc8, 0x4f, 0x68, 0xf8, 0x27, 0x1d, 0x2d, 0x48,
+	0xf9, 0xc9, 0x9f, 0x00, 0x00, 0x00, 0xff, 0xff, 0x03, 0x43, 0x60, 0x64, 0xaf, 0x06, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -781,7 +786,7 @@ const _ = grpc.SupportPackageIsVersion4
 type WalleApiClient interface {
 	ClaimWriter(ctx context.Context, in *ClaimWriterRequest, opts ...grpc.CallOption) (*ClaimWriterResponse, error)
 	WriterStatus(ctx context.Context, in *WriterStatusRequest, opts ...grpc.CallOption) (*WriterStatusResponse, error)
-	PutEntry(ctx context.Context, in *PutEntryRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	PutEntry(ctx context.Context, in *PutEntryRequest, opts ...grpc.CallOption) (*Empty, error)
 	// PollStream polls stream for last committed entry. This rpc can be used as
 	// a long poll to wait for changes on the stream. If no changes happen within
 	// deadline, will exit early and return OutOfRange error instead of timing out
@@ -823,8 +828,8 @@ func (c *walleApiClient) WriterStatus(ctx context.Context, in *WriterStatusReque
 	return out, nil
 }
 
-func (c *walleApiClient) PutEntry(ctx context.Context, in *PutEntryRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	out := new(empty.Empty)
+func (c *walleApiClient) PutEntry(ctx context.Context, in *PutEntryRequest, opts ...grpc.CallOption) (*Empty, error) {
+	out := new(Empty)
 	err := c.cc.Invoke(ctx, "/WalleApi/PutEntry", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -877,7 +882,7 @@ func (x *walleApiStreamEntriesClient) Recv() (*Entry, error) {
 type WalleApiServer interface {
 	ClaimWriter(context.Context, *ClaimWriterRequest) (*ClaimWriterResponse, error)
 	WriterStatus(context.Context, *WriterStatusRequest) (*WriterStatusResponse, error)
-	PutEntry(context.Context, *PutEntryRequest) (*empty.Empty, error)
+	PutEntry(context.Context, *PutEntryRequest) (*Empty, error)
 	// PollStream polls stream for last committed entry. This rpc can be used as
 	// a long poll to wait for changes on the stream. If no changes happen within
 	// deadline, will exit early and return OutOfRange error instead of timing out
@@ -891,6 +896,26 @@ type WalleApiServer interface {
 	// a stream.
 	// TODO(zviad): This api isn't final. Most likely will need various changes.
 	StreamEntries(*StreamEntriesRequest, WalleApi_StreamEntriesServer) error
+}
+
+// UnimplementedWalleApiServer can be embedded to have forward compatible implementations.
+type UnimplementedWalleApiServer struct {
+}
+
+func (*UnimplementedWalleApiServer) ClaimWriter(ctx context.Context, req *ClaimWriterRequest) (*ClaimWriterResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ClaimWriter not implemented")
+}
+func (*UnimplementedWalleApiServer) WriterStatus(ctx context.Context, req *WriterStatusRequest) (*WriterStatusResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method WriterStatus not implemented")
+}
+func (*UnimplementedWalleApiServer) PutEntry(ctx context.Context, req *PutEntryRequest) (*Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PutEntry not implemented")
+}
+func (*UnimplementedWalleApiServer) PollStream(ctx context.Context, req *PollStreamRequest) (*Entry, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PollStream not implemented")
+}
+func (*UnimplementedWalleApiServer) StreamEntries(req *StreamEntriesRequest, srv WalleApi_StreamEntriesServer) error {
+	return status.Errorf(codes.Unimplemented, "method StreamEntries not implemented")
 }
 
 func RegisterWalleApiServer(s *grpc.Server, srv WalleApiServer) {
@@ -1024,7 +1049,7 @@ var _WalleApi_serviceDesc = grpc.ServiceDesc{
 func (m *Entry) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1032,42 +1057,46 @@ func (m *Entry) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Entry) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Entry) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.EntryId != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintWalleapi(dAtA, i, uint64(m.EntryId))
-	}
-	if len(m.WriterId) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintWalleapi(dAtA, i, uint64(len(m.WriterId)))
-		i += copy(dAtA[i:], m.WriterId)
+	if m.ChecksumXX != 0 {
+		i = encodeVarintWalleapi(dAtA, i, uint64(m.ChecksumXX))
+		i--
+		dAtA[i] = 0x20
 	}
 	if len(m.Data) > 0 {
-		dAtA[i] = 0x1a
-		i++
+		i -= len(m.Data)
+		copy(dAtA[i:], m.Data)
 		i = encodeVarintWalleapi(dAtA, i, uint64(len(m.Data)))
-		i += copy(dAtA[i:], m.Data)
+		i--
+		dAtA[i] = 0x1a
 	}
-	if m.ChecksumXX != 0 {
-		dAtA[i] = 0x20
-		i++
-		i = encodeVarintWalleapi(dAtA, i, uint64(m.ChecksumXX))
+	if len(m.WriterId) > 0 {
+		i -= len(m.WriterId)
+		copy(dAtA[i:], m.WriterId)
+		i = encodeVarintWalleapi(dAtA, i, uint64(len(m.WriterId)))
+		i--
+		dAtA[i] = 0x12
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if m.EntryId != 0 {
+		i = encodeVarintWalleapi(dAtA, i, uint64(m.EntryId))
+		i--
+		dAtA[i] = 0x8
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *ClaimWriterRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1075,37 +1104,41 @@ func (m *ClaimWriterRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ClaimWriterRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ClaimWriterRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.StreamUri) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintWalleapi(dAtA, i, uint64(len(m.StreamUri)))
-		i += copy(dAtA[i:], m.StreamUri)
+	if m.LeaseMs != 0 {
+		i = encodeVarintWalleapi(dAtA, i, uint64(m.LeaseMs))
+		i--
+		dAtA[i] = 0x18
 	}
 	if len(m.WriterAddr) > 0 {
-		dAtA[i] = 0x12
-		i++
+		i -= len(m.WriterAddr)
+		copy(dAtA[i:], m.WriterAddr)
 		i = encodeVarintWalleapi(dAtA, i, uint64(len(m.WriterAddr)))
-		i += copy(dAtA[i:], m.WriterAddr)
+		i--
+		dAtA[i] = 0x12
 	}
-	if m.LeaseMs != 0 {
-		dAtA[i] = 0x18
-		i++
-		i = encodeVarintWalleapi(dAtA, i, uint64(m.LeaseMs))
+	if len(m.StreamUri) > 0 {
+		i -= len(m.StreamUri)
+		copy(dAtA[i:], m.StreamUri)
+		i = encodeVarintWalleapi(dAtA, i, uint64(len(m.StreamUri)))
+		i--
+		dAtA[i] = 0xa
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *ClaimWriterResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1113,36 +1146,41 @@ func (m *ClaimWriterResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ClaimWriterResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ClaimWriterResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.WriterId) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintWalleapi(dAtA, i, uint64(len(m.WriterId)))
-		i += copy(dAtA[i:], m.WriterId)
-	}
 	if m.TailEntry != nil {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintWalleapi(dAtA, i, uint64(m.TailEntry.Size()))
-		n1, err := m.TailEntry.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
+		{
+			size, err := m.TailEntry.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintWalleapi(dAtA, i, uint64(size))
 		}
-		i += n1
+		i--
+		dAtA[i] = 0x12
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.WriterId) > 0 {
+		i -= len(m.WriterId)
+		copy(dAtA[i:], m.WriterId)
+		i = encodeVarintWalleapi(dAtA, i, uint64(len(m.WriterId)))
+		i--
+		dAtA[i] = 0xa
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *WriterStatusRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1150,26 +1188,29 @@ func (m *WriterStatusRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *WriterStatusRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *WriterStatusRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if len(m.StreamUri) > 0 {
-		dAtA[i] = 0xa
-		i++
+		i -= len(m.StreamUri)
+		copy(dAtA[i:], m.StreamUri)
 		i = encodeVarintWalleapi(dAtA, i, uint64(len(m.StreamUri)))
-		i += copy(dAtA[i:], m.StreamUri)
+		i--
+		dAtA[i] = 0xa
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *WriterStatusResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1177,41 +1218,44 @@ func (m *WriterStatusResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *WriterStatusResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *WriterStatusResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.WriterAddr) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintWalleapi(dAtA, i, uint64(len(m.WriterAddr)))
-		i += copy(dAtA[i:], m.WriterAddr)
-	}
-	if m.LeaseMs != 0 {
-		dAtA[i] = 0x10
-		i++
-		i = encodeVarintWalleapi(dAtA, i, uint64(m.LeaseMs))
+	if m.StreamVersion != 0 {
+		i = encodeVarintWalleapi(dAtA, i, uint64(m.StreamVersion))
+		i--
+		dAtA[i] = 0x20
 	}
 	if m.RemainingLeaseMs != 0 {
-		dAtA[i] = 0x18
-		i++
 		i = encodeVarintWalleapi(dAtA, i, uint64(m.RemainingLeaseMs))
+		i--
+		dAtA[i] = 0x18
 	}
-	if m.StreamVersion != 0 {
-		dAtA[i] = 0x20
-		i++
-		i = encodeVarintWalleapi(dAtA, i, uint64(m.StreamVersion))
+	if m.LeaseMs != 0 {
+		i = encodeVarintWalleapi(dAtA, i, uint64(m.LeaseMs))
+		i--
+		dAtA[i] = 0x10
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.WriterAddr) > 0 {
+		i -= len(m.WriterAddr)
+		copy(dAtA[i:], m.WriterAddr)
+		i = encodeVarintWalleapi(dAtA, i, uint64(len(m.WriterAddr)))
+		i--
+		dAtA[i] = 0xa
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *PutEntryRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1219,46 +1263,51 @@ func (m *PutEntryRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *PutEntryRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *PutEntryRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.StreamUri) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintWalleapi(dAtA, i, uint64(len(m.StreamUri)))
-		i += copy(dAtA[i:], m.StreamUri)
-	}
-	if m.Entry != nil {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintWalleapi(dAtA, i, uint64(m.Entry.Size()))
-		n2, err := m.Entry.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n2
+	if m.CommittedEntryXX != 0 {
+		i = encodeVarintWalleapi(dAtA, i, uint64(m.CommittedEntryXX))
+		i--
+		dAtA[i] = 0x20
 	}
 	if m.CommittedEntryId != 0 {
-		dAtA[i] = 0x18
-		i++
 		i = encodeVarintWalleapi(dAtA, i, uint64(m.CommittedEntryId))
+		i--
+		dAtA[i] = 0x18
 	}
-	if m.CommittedEntryXX != 0 {
-		dAtA[i] = 0x20
-		i++
-		i = encodeVarintWalleapi(dAtA, i, uint64(m.CommittedEntryXX))
+	if m.Entry != nil {
+		{
+			size, err := m.Entry.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintWalleapi(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.StreamUri) > 0 {
+		i -= len(m.StreamUri)
+		copy(dAtA[i:], m.StreamUri)
+		i = encodeVarintWalleapi(dAtA, i, uint64(len(m.StreamUri)))
+		i--
+		dAtA[i] = 0xa
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *PollStreamRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1266,31 +1315,34 @@ func (m *PollStreamRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *PollStreamRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *PollStreamRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.StreamUri) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintWalleapi(dAtA, i, uint64(len(m.StreamUri)))
-		i += copy(dAtA[i:], m.StreamUri)
-	}
 	if m.PollEntryId != 0 {
-		dAtA[i] = 0x10
-		i++
 		i = encodeVarintWalleapi(dAtA, i, uint64(m.PollEntryId))
+		i--
+		dAtA[i] = 0x10
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.StreamUri) > 0 {
+		i -= len(m.StreamUri)
+		copy(dAtA[i:], m.StreamUri)
+		i = encodeVarintWalleapi(dAtA, i, uint64(len(m.StreamUri)))
+		i--
+		dAtA[i] = 0xa
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *StreamEntriesRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1298,31 +1350,34 @@ func (m *StreamEntriesRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *StreamEntriesRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *StreamEntriesRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.StreamUri) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintWalleapi(dAtA, i, uint64(len(m.StreamUri)))
-		i += copy(dAtA[i:], m.StreamUri)
-	}
 	if m.FromEntryId != 0 {
-		dAtA[i] = 0x10
-		i++
 		i = encodeVarintWalleapi(dAtA, i, uint64(m.FromEntryId))
+		i--
+		dAtA[i] = 0x10
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.StreamUri) > 0 {
+		i -= len(m.StreamUri)
+		copy(dAtA[i:], m.StreamUri)
+		i = encodeVarintWalleapi(dAtA, i, uint64(len(m.StreamUri)))
+		i--
+		dAtA[i] = 0xa
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *Topology) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1330,87 +1385,86 @@ func (m *Topology) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Topology) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Topology) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.RootUri) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintWalleapi(dAtA, i, uint64(len(m.RootUri)))
-		i += copy(dAtA[i:], m.RootUri)
-	}
-	if m.Version != 0 {
-		dAtA[i] = 0x10
-		i++
-		i = encodeVarintWalleapi(dAtA, i, uint64(m.Version))
+	if len(m.Servers) > 0 {
+		for k := range m.Servers {
+			v := m.Servers[k]
+			baseI := i
+			if v != nil {
+				{
+					size, err := v.MarshalToSizedBuffer(dAtA[:i])
+					if err != nil {
+						return 0, err
+					}
+					i -= size
+					i = encodeVarintWalleapi(dAtA, i, uint64(size))
+				}
+				i--
+				dAtA[i] = 0x12
+			}
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintWalleapi(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintWalleapi(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x22
+		}
 	}
 	if len(m.Streams) > 0 {
-		for k, _ := range m.Streams {
-			dAtA[i] = 0x1a
-			i++
+		for k := range m.Streams {
 			v := m.Streams[k]
-			msgSize := 0
+			baseI := i
 			if v != nil {
-				msgSize = v.Size()
-				msgSize += 1 + sovWalleapi(uint64(msgSize))
-			}
-			mapSize := 1 + len(k) + sovWalleapi(uint64(len(k))) + msgSize
-			i = encodeVarintWalleapi(dAtA, i, uint64(mapSize))
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintWalleapi(dAtA, i, uint64(len(k)))
-			i += copy(dAtA[i:], k)
-			if v != nil {
-				dAtA[i] = 0x12
-				i++
-				i = encodeVarintWalleapi(dAtA, i, uint64(v.Size()))
-				n3, err := v.MarshalTo(dAtA[i:])
-				if err != nil {
-					return 0, err
+				{
+					size, err := v.MarshalToSizedBuffer(dAtA[:i])
+					if err != nil {
+						return 0, err
+					}
+					i -= size
+					i = encodeVarintWalleapi(dAtA, i, uint64(size))
 				}
-				i += n3
+				i--
+				dAtA[i] = 0x12
 			}
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintWalleapi(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintWalleapi(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x1a
 		}
 	}
-	if len(m.Servers) > 0 {
-		for k, _ := range m.Servers {
-			dAtA[i] = 0x22
-			i++
-			v := m.Servers[k]
-			msgSize := 0
-			if v != nil {
-				msgSize = v.Size()
-				msgSize += 1 + sovWalleapi(uint64(msgSize))
-			}
-			mapSize := 1 + len(k) + sovWalleapi(uint64(len(k))) + msgSize
-			i = encodeVarintWalleapi(dAtA, i, uint64(mapSize))
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintWalleapi(dAtA, i, uint64(len(k)))
-			i += copy(dAtA[i:], k)
-			if v != nil {
-				dAtA[i] = 0x12
-				i++
-				i = encodeVarintWalleapi(dAtA, i, uint64(v.Size()))
-				n4, err := v.MarshalTo(dAtA[i:])
-				if err != nil {
-					return 0, err
-				}
-				i += n4
-			}
-		}
+	if m.Version != 0 {
+		i = encodeVarintWalleapi(dAtA, i, uint64(m.Version))
+		i--
+		dAtA[i] = 0x10
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.RootUri) > 0 {
+		i -= len(m.RootUri)
+		copy(dAtA[i:], m.RootUri)
+		i = encodeVarintWalleapi(dAtA, i, uint64(len(m.RootUri)))
+		i--
+		dAtA[i] = 0xa
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *StreamTopology) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1418,40 +1472,36 @@ func (m *StreamTopology) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *StreamTopology) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *StreamTopology) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.Version != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintWalleapi(dAtA, i, uint64(m.Version))
-	}
 	if len(m.ServerIds) > 0 {
-		for _, s := range m.ServerIds {
+		for iNdEx := len(m.ServerIds) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.ServerIds[iNdEx])
+			copy(dAtA[i:], m.ServerIds[iNdEx])
+			i = encodeVarintWalleapi(dAtA, i, uint64(len(m.ServerIds[iNdEx])))
+			i--
 			dAtA[i] = 0x12
-			i++
-			l = len(s)
-			for l >= 1<<7 {
-				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
-				l >>= 7
-				i++
-			}
-			dAtA[i] = uint8(l)
-			i++
-			i += copy(dAtA[i:], s)
 		}
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if m.Version != 0 {
+		i = encodeVarintWalleapi(dAtA, i, uint64(m.Version))
+		i--
+		dAtA[i] = 0x8
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *ServerInfo) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1459,30 +1509,58 @@ func (m *ServerInfo) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ServerInfo) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ServerInfo) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if len(m.Address) > 0 {
-		dAtA[i] = 0xa
-		i++
+		i -= len(m.Address)
+		copy(dAtA[i:], m.Address)
 		i = encodeVarintWalleapi(dAtA, i, uint64(len(m.Address)))
-		i += copy(dAtA[i:], m.Address)
+		i--
+		dAtA[i] = 0xa
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	return len(dAtA) - i, nil
+}
+
+func (m *Empty) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
 	}
-	return i, nil
+	return dAtA[:n], nil
+}
+
+func (m *Empty) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Empty) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	return len(dAtA) - i, nil
 }
 
 func encodeVarintWalleapi(dAtA []byte, offset int, v uint64) int {
+	offset -= sovWalleapi(v)
+	base := offset
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
 		v >>= 7
 		offset++
 	}
 	dAtA[offset] = uint8(v)
-	return offset + 1
+	return base
 }
 func (m *Entry) Size() (n int) {
 	if m == nil {
@@ -1504,9 +1582,6 @@ func (m *Entry) Size() (n int) {
 	if m.ChecksumXX != 0 {
 		n += 1 + sovWalleapi(uint64(m.ChecksumXX))
 	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
 	return n
 }
 
@@ -1527,9 +1602,6 @@ func (m *ClaimWriterRequest) Size() (n int) {
 	if m.LeaseMs != 0 {
 		n += 1 + sovWalleapi(uint64(m.LeaseMs))
 	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
 	return n
 }
 
@@ -1547,9 +1619,6 @@ func (m *ClaimWriterResponse) Size() (n int) {
 		l = m.TailEntry.Size()
 		n += 1 + l + sovWalleapi(uint64(l))
 	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
 	return n
 }
 
@@ -1562,9 +1631,6 @@ func (m *WriterStatusRequest) Size() (n int) {
 	l = len(m.StreamUri)
 	if l > 0 {
 		n += 1 + l + sovWalleapi(uint64(l))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
 	}
 	return n
 }
@@ -1587,9 +1653,6 @@ func (m *WriterStatusResponse) Size() (n int) {
 	}
 	if m.StreamVersion != 0 {
 		n += 1 + sovWalleapi(uint64(m.StreamVersion))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
 	}
 	return n
 }
@@ -1614,9 +1677,6 @@ func (m *PutEntryRequest) Size() (n int) {
 	if m.CommittedEntryXX != 0 {
 		n += 1 + sovWalleapi(uint64(m.CommittedEntryXX))
 	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
 	return n
 }
 
@@ -1633,9 +1693,6 @@ func (m *PollStreamRequest) Size() (n int) {
 	if m.PollEntryId != 0 {
 		n += 1 + sovWalleapi(uint64(m.PollEntryId))
 	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
 	return n
 }
 
@@ -1651,9 +1708,6 @@ func (m *StreamEntriesRequest) Size() (n int) {
 	}
 	if m.FromEntryId != 0 {
 		n += 1 + sovWalleapi(uint64(m.FromEntryId))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
 	}
 	return n
 }
@@ -1697,9 +1751,6 @@ func (m *Topology) Size() (n int) {
 			n += mapEntrySize + 1 + sovWalleapi(uint64(mapEntrySize))
 		}
 	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
 	return n
 }
 
@@ -1718,9 +1769,6 @@ func (m *StreamTopology) Size() (n int) {
 			n += 1 + l + sovWalleapi(uint64(l))
 		}
 	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
 	return n
 }
 
@@ -1734,21 +1782,20 @@ func (m *ServerInfo) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovWalleapi(uint64(l))
 	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
+	return n
+}
+
+func (m *Empty) Size() (n int) {
+	if m == nil {
+		return 0
 	}
+	var l int
+	_ = l
 	return n
 }
 
 func sovWalleapi(x uint64) (n int) {
-	for {
-		n++
-		x >>= 7
-		if x == 0 {
-			break
-		}
-	}
-	return n
+	return (math_bits.Len64(x|1) + 6) / 7
 }
 func sozWalleapi(x uint64) (n int) {
 	return sovWalleapi(uint64((x << 1) ^ uint64((int64(x) >> 63))))
@@ -1903,7 +1950,6 @@ func (m *Entry) Unmarshal(dAtA []byte) error {
 			if (iNdEx + skippy) > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
 			iNdEx += skippy
 		}
 	}
@@ -2040,7 +2086,6 @@ func (m *ClaimWriterRequest) Unmarshal(dAtA []byte) error {
 			if (iNdEx + skippy) > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
 			iNdEx += skippy
 		}
 	}
@@ -2164,7 +2209,6 @@ func (m *ClaimWriterResponse) Unmarshal(dAtA []byte) error {
 			if (iNdEx + skippy) > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
 			iNdEx += skippy
 		}
 	}
@@ -2250,7 +2294,6 @@ func (m *WriterStatusRequest) Unmarshal(dAtA []byte) error {
 			if (iNdEx + skippy) > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
 			iNdEx += skippy
 		}
 	}
@@ -2393,7 +2436,6 @@ func (m *WriterStatusResponse) Unmarshal(dAtA []byte) error {
 			if (iNdEx + skippy) > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
 			iNdEx += skippy
 		}
 	}
@@ -2553,7 +2595,6 @@ func (m *PutEntryRequest) Unmarshal(dAtA []byte) error {
 			if (iNdEx + skippy) > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
 			iNdEx += skippy
 		}
 	}
@@ -2658,7 +2699,6 @@ func (m *PollStreamRequest) Unmarshal(dAtA []byte) error {
 			if (iNdEx + skippy) > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
 			iNdEx += skippy
 		}
 	}
@@ -2763,7 +2803,6 @@ func (m *StreamEntriesRequest) Unmarshal(dAtA []byte) error {
 			if (iNdEx + skippy) > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
 			iNdEx += skippy
 		}
 	}
@@ -3126,7 +3165,6 @@ func (m *Topology) Unmarshal(dAtA []byte) error {
 			if (iNdEx + skippy) > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
 			iNdEx += skippy
 		}
 	}
@@ -3231,7 +3269,6 @@ func (m *StreamTopology) Unmarshal(dAtA []byte) error {
 			if (iNdEx + skippy) > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
 			iNdEx += skippy
 		}
 	}
@@ -3317,7 +3354,59 @@ func (m *ServerInfo) Unmarshal(dAtA []byte) error {
 			if (iNdEx + skippy) > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *Empty) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowWalleapi
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Empty: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Empty: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipWalleapi(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthWalleapi
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthWalleapi
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
 			iNdEx += skippy
 		}
 	}
@@ -3330,6 +3419,7 @@ func (m *ServerInfo) Unmarshal(dAtA []byte) error {
 func skipWalleapi(dAtA []byte) (n int, err error) {
 	l := len(dAtA)
 	iNdEx := 0
+	depth := 0
 	for iNdEx < l {
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
@@ -3361,10 +3451,8 @@ func skipWalleapi(dAtA []byte) (n int, err error) {
 					break
 				}
 			}
-			return iNdEx, nil
 		case 1:
 			iNdEx += 8
-			return iNdEx, nil
 		case 2:
 			var length int
 			for shift := uint(0); ; shift += 7 {
@@ -3385,55 +3473,30 @@ func skipWalleapi(dAtA []byte) (n int, err error) {
 				return 0, ErrInvalidLengthWalleapi
 			}
 			iNdEx += length
-			if iNdEx < 0 {
-				return 0, ErrInvalidLengthWalleapi
-			}
-			return iNdEx, nil
 		case 3:
-			for {
-				var innerWire uint64
-				var start int = iNdEx
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return 0, ErrIntOverflowWalleapi
-					}
-					if iNdEx >= l {
-						return 0, io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					innerWire |= (uint64(b) & 0x7F) << shift
-					if b < 0x80 {
-						break
-					}
-				}
-				innerWireType := int(innerWire & 0x7)
-				if innerWireType == 4 {
-					break
-				}
-				next, err := skipWalleapi(dAtA[start:])
-				if err != nil {
-					return 0, err
-				}
-				iNdEx = start + next
-				if iNdEx < 0 {
-					return 0, ErrInvalidLengthWalleapi
-				}
-			}
-			return iNdEx, nil
+			depth++
 		case 4:
-			return iNdEx, nil
+			if depth == 0 {
+				return 0, ErrUnexpectedEndOfGroupWalleapi
+			}
+			depth--
 		case 5:
 			iNdEx += 4
-			return iNdEx, nil
 		default:
 			return 0, fmt.Errorf("proto: illegal wireType %d", wireType)
 		}
+		if iNdEx < 0 {
+			return 0, ErrInvalidLengthWalleapi
+		}
+		if depth == 0 {
+			return iNdEx, nil
+		}
 	}
-	panic("unreachable")
+	return 0, io.ErrUnexpectedEOF
 }
 
 var (
-	ErrInvalidLengthWalleapi = fmt.Errorf("proto: negative length found during unmarshaling")
-	ErrIntOverflowWalleapi   = fmt.Errorf("proto: integer overflow")
+	ErrInvalidLengthWalleapi        = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrIntOverflowWalleapi          = fmt.Errorf("proto: integer overflow")
+	ErrUnexpectedEndOfGroupWalleapi = fmt.Errorf("proto: unexpected end of group")
 )

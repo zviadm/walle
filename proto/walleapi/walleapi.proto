@@ -1,12 +1,10 @@
 syntax = "proto3";
 option go_package = "github.com/zviadm/walle/proto/walleapi";
 
-import "google/protobuf/empty.proto";
-
 service WalleApi {
 	rpc ClaimWriter(ClaimWriterRequest) returns (ClaimWriterResponse) {}
 	rpc WriterStatus(WriterStatusRequest) returns (WriterStatusResponse) {}
-	rpc PutEntry(PutEntryRequest) returns (google.protobuf.Empty) {}
+	rpc PutEntry(PutEntryRequest) returns (Empty) {}
 
 	// PollStream polls stream for last committed entry. This rpc can be used as
 	// a long poll to wait for changes on the stream. If no changes happen within
@@ -94,4 +92,7 @@ message StreamTopology {
 
 message ServerInfo {
 	string address = 1;
+}
+
+message Empty {
 }

@@ -6,7 +6,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/broadcast"

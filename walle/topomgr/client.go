@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/pkg/errors"
 	"github.com/zviadm/walle/proto/topomgr"
 	"github.com/zviadm/walle/proto/walleapi"
@@ -69,7 +68,7 @@ func (t *client) FetchTopology(
 	return r, err
 }
 func (t *client) RegisterServer(
-	ctx context.Context, in *topomgr.RegisterServerRequest, opts ...grpc.CallOption) (r *empty.Empty, err error) {
+	ctx context.Context, in *topomgr.RegisterServerRequest, opts ...grpc.CallOption) (r *walleapi.Empty, err error) {
 	err = t.connectAndDo(ctx, in.ClusterUri,
 		func(ctx context.Context, c topomgr.TopoManagerClient) error {
 			r, err = c.RegisterServer(ctx, in, opts...)
@@ -78,7 +77,7 @@ func (t *client) RegisterServer(
 	return r, err
 }
 func (t *client) UpdateServerIds(
-	ctx context.Context, in *topomgr.UpdateServerIdsRequest, opts ...grpc.CallOption) (r *empty.Empty, err error) {
+	ctx context.Context, in *topomgr.UpdateServerIdsRequest, opts ...grpc.CallOption) (r *walleapi.Empty, err error) {
 	err = t.connectAndDo(ctx, in.ClusterUri,
 		func(ctx context.Context, c topomgr.TopoManagerClient) error {
 			r, err = c.UpdateServerIds(ctx, in, opts...)

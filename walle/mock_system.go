@@ -10,7 +10,6 @@ import (
 
 	"google.golang.org/grpc"
 
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
@@ -161,7 +160,7 @@ func (m *mockApiClient) WriterStatus(
 func (m *mockApiClient) PutEntry(
 	ctx context.Context,
 	in *walleapi.PutEntryRequest,
-	opts ...grpc.CallOption) (*empty.Empty, error) {
+	opts ...grpc.CallOption) (*walleapi.Empty, error) {
 	s, err := m.m.RandServer()
 	if err != nil {
 		return nil, err

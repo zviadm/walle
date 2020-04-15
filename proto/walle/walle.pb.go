@@ -6,11 +6,14 @@ package walle
 import (
 	context "context"
 	fmt "fmt"
-	proto "github.com/golang/protobuf/proto"
+	proto "github.com/gogo/protobuf/proto"
 	walleapi "github.com/zviadm/walle/proto/walleapi"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	io "io"
 	math "math"
+	math_bits "math/bits"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -22,19 +25,16 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
 type NewWriterRequest struct {
-	ServerId             string   `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
-	StreamUri            string   `protobuf:"bytes,2,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
-	StreamVersion        int64    `protobuf:"varint,3,opt,name=stream_version,json=streamVersion,proto3" json:"stream_version,omitempty"`
-	FromServerId         string   `protobuf:"bytes,4,opt,name=from_server_id,json=fromServerId,proto3" json:"from_server_id,omitempty"`
-	WriterId             []byte   `protobuf:"bytes,5,opt,name=writer_id,json=writerId,proto3" json:"writer_id,omitempty"`
-	WriterAddr           string   `protobuf:"bytes,6,opt,name=writer_addr,json=writerAddr,proto3" json:"writer_addr,omitempty"`
-	LeaseMs              int64    `protobuf:"varint,7,opt,name=lease_ms,json=leaseMs,proto3" json:"lease_ms,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	ServerId      string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	StreamUri     string `protobuf:"bytes,2,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
+	StreamVersion int64  `protobuf:"varint,3,opt,name=stream_version,json=streamVersion,proto3" json:"stream_version,omitempty"`
+	FromServerId  string `protobuf:"bytes,4,opt,name=from_server_id,json=fromServerId,proto3" json:"from_server_id,omitempty"`
+	WriterId      []byte `protobuf:"bytes,5,opt,name=writer_id,json=writerId,proto3" json:"writer_id,omitempty"`
+	WriterAddr    string `protobuf:"bytes,6,opt,name=writer_addr,json=writerAddr,proto3" json:"writer_addr,omitempty"`
+	LeaseMs       int64  `protobuf:"varint,7,opt,name=lease_ms,json=leaseMs,proto3" json:"lease_ms,omitempty"`
 }
 
 func (m *NewWriterRequest) Reset()         { *m = NewWriterRequest{} }
@@ -51,7 +51,7 @@ func (m *NewWriterRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, er
 		return xxx_messageInfo_NewWriterRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -120,9 +120,6 @@ func (m *NewWriterRequest) GetLeaseMs() int64 {
 }
 
 type NewWriterResponse struct {
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *NewWriterResponse) Reset()         { *m = NewWriterResponse{} }
@@ -139,7 +136,7 @@ func (m *NewWriterResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, e
 		return xxx_messageInfo_NewWriterResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -159,13 +156,10 @@ func (m *NewWriterResponse) XXX_DiscardUnknown() {
 var xxx_messageInfo_NewWriterResponse proto.InternalMessageInfo
 
 type WriterInfoRequest struct {
-	ServerId             string   `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
-	StreamUri            string   `protobuf:"bytes,2,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
-	StreamVersion        int64    `protobuf:"varint,3,opt,name=stream_version,json=streamVersion,proto3" json:"stream_version,omitempty"`
-	FromServerId         string   `protobuf:"bytes,4,opt,name=from_server_id,json=fromServerId,proto3" json:"from_server_id,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	ServerId      string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	StreamUri     string `protobuf:"bytes,2,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
+	StreamVersion int64  `protobuf:"varint,3,opt,name=stream_version,json=streamVersion,proto3" json:"stream_version,omitempty"`
+	FromServerId  string `protobuf:"bytes,4,opt,name=from_server_id,json=fromServerId,proto3" json:"from_server_id,omitempty"`
 }
 
 func (m *WriterInfoRequest) Reset()         { *m = WriterInfoRequest{} }
@@ -182,7 +176,7 @@ func (m *WriterInfoRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, e
 		return xxx_messageInfo_WriterInfoRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -230,14 +224,11 @@ func (m *WriterInfoRequest) GetFromServerId() string {
 }
 
 type WriterInfoResponse struct {
-	WriterId             []byte   `protobuf:"bytes,1,opt,name=writer_id,json=writerId,proto3" json:"writer_id,omitempty"`
-	WriterAddr           string   `protobuf:"bytes,2,opt,name=writer_addr,json=writerAddr,proto3" json:"writer_addr,omitempty"`
-	LeaseMs              int64    `protobuf:"varint,3,opt,name=lease_ms,json=leaseMs,proto3" json:"lease_ms,omitempty"`
-	RemainingLeaseMs     int64    `protobuf:"varint,4,opt,name=remaining_lease_ms,json=remainingLeaseMs,proto3" json:"remaining_lease_ms,omitempty"`
-	StreamVersion        int64    `protobuf:"varint,5,opt,name=stream_version,json=streamVersion,proto3" json:"stream_version,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	WriterId         []byte `protobuf:"bytes,1,opt,name=writer_id,json=writerId,proto3" json:"writer_id,omitempty"`
+	WriterAddr       string `protobuf:"bytes,2,opt,name=writer_addr,json=writerAddr,proto3" json:"writer_addr,omitempty"`
+	LeaseMs          int64  `protobuf:"varint,3,opt,name=lease_ms,json=leaseMs,proto3" json:"lease_ms,omitempty"`
+	RemainingLeaseMs int64  `protobuf:"varint,4,opt,name=remaining_lease_ms,json=remainingLeaseMs,proto3" json:"remaining_lease_ms,omitempty"`
+	StreamVersion    int64  `protobuf:"varint,5,opt,name=stream_version,json=streamVersion,proto3" json:"stream_version,omitempty"`
 }
 
 func (m *WriterInfoResponse) Reset()         { *m = WriterInfoResponse{} }
@@ -254,7 +245,7 @@ func (m *WriterInfoResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_WriterInfoResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -309,17 +300,14 @@ func (m *WriterInfoResponse) GetStreamVersion() int64 {
 }
 
 type PutEntryInternalRequest struct {
-	ServerId             string          `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
-	StreamUri            string          `protobuf:"bytes,2,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
-	StreamVersion        int64           `protobuf:"varint,3,opt,name=stream_version,json=streamVersion,proto3" json:"stream_version,omitempty"`
-	FromServerId         string          `protobuf:"bytes,4,opt,name=from_server_id,json=fromServerId,proto3" json:"from_server_id,omitempty"`
-	Entry                *walleapi.Entry `protobuf:"bytes,5,opt,name=entry,proto3" json:"entry,omitempty"`
-	CommittedEntryId     int64           `protobuf:"varint,6,opt,name=committed_entry_id,json=committedEntryId,proto3" json:"committed_entry_id,omitempty"`
-	CommittedEntryXX     uint64          `protobuf:"varint,7,opt,name=committed_entry_x_x,json=committedEntryXX,proto3" json:"committed_entry_x_x,omitempty"`
-	IgnoreLeaseRenew     bool            `protobuf:"varint,8,opt,name=ignore_lease_renew,json=ignoreLeaseRenew,proto3" json:"ignore_lease_renew,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}        `json:"-"`
-	XXX_unrecognized     []byte          `json:"-"`
-	XXX_sizecache        int32           `json:"-"`
+	ServerId         string          `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	StreamUri        string          `protobuf:"bytes,2,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
+	StreamVersion    int64           `protobuf:"varint,3,opt,name=stream_version,json=streamVersion,proto3" json:"stream_version,omitempty"`
+	FromServerId     string          `protobuf:"bytes,4,opt,name=from_server_id,json=fromServerId,proto3" json:"from_server_id,omitempty"`
+	Entry            *walleapi.Entry `protobuf:"bytes,5,opt,name=entry,proto3" json:"entry,omitempty"`
+	CommittedEntryId int64           `protobuf:"varint,6,opt,name=committed_entry_id,json=committedEntryId,proto3" json:"committed_entry_id,omitempty"`
+	CommittedEntryXX uint64          `protobuf:"varint,7,opt,name=committed_entry_x_x,json=committedEntryXX,proto3" json:"committed_entry_x_x,omitempty"`
+	IgnoreLeaseRenew bool            `protobuf:"varint,8,opt,name=ignore_lease_renew,json=ignoreLeaseRenew,proto3" json:"ignore_lease_renew,omitempty"`
 }
 
 func (m *PutEntryInternalRequest) Reset()         { *m = PutEntryInternalRequest{} }
@@ -336,7 +324,7 @@ func (m *PutEntryInternalRequest) XXX_Marshal(b []byte, deterministic bool) ([]b
 		return xxx_messageInfo_PutEntryInternalRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -412,9 +400,6 @@ func (m *PutEntryInternalRequest) GetIgnoreLeaseRenew() bool {
 }
 
 type PutEntryInternalResponse struct {
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *PutEntryInternalResponse) Reset()         { *m = PutEntryInternalResponse{} }
@@ -431,7 +416,7 @@ func (m *PutEntryInternalResponse) XXX_Marshal(b []byte, deterministic bool) ([]
 		return xxx_messageInfo_PutEntryInternalResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -451,13 +436,10 @@ func (m *PutEntryInternalResponse) XXX_DiscardUnknown() {
 var xxx_messageInfo_PutEntryInternalResponse proto.InternalMessageInfo
 
 type TailEntriesRequest struct {
-	ServerId             string   `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
-	StreamUri            string   `protobuf:"bytes,2,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
-	StreamVersion        int64    `protobuf:"varint,3,opt,name=stream_version,json=streamVersion,proto3" json:"stream_version,omitempty"`
-	FromServerId         string   `protobuf:"bytes,4,opt,name=from_server_id,json=fromServerId,proto3" json:"from_server_id,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	ServerId      string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	StreamUri     string `protobuf:"bytes,2,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
+	StreamVersion int64  `protobuf:"varint,3,opt,name=stream_version,json=streamVersion,proto3" json:"stream_version,omitempty"`
+	FromServerId  string `protobuf:"bytes,4,opt,name=from_server_id,json=fromServerId,proto3" json:"from_server_id,omitempty"`
 }
 
 func (m *TailEntriesRequest) Reset()         { *m = TailEntriesRequest{} }
@@ -474,7 +456,7 @@ func (m *TailEntriesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_TailEntriesRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -522,15 +504,12 @@ func (m *TailEntriesRequest) GetFromServerId() string {
 }
 
 type ReadEntriesRequest struct {
-	ServerId             string   `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
-	StreamUri            string   `protobuf:"bytes,2,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
-	StreamVersion        int64    `protobuf:"varint,3,opt,name=stream_version,json=streamVersion,proto3" json:"stream_version,omitempty"`
-	FromServerId         string   `protobuf:"bytes,4,opt,name=from_server_id,json=fromServerId,proto3" json:"from_server_id,omitempty"`
-	StartEntryId         int64    `protobuf:"varint,5,opt,name=start_entry_id,json=startEntryId,proto3" json:"start_entry_id,omitempty"`
-	EndEntryId           int64    `protobuf:"varint,6,opt,name=end_entry_id,json=endEntryId,proto3" json:"end_entry_id,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	ServerId      string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	StreamUri     string `protobuf:"bytes,2,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
+	StreamVersion int64  `protobuf:"varint,3,opt,name=stream_version,json=streamVersion,proto3" json:"stream_version,omitempty"`
+	FromServerId  string `protobuf:"bytes,4,opt,name=from_server_id,json=fromServerId,proto3" json:"from_server_id,omitempty"`
+	StartEntryId  int64  `protobuf:"varint,5,opt,name=start_entry_id,json=startEntryId,proto3" json:"start_entry_id,omitempty"`
+	EndEntryId    int64  `protobuf:"varint,6,opt,name=end_entry_id,json=endEntryId,proto3" json:"end_entry_id,omitempty"`
 }
 
 func (m *ReadEntriesRequest) Reset()         { *m = ReadEntriesRequest{} }
@@ -547,7 +526,7 @@ func (m *ReadEntriesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_ReadEntriesRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -622,45 +601,46 @@ func init() {
 func init() { proto.RegisterFile("walle/walle.proto", fileDescriptor_827f2b64ddfdb030) }
 
 var fileDescriptor_827f2b64ddfdb030 = []byte{
-	// 597 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xcc, 0x55, 0xcb, 0x6e, 0xd3, 0x40,
-	0x14, 0xcd, 0xa4, 0x4d, 0x9a, 0xdc, 0x86, 0x2a, 0xb9, 0x59, 0xd4, 0x75, 0x21, 0x44, 0x06, 0xa4,
-	0x2c, 0x60, 0x82, 0x0a, 0x88, 0x35, 0x48, 0x2c, 0x22, 0x01, 0x42, 0xe6, 0xd1, 0x8a, 0x8d, 0xe5,
-	0xd6, 0xb7, 0x65, 0xa4, 0x78, 0x5c, 0xc6, 0x93, 0xa6, 0xf0, 0x25, 0x2c, 0x60, 0xc1, 0xaf, 0xb0,
-	0x42, 0x62, 0xc3, 0x27, 0xa0, 0x22, 0xfe, 0x80, 0x0f, 0x40, 0x9e, 0x71, 0x1e, 0x8d, 0x69, 0xd7,
-	0xd9, 0x44, 0x9e, 0x73, 0x4e, 0xc6, 0xf7, 0x9e, 0x39, 0x73, 0x0d, 0xad, 0x71, 0x38, 0x1c, 0x52,
-	0xdf, 0xfc, 0xf2, 0x63, 0x95, 0xe8, 0xc4, 0xdd, 0x34, 0x8b, 0xf0, 0x58, 0xf4, 0x27, 0x0f, 0x96,
-	0xf0, 0xfe, 0x32, 0x68, 0x3e, 0xa7, 0xf1, 0xae, 0x12, 0x9a, 0x94, 0x4f, 0xef, 0x47, 0x94, 0x6a,
-	0xdc, 0x86, 0x7a, 0x4a, 0xea, 0x84, 0x54, 0x20, 0x22, 0x87, 0x75, 0x59, 0xaf, 0xee, 0xd7, 0x2c,
-	0x30, 0x88, 0xf0, 0x1a, 0x40, 0xaa, 0x15, 0x85, 0x71, 0x30, 0x52, 0xc2, 0x29, 0x1b, 0xb6, 0x6e,
-	0x91, 0xd7, 0x4a, 0xe0, 0x2d, 0xd8, 0xc8, 0xe9, 0x13, 0x52, 0xa9, 0x48, 0xa4, 0xb3, 0xd2, 0x65,
-	0xbd, 0x15, 0xff, 0x8a, 0x45, 0xdf, 0x58, 0x10, 0x6f, 0xc2, 0xc6, 0xa1, 0x4a, 0xe2, 0x60, 0xf6,
-	0x9e, 0x55, 0xb3, 0x53, 0x23, 0x43, 0x5f, 0x4e, 0xde, 0xb5, 0x0d, 0xf5, 0xb1, 0xa9, 0x2c, 0x13,
-	0x54, 0xba, 0xac, 0xd7, 0xf0, 0x6b, 0x16, 0x18, 0x44, 0x78, 0x1d, 0xd6, 0x73, 0x32, 0x8c, 0x22,
-	0xe5, 0x54, 0xcd, 0xff, 0xc1, 0x42, 0x8f, 0xa2, 0x48, 0xe1, 0x16, 0xd4, 0x86, 0x14, 0xa6, 0x14,
-	0xc4, 0xa9, 0xb3, 0x66, 0x8a, 0x58, 0x33, 0xeb, 0x67, 0xa9, 0xd7, 0x86, 0xd6, 0x5c, 0xd7, 0xe9,
-	0x71, 0x22, 0x53, 0xf2, 0x3e, 0x33, 0x68, 0x59, 0x68, 0x20, 0x0f, 0x93, 0x65, 0x33, 0xc3, 0xfb,
-	0xc6, 0x00, 0xe7, 0xcb, 0xb3, 0x55, 0x9f, 0xf7, 0x88, 0x5d, 0xee, 0x51, 0xf9, 0x52, 0x8f, 0x56,
-	0xce, 0x79, 0x84, 0xb7, 0x01, 0x15, 0xc5, 0xa1, 0x90, 0x42, 0x1e, 0x05, 0x53, 0xd1, 0xaa, 0x11,
-	0x35, 0xa7, 0xcc, 0xd3, 0x5c, 0x5d, 0x6c, 0xb5, 0xf2, 0x9f, 0x56, 0xbd, 0x1f, 0x65, 0xd8, 0x7c,
-	0x31, 0xd2, 0x4f, 0xa4, 0x56, 0x1f, 0x06, 0x52, 0x93, 0x92, 0xe1, 0x70, 0xe9, 0x62, 0x77, 0x15,
-	0x2a, 0x94, 0x15, 0x68, 0x5a, 0x58, 0xdf, 0xa9, 0x72, 0x53, 0xae, 0x6f, 0xc1, 0xcc, 0x97, 0x83,
-	0x24, 0x8e, 0x85, 0xd6, 0x14, 0x05, 0x06, 0xca, 0xf6, 0xa9, 0x5a, 0x5f, 0xa6, 0x8c, 0xed, 0x30,
-	0xc2, 0x3b, 0xd0, 0x5e, 0x54, 0x9f, 0x06, 0xa7, 0x26, 0x8f, 0xab, 0x8b, 0xf2, 0xbd, 0xbd, 0x6c,
-	0x73, 0x71, 0x24, 0x13, 0x45, 0xb9, 0xe3, 0x8a, 0x24, 0x8d, 0x9d, 0x5a, 0x97, 0xf5, 0x6a, 0x7e,
-	0xd3, 0x32, 0xc6, 0x71, 0x3f, 0xc3, 0x3d, 0x17, 0x9c, 0xa2, 0x99, 0x79, 0x9a, 0xbf, 0x30, 0xc0,
-	0x57, 0xa1, 0x18, 0x66, 0xac, 0xa0, 0x74, 0xe9, 0xe2, 0xfc, 0x87, 0x01, 0xfa, 0x14, 0x46, 0x4b,
-	0x5a, 0x5f, 0xa6, 0x4a, 0x75, 0xa8, 0xf4, 0xec, 0x88, 0x6d, 0xa0, 0x1b, 0x06, 0x9d, 0x1c, 0x6f,
-	0x17, 0x1a, 0x24, 0x0b, 0x31, 0x00, 0x92, 0x93, 0x00, 0xec, 0x7c, 0x2d, 0x43, 0x65, 0x37, 0x1b,
-	0xba, 0x78, 0x1f, 0xea, 0xd3, 0xa1, 0x83, 0x2d, 0xbe, 0x38, 0x76, 0x5d, 0xe4, 0xc5, 0x99, 0x54,
-	0xc2, 0x87, 0x00, 0xb3, 0x5b, 0x8f, 0xc8, 0x0b, 0x13, 0xca, 0x6d, 0xf3, 0xe2, 0x58, 0xf0, 0x4a,
-	0x38, 0x80, 0xe6, 0x62, 0x38, 0xd0, 0xe1, 0x17, 0x5c, 0x3e, 0x77, 0x8b, 0x5f, 0x98, 0xa4, 0x12,
-	0x72, 0x58, 0x9f, 0x8b, 0x12, 0xb6, 0x79, 0x31, 0x58, 0x6e, 0x7e, 0x4b, 0xbc, 0xd2, 0x5d, 0x96,
-	0xe9, 0xe7, 0x8e, 0x16, 0xdb, 0xbc, 0x78, 0xd0, 0xf3, 0xfa, 0xc7, 0x0f, 0xbe, 0x9f, 0x75, 0xd8,
-	0xcf, 0xb3, 0x0e, 0xfb, 0x75, 0xd6, 0x61, 0x9f, 0x7e, 0x77, 0x4a, 0x6f, 0x6f, 0x1c, 0x09, 0xfd,
-	0x6e, 0xb4, 0xcf, 0x0f, 0x92, 0xb8, 0xff, 0xf1, 0x44, 0x84, 0x51, 0x6c, 0xbf, 0x5c, 0x7d, 0xf3,
-	0xd9, 0xb2, 0xcf, 0xfb, 0x55, 0xb3, 0xb8, 0xf7, 0x2f, 0x00, 0x00, 0xff, 0xff, 0xc6, 0x59, 0x2a,
-	0x2c, 0xf1, 0x06, 0x00, 0x00,
+	// 609 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xcc, 0x55, 0xcd, 0x6e, 0xd3, 0x4c,
+	0x14, 0xf5, 0xa4, 0x4d, 0x9a, 0xdc, 0xe6, 0xab, 0x92, 0xc9, 0xa2, 0xae, 0xfb, 0x61, 0x22, 0x03,
+	0x52, 0x16, 0x30, 0x41, 0x05, 0x89, 0x15, 0x0b, 0x90, 0x58, 0x44, 0x02, 0x84, 0xcc, 0x4f, 0x2b,
+	0x36, 0x96, 0x5b, 0xdf, 0x96, 0x91, 0xe2, 0x71, 0x19, 0x4f, 0x92, 0xc2, 0x53, 0xf0, 0x00, 0xb0,
+	0xe0, 0x55, 0x58, 0x21, 0xb1, 0xe9, 0x92, 0x25, 0x4a, 0xc4, 0x1b, 0xf0, 0x00, 0xc8, 0x33, 0xce,
+	0x4f, 0x63, 0xda, 0x75, 0x36, 0x91, 0xe7, 0x9c, 0x93, 0xf1, 0xbd, 0x67, 0xce, 0x5c, 0x43, 0x73,
+	0x14, 0xf6, 0xfb, 0xd8, 0xd5, 0xbf, 0xec, 0x54, 0x26, 0x2a, 0x71, 0xb6, 0xf5, 0x22, 0x3c, 0xe5,
+	0xdd, 0xe9, 0x83, 0x21, 0xbc, 0x3f, 0x04, 0x1a, 0xcf, 0x71, 0xb4, 0x2f, 0xb9, 0x42, 0xe9, 0xe3,
+	0xfb, 0x01, 0xa6, 0x8a, 0xee, 0x42, 0x2d, 0x45, 0x39, 0x44, 0x19, 0xf0, 0xc8, 0x26, 0x6d, 0xd2,
+	0xa9, 0xf9, 0x55, 0x03, 0xf4, 0x22, 0x7a, 0x0d, 0x20, 0x55, 0x12, 0xc3, 0x38, 0x18, 0x48, 0x6e,
+	0x97, 0x34, 0x5b, 0x33, 0xc8, 0x6b, 0xc9, 0xe9, 0x2d, 0xd8, 0xca, 0xe9, 0x21, 0xca, 0x94, 0x27,
+	0xc2, 0x5e, 0x6b, 0x93, 0xce, 0x9a, 0xff, 0x9f, 0x41, 0xdf, 0x18, 0x90, 0xde, 0x84, 0xad, 0x63,
+	0x99, 0xc4, 0xc1, 0xfc, 0x3d, 0xeb, 0x7a, 0xa7, 0x7a, 0x86, 0xbe, 0x9c, 0xbe, 0x6b, 0x17, 0x6a,
+	0x23, 0x5d, 0x59, 0x26, 0x28, 0xb7, 0x49, 0xa7, 0xee, 0x57, 0x0d, 0xd0, 0x8b, 0xe8, 0x75, 0xd8,
+	0xcc, 0xc9, 0x30, 0x8a, 0xa4, 0x5d, 0xd1, 0xff, 0x07, 0x03, 0x3d, 0x8a, 0x22, 0x49, 0x77, 0xa0,
+	0xda, 0xc7, 0x30, 0xc5, 0x20, 0x4e, 0xed, 0x0d, 0x5d, 0xc4, 0x86, 0x5e, 0x3f, 0x4b, 0xbd, 0x16,
+	0x34, 0x17, 0xba, 0x4e, 0x4f, 0x13, 0x91, 0xa2, 0xf7, 0x99, 0x40, 0xd3, 0x40, 0x3d, 0x71, 0x9c,
+	0xac, 0x9a, 0x19, 0xde, 0x37, 0x02, 0x74, 0xb1, 0x3c, 0x53, 0xf5, 0x45, 0x8f, 0xc8, 0xd5, 0x1e,
+	0x95, 0xae, 0xf4, 0x68, 0xed, 0x82, 0x47, 0xf4, 0x36, 0x50, 0x89, 0x71, 0xc8, 0x05, 0x17, 0x27,
+	0xc1, 0x4c, 0xb4, 0xae, 0x45, 0x8d, 0x19, 0xf3, 0x34, 0x57, 0x17, 0x5b, 0x2d, 0xff, 0xa3, 0x55,
+	0xef, 0x47, 0x09, 0xb6, 0x5f, 0x0c, 0xd4, 0x13, 0xa1, 0xe4, 0x87, 0x9e, 0x50, 0x28, 0x45, 0xd8,
+	0x5f, 0xb9, 0xd8, 0xfd, 0x0f, 0x65, 0xcc, 0x0a, 0xd4, 0x2d, 0x6c, 0xee, 0x55, 0x98, 0x2e, 0xd7,
+	0x37, 0x60, 0xe6, 0xcb, 0x51, 0x12, 0xc7, 0x5c, 0x29, 0x8c, 0x02, 0x0d, 0x65, 0xfb, 0x54, 0x8c,
+	0x2f, 0x33, 0xc6, 0x74, 0x18, 0xd1, 0x3b, 0xd0, 0x5a, 0x56, 0x9f, 0x05, 0x67, 0x3a, 0x8f, 0xeb,
+	0xcb, 0xf2, 0x83, 0x83, 0x6c, 0x73, 0x7e, 0x22, 0x12, 0x89, 0xb9, 0xe3, 0x12, 0x05, 0x8e, 0xec,
+	0x6a, 0x9b, 0x74, 0xaa, 0x7e, 0xc3, 0x30, 0xda, 0x71, 0x3f, 0xc3, 0x3d, 0x07, 0xec, 0xa2, 0x99,
+	0x79, 0x9a, 0xbf, 0x10, 0xa0, 0xaf, 0x42, 0xde, 0xcf, 0x58, 0x8e, 0xe9, 0xca, 0xc5, 0xf9, 0x37,
+	0x01, 0xea, 0x63, 0x18, 0xad, 0x68, 0x7d, 0x99, 0x2a, 0x55, 0xa1, 0x54, 0xf3, 0x23, 0x36, 0x81,
+	0xae, 0x6b, 0x74, 0x7a, 0xbc, 0x6d, 0xa8, 0xa3, 0x28, 0xc4, 0x00, 0x50, 0x4c, 0x03, 0xb0, 0xf7,
+	0xb5, 0x04, 0xe5, 0xfd, 0x6c, 0xe8, 0xd2, 0xfb, 0x50, 0x9b, 0x0d, 0x1d, 0xda, 0x64, 0xcb, 0x63,
+	0xd7, 0xa1, 0xac, 0x38, 0x93, 0x2c, 0xfa, 0x00, 0x60, 0x7e, 0xeb, 0x29, 0x65, 0x85, 0x09, 0xe5,
+	0xb4, 0x58, 0x71, 0x2c, 0x78, 0x16, 0xed, 0x41, 0x63, 0x39, 0x1c, 0xd4, 0x66, 0x97, 0x5c, 0x3e,
+	0x67, 0x87, 0x5d, 0x9a, 0x24, 0x8b, 0x32, 0xd8, 0x5c, 0x88, 0x12, 0x6d, 0xb1, 0x62, 0xb0, 0x9c,
+	0xfc, 0x96, 0x78, 0xd6, 0x5d, 0x92, 0xe9, 0x17, 0x8e, 0x96, 0xb6, 0x58, 0xf1, 0xa0, 0x17, 0xf5,
+	0x8f, 0x1f, 0x7e, 0x1f, 0xbb, 0xe4, 0x7c, 0xec, 0x92, 0x5f, 0x63, 0x97, 0x7c, 0x9a, 0xb8, 0xd6,
+	0xf9, 0xc4, 0xb5, 0x7e, 0x4e, 0x5c, 0xeb, 0xed, 0x8d, 0x13, 0xae, 0xde, 0x0d, 0x0e, 0xd9, 0x51,
+	0x12, 0x77, 0x3f, 0x0e, 0x79, 0x18, 0xc5, 0xe6, 0x0b, 0xd6, 0xd5, 0x9f, 0x2f, 0xf3, 0x7c, 0x58,
+	0xd1, 0x8b, 0x7b, 0x7f, 0x03, 0x00, 0x00, 0xff, 0xff, 0x10, 0xb9, 0x33, 0xf8, 0xf9, 0x06, 0x00,
+	0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -802,6 +782,26 @@ type WalleServer interface {
 	ReadEntries(*ReadEntriesRequest, Walle_ReadEntriesServer) error
 }
 
+// UnimplementedWalleServer can be embedded to have forward compatible implementations.
+type UnimplementedWalleServer struct {
+}
+
+func (*UnimplementedWalleServer) NewWriter(ctx context.Context, req *NewWriterRequest) (*NewWriterResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method NewWriter not implemented")
+}
+func (*UnimplementedWalleServer) WriterInfo(ctx context.Context, req *WriterInfoRequest) (*WriterInfoResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method WriterInfo not implemented")
+}
+func (*UnimplementedWalleServer) PutEntryInternal(ctx context.Context, req *PutEntryInternalRequest) (*PutEntryInternalResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PutEntryInternal not implemented")
+}
+func (*UnimplementedWalleServer) TailEntries(req *TailEntriesRequest, srv Walle_TailEntriesServer) error {
+	return status.Errorf(codes.Unimplemented, "method TailEntries not implemented")
+}
+func (*UnimplementedWalleServer) ReadEntries(req *ReadEntriesRequest, srv Walle_ReadEntriesServer) error {
+	return status.Errorf(codes.Unimplemented, "method ReadEntries not implemented")
+}
+
 func RegisterWalleServer(s *grpc.Server, srv WalleServer) {
 	s.RegisterService(&_Walle_serviceDesc, srv)
 }
@@ -937,7 +937,7 @@ var _Walle_serviceDesc = grpc.ServiceDesc{
 func (m *NewWriterRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -945,60 +945,67 @@ func (m *NewWriterRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *NewWriterRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *NewWriterRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.ServerId) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(len(m.ServerId)))
-		i += copy(dAtA[i:], m.ServerId)
-	}
-	if len(m.StreamUri) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(len(m.StreamUri)))
-		i += copy(dAtA[i:], m.StreamUri)
-	}
-	if m.StreamVersion != 0 {
-		dAtA[i] = 0x18
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(m.StreamVersion))
-	}
-	if len(m.FromServerId) > 0 {
-		dAtA[i] = 0x22
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(len(m.FromServerId)))
-		i += copy(dAtA[i:], m.FromServerId)
-	}
-	if len(m.WriterId) > 0 {
-		dAtA[i] = 0x2a
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(len(m.WriterId)))
-		i += copy(dAtA[i:], m.WriterId)
+	if m.LeaseMs != 0 {
+		i = encodeVarintWalle(dAtA, i, uint64(m.LeaseMs))
+		i--
+		dAtA[i] = 0x38
 	}
 	if len(m.WriterAddr) > 0 {
-		dAtA[i] = 0x32
-		i++
+		i -= len(m.WriterAddr)
+		copy(dAtA[i:], m.WriterAddr)
 		i = encodeVarintWalle(dAtA, i, uint64(len(m.WriterAddr)))
-		i += copy(dAtA[i:], m.WriterAddr)
+		i--
+		dAtA[i] = 0x32
 	}
-	if m.LeaseMs != 0 {
-		dAtA[i] = 0x38
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(m.LeaseMs))
+	if len(m.WriterId) > 0 {
+		i -= len(m.WriterId)
+		copy(dAtA[i:], m.WriterId)
+		i = encodeVarintWalle(dAtA, i, uint64(len(m.WriterId)))
+		i--
+		dAtA[i] = 0x2a
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.FromServerId) > 0 {
+		i -= len(m.FromServerId)
+		copy(dAtA[i:], m.FromServerId)
+		i = encodeVarintWalle(dAtA, i, uint64(len(m.FromServerId)))
+		i--
+		dAtA[i] = 0x22
 	}
-	return i, nil
+	if m.StreamVersion != 0 {
+		i = encodeVarintWalle(dAtA, i, uint64(m.StreamVersion))
+		i--
+		dAtA[i] = 0x18
+	}
+	if len(m.StreamUri) > 0 {
+		i -= len(m.StreamUri)
+		copy(dAtA[i:], m.StreamUri)
+		i = encodeVarintWalle(dAtA, i, uint64(len(m.StreamUri)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.ServerId) > 0 {
+		i -= len(m.ServerId)
+		copy(dAtA[i:], m.ServerId)
+		i = encodeVarintWalle(dAtA, i, uint64(len(m.ServerId)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *NewWriterResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1006,20 +1013,22 @@ func (m *NewWriterResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *NewWriterResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *NewWriterResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *WriterInfoRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1027,43 +1036,48 @@ func (m *WriterInfoRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *WriterInfoRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *WriterInfoRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.ServerId) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(len(m.ServerId)))
-		i += copy(dAtA[i:], m.ServerId)
-	}
-	if len(m.StreamUri) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(len(m.StreamUri)))
-		i += copy(dAtA[i:], m.StreamUri)
+	if len(m.FromServerId) > 0 {
+		i -= len(m.FromServerId)
+		copy(dAtA[i:], m.FromServerId)
+		i = encodeVarintWalle(dAtA, i, uint64(len(m.FromServerId)))
+		i--
+		dAtA[i] = 0x22
 	}
 	if m.StreamVersion != 0 {
-		dAtA[i] = 0x18
-		i++
 		i = encodeVarintWalle(dAtA, i, uint64(m.StreamVersion))
+		i--
+		dAtA[i] = 0x18
 	}
-	if len(m.FromServerId) > 0 {
-		dAtA[i] = 0x22
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(len(m.FromServerId)))
-		i += copy(dAtA[i:], m.FromServerId)
+	if len(m.StreamUri) > 0 {
+		i -= len(m.StreamUri)
+		copy(dAtA[i:], m.StreamUri)
+		i = encodeVarintWalle(dAtA, i, uint64(len(m.StreamUri)))
+		i--
+		dAtA[i] = 0x12
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.ServerId) > 0 {
+		i -= len(m.ServerId)
+		copy(dAtA[i:], m.ServerId)
+		i = encodeVarintWalle(dAtA, i, uint64(len(m.ServerId)))
+		i--
+		dAtA[i] = 0xa
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *WriterInfoResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1071,47 +1085,51 @@ func (m *WriterInfoResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *WriterInfoResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *WriterInfoResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.WriterId) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(len(m.WriterId)))
-		i += copy(dAtA[i:], m.WriterId)
-	}
-	if len(m.WriterAddr) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(len(m.WriterAddr)))
-		i += copy(dAtA[i:], m.WriterAddr)
-	}
-	if m.LeaseMs != 0 {
-		dAtA[i] = 0x18
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(m.LeaseMs))
+	if m.StreamVersion != 0 {
+		i = encodeVarintWalle(dAtA, i, uint64(m.StreamVersion))
+		i--
+		dAtA[i] = 0x28
 	}
 	if m.RemainingLeaseMs != 0 {
-		dAtA[i] = 0x20
-		i++
 		i = encodeVarintWalle(dAtA, i, uint64(m.RemainingLeaseMs))
+		i--
+		dAtA[i] = 0x20
 	}
-	if m.StreamVersion != 0 {
-		dAtA[i] = 0x28
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(m.StreamVersion))
+	if m.LeaseMs != 0 {
+		i = encodeVarintWalle(dAtA, i, uint64(m.LeaseMs))
+		i--
+		dAtA[i] = 0x18
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.WriterAddr) > 0 {
+		i -= len(m.WriterAddr)
+		copy(dAtA[i:], m.WriterAddr)
+		i = encodeVarintWalle(dAtA, i, uint64(len(m.WriterAddr)))
+		i--
+		dAtA[i] = 0x12
 	}
-	return i, nil
+	if len(m.WriterId) > 0 {
+		i -= len(m.WriterId)
+		copy(dAtA[i:], m.WriterId)
+		i = encodeVarintWalle(dAtA, i, uint64(len(m.WriterId)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *PutEntryInternalRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1119,73 +1137,80 @@ func (m *PutEntryInternalRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *PutEntryInternalRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *PutEntryInternalRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.ServerId) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(len(m.ServerId)))
-		i += copy(dAtA[i:], m.ServerId)
-	}
-	if len(m.StreamUri) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(len(m.StreamUri)))
-		i += copy(dAtA[i:], m.StreamUri)
-	}
-	if m.StreamVersion != 0 {
-		dAtA[i] = 0x18
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(m.StreamVersion))
-	}
-	if len(m.FromServerId) > 0 {
-		dAtA[i] = 0x22
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(len(m.FromServerId)))
-		i += copy(dAtA[i:], m.FromServerId)
-	}
-	if m.Entry != nil {
-		dAtA[i] = 0x2a
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(m.Entry.Size()))
-		n1, err := m.Entry.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n1
-	}
-	if m.CommittedEntryId != 0 {
-		dAtA[i] = 0x30
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(m.CommittedEntryId))
-	}
-	if m.CommittedEntryXX != 0 {
-		dAtA[i] = 0x38
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(m.CommittedEntryXX))
-	}
 	if m.IgnoreLeaseRenew {
-		dAtA[i] = 0x40
-		i++
+		i--
 		if m.IgnoreLeaseRenew {
 			dAtA[i] = 1
 		} else {
 			dAtA[i] = 0
 		}
-		i++
+		i--
+		dAtA[i] = 0x40
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if m.CommittedEntryXX != 0 {
+		i = encodeVarintWalle(dAtA, i, uint64(m.CommittedEntryXX))
+		i--
+		dAtA[i] = 0x38
 	}
-	return i, nil
+	if m.CommittedEntryId != 0 {
+		i = encodeVarintWalle(dAtA, i, uint64(m.CommittedEntryId))
+		i--
+		dAtA[i] = 0x30
+	}
+	if m.Entry != nil {
+		{
+			size, err := m.Entry.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintWalle(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x2a
+	}
+	if len(m.FromServerId) > 0 {
+		i -= len(m.FromServerId)
+		copy(dAtA[i:], m.FromServerId)
+		i = encodeVarintWalle(dAtA, i, uint64(len(m.FromServerId)))
+		i--
+		dAtA[i] = 0x22
+	}
+	if m.StreamVersion != 0 {
+		i = encodeVarintWalle(dAtA, i, uint64(m.StreamVersion))
+		i--
+		dAtA[i] = 0x18
+	}
+	if len(m.StreamUri) > 0 {
+		i -= len(m.StreamUri)
+		copy(dAtA[i:], m.StreamUri)
+		i = encodeVarintWalle(dAtA, i, uint64(len(m.StreamUri)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.ServerId) > 0 {
+		i -= len(m.ServerId)
+		copy(dAtA[i:], m.ServerId)
+		i = encodeVarintWalle(dAtA, i, uint64(len(m.ServerId)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *PutEntryInternalResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1193,20 +1218,22 @@ func (m *PutEntryInternalResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *PutEntryInternalResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *PutEntryInternalResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *TailEntriesRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1214,43 +1241,48 @@ func (m *TailEntriesRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *TailEntriesRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *TailEntriesRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.ServerId) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(len(m.ServerId)))
-		i += copy(dAtA[i:], m.ServerId)
-	}
-	if len(m.StreamUri) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(len(m.StreamUri)))
-		i += copy(dAtA[i:], m.StreamUri)
+	if len(m.FromServerId) > 0 {
+		i -= len(m.FromServerId)
+		copy(dAtA[i:], m.FromServerId)
+		i = encodeVarintWalle(dAtA, i, uint64(len(m.FromServerId)))
+		i--
+		dAtA[i] = 0x22
 	}
 	if m.StreamVersion != 0 {
-		dAtA[i] = 0x18
-		i++
 		i = encodeVarintWalle(dAtA, i, uint64(m.StreamVersion))
+		i--
+		dAtA[i] = 0x18
 	}
-	if len(m.FromServerId) > 0 {
-		dAtA[i] = 0x22
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(len(m.FromServerId)))
-		i += copy(dAtA[i:], m.FromServerId)
+	if len(m.StreamUri) > 0 {
+		i -= len(m.StreamUri)
+		copy(dAtA[i:], m.StreamUri)
+		i = encodeVarintWalle(dAtA, i, uint64(len(m.StreamUri)))
+		i--
+		dAtA[i] = 0x12
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.ServerId) > 0 {
+		i -= len(m.ServerId)
+		copy(dAtA[i:], m.ServerId)
+		i = encodeVarintWalle(dAtA, i, uint64(len(m.ServerId)))
+		i--
+		dAtA[i] = 0xa
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *ReadEntriesRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1258,57 +1290,64 @@ func (m *ReadEntriesRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ReadEntriesRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ReadEntriesRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.ServerId) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(len(m.ServerId)))
-		i += copy(dAtA[i:], m.ServerId)
-	}
-	if len(m.StreamUri) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(len(m.StreamUri)))
-		i += copy(dAtA[i:], m.StreamUri)
-	}
-	if m.StreamVersion != 0 {
-		dAtA[i] = 0x18
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(m.StreamVersion))
-	}
-	if len(m.FromServerId) > 0 {
-		dAtA[i] = 0x22
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(len(m.FromServerId)))
-		i += copy(dAtA[i:], m.FromServerId)
+	if m.EndEntryId != 0 {
+		i = encodeVarintWalle(dAtA, i, uint64(m.EndEntryId))
+		i--
+		dAtA[i] = 0x30
 	}
 	if m.StartEntryId != 0 {
-		dAtA[i] = 0x28
-		i++
 		i = encodeVarintWalle(dAtA, i, uint64(m.StartEntryId))
+		i--
+		dAtA[i] = 0x28
 	}
-	if m.EndEntryId != 0 {
-		dAtA[i] = 0x30
-		i++
-		i = encodeVarintWalle(dAtA, i, uint64(m.EndEntryId))
+	if len(m.FromServerId) > 0 {
+		i -= len(m.FromServerId)
+		copy(dAtA[i:], m.FromServerId)
+		i = encodeVarintWalle(dAtA, i, uint64(len(m.FromServerId)))
+		i--
+		dAtA[i] = 0x22
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if m.StreamVersion != 0 {
+		i = encodeVarintWalle(dAtA, i, uint64(m.StreamVersion))
+		i--
+		dAtA[i] = 0x18
 	}
-	return i, nil
+	if len(m.StreamUri) > 0 {
+		i -= len(m.StreamUri)
+		copy(dAtA[i:], m.StreamUri)
+		i = encodeVarintWalle(dAtA, i, uint64(len(m.StreamUri)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.ServerId) > 0 {
+		i -= len(m.ServerId)
+		copy(dAtA[i:], m.ServerId)
+		i = encodeVarintWalle(dAtA, i, uint64(len(m.ServerId)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func encodeVarintWalle(dAtA []byte, offset int, v uint64) int {
+	offset -= sovWalle(v)
+	base := offset
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
 		v >>= 7
 		offset++
 	}
 	dAtA[offset] = uint8(v)
-	return offset + 1
+	return base
 }
 func (m *NewWriterRequest) Size() (n int) {
 	if m == nil {
@@ -1342,9 +1381,6 @@ func (m *NewWriterRequest) Size() (n int) {
 	if m.LeaseMs != 0 {
 		n += 1 + sovWalle(uint64(m.LeaseMs))
 	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
 	return n
 }
 
@@ -1354,9 +1390,6 @@ func (m *NewWriterResponse) Size() (n int) {
 	}
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
 	return n
 }
 
@@ -1380,9 +1413,6 @@ func (m *WriterInfoRequest) Size() (n int) {
 	l = len(m.FromServerId)
 	if l > 0 {
 		n += 1 + l + sovWalle(uint64(l))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
 	}
 	return n
 }
@@ -1409,9 +1439,6 @@ func (m *WriterInfoResponse) Size() (n int) {
 	}
 	if m.StreamVersion != 0 {
 		n += 1 + sovWalle(uint64(m.StreamVersion))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
 	}
 	return n
 }
@@ -1450,9 +1477,6 @@ func (m *PutEntryInternalRequest) Size() (n int) {
 	if m.IgnoreLeaseRenew {
 		n += 2
 	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
 	return n
 }
 
@@ -1462,9 +1486,6 @@ func (m *PutEntryInternalResponse) Size() (n int) {
 	}
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
 	return n
 }
 
@@ -1488,9 +1509,6 @@ func (m *TailEntriesRequest) Size() (n int) {
 	l = len(m.FromServerId)
 	if l > 0 {
 		n += 1 + l + sovWalle(uint64(l))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
 	}
 	return n
 }
@@ -1522,21 +1540,11 @@ func (m *ReadEntriesRequest) Size() (n int) {
 	if m.EndEntryId != 0 {
 		n += 1 + sovWalle(uint64(m.EndEntryId))
 	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
 	return n
 }
 
 func sovWalle(x uint64) (n int) {
-	for {
-		n++
-		x >>= 7
-		if x == 0 {
-			break
-		}
-	}
-	return n
+	return (math_bits.Len64(x|1) + 6) / 7
 }
 func sozWalle(x uint64) (n int) {
 	return sovWalle(uint64((x << 1) ^ uint64((int64(x) >> 63))))
@@ -1785,7 +1793,6 @@ func (m *NewWriterRequest) Unmarshal(dAtA []byte) error {
 			if (iNdEx + skippy) > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
 			iNdEx += skippy
 		}
 	}
@@ -1839,7 +1846,6 @@ func (m *NewWriterResponse) Unmarshal(dAtA []byte) error {
 			if (iNdEx + skippy) > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
 			iNdEx += skippy
 		}
 	}
@@ -2008,7 +2014,6 @@ func (m *WriterInfoRequest) Unmarshal(dAtA []byte) error {
 			if (iNdEx + skippy) > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
 			iNdEx += skippy
 		}
 	}
@@ -2185,7 +2190,6 @@ func (m *WriterInfoResponse) Unmarshal(dAtA []byte) error {
 			if (iNdEx + skippy) > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
 			iNdEx += skippy
 		}
 	}
@@ -2448,7 +2452,6 @@ func (m *PutEntryInternalRequest) Unmarshal(dAtA []byte) error {
 			if (iNdEx + skippy) > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
 			iNdEx += skippy
 		}
 	}
@@ -2502,7 +2505,6 @@ func (m *PutEntryInternalResponse) Unmarshal(dAtA []byte) error {
 			if (iNdEx + skippy) > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
 			iNdEx += skippy
 		}
 	}
@@ -2671,7 +2673,6 @@ func (m *TailEntriesRequest) Unmarshal(dAtA []byte) error {
 			if (iNdEx + skippy) > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
 			iNdEx += skippy
 		}
 	}
@@ -2878,7 +2879,6 @@ func (m *ReadEntriesRequest) Unmarshal(dAtA []byte) error {
 			if (iNdEx + skippy) > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
 			iNdEx += skippy
 		}
 	}
@@ -2891,6 +2891,7 @@ func (m *ReadEntriesRequest) Unmarshal(dAtA []byte) error {
 func skipWalle(dAtA []byte) (n int, err error) {
 	l := len(dAtA)
 	iNdEx := 0
+	depth := 0
 	for iNdEx < l {
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
@@ -2922,10 +2923,8 @@ func skipWalle(dAtA []byte) (n int, err error) {
 					break
 				}
 			}
-			return iNdEx, nil
 		case 1:
 			iNdEx += 8
-			return iNdEx, nil
 		case 2:
 			var length int
 			for shift := uint(0); ; shift += 7 {
@@ -2946,55 +2945,30 @@ func skipWalle(dAtA []byte) (n int, err error) {
 				return 0, ErrInvalidLengthWalle
 			}
 			iNdEx += length
-			if iNdEx < 0 {
-				return 0, ErrInvalidLengthWalle
-			}
-			return iNdEx, nil
 		case 3:
-			for {
-				var innerWire uint64
-				var start int = iNdEx
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return 0, ErrIntOverflowWalle
-					}
-					if iNdEx >= l {
-						return 0, io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					innerWire |= (uint64(b) & 0x7F) << shift
-					if b < 0x80 {
-						break
-					}
-				}
-				innerWireType := int(innerWire & 0x7)
-				if innerWireType == 4 {
-					break
-				}
-				next, err := skipWalle(dAtA[start:])
-				if err != nil {
-					return 0, err
-				}
-				iNdEx = start + next
-				if iNdEx < 0 {
-					return 0, ErrInvalidLengthWalle
-				}
-			}
-			return iNdEx, nil
+			depth++
 		case 4:
-			return iNdEx, nil
+			if depth == 0 {
+				return 0, ErrUnexpectedEndOfGroupWalle
+			}
+			depth--
 		case 5:
 			iNdEx += 4
-			return iNdEx, nil
 		default:
 			return 0, fmt.Errorf("proto: illegal wireType %d", wireType)
 		}
+		if iNdEx < 0 {
+			return 0, ErrInvalidLengthWalle
+		}
+		if depth == 0 {
+			return iNdEx, nil
+		}
 	}
-	panic("unreachable")
+	return 0, io.ErrUnexpectedEOF
 }
 
 var (
-	ErrInvalidLengthWalle = fmt.Errorf("proto: negative length found during unmarshaling")
-	ErrIntOverflowWalle   = fmt.Errorf("proto: integer overflow")
+	ErrInvalidLengthWalle        = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrIntOverflowWalle          = fmt.Errorf("proto: integer overflow")
+	ErrUnexpectedEndOfGroupWalle = fmt.Errorf("proto: unexpected end of group")
 )

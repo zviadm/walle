@@ -5,8 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/gogo/protobuf/proto"
 	"github.com/zviadm/walle/proto/topomgr"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/broadcast"
@@ -20,14 +19,14 @@ import (
 // RegisterServer implements topomgr.TomoManagerServer interface.
 func (m *Manager) RegisterServer(
 	ctx context.Context,
-	req *topomgr.RegisterServerRequest) (*empty.Empty, error) {
+	req *topomgr.RegisterServerRequest) (*walleapi.Empty, error) {
 	putCtx, err := m.registerServer(req)
 	if err := resolvePutCtx(ctx, putCtx, err); err != nil {
 		return nil, err
 	}
 	zlog.Infof(
 		"[tm] updated server: %s : %s -> %s", req.ClusterUri, req.ServerId, req.ServerInfo)
-	return &empty.Empty{}, nil
+	return &walleapi.Empty{}, nil
 }
 
 func (m *Manager) registerServer(req *topomgr.RegisterServerRequest) (*wallelib.PutCtx, error) {
@@ -70,7 +69,7 @@ func (m *Manager) FetchTopology(
 // UpdateServerIds implements topomgr.TomoManagerServer interface.
 func (m *Manager) UpdateServerIds(
 	ctx context.Context,
-	req *topomgr.UpdateServerIdsRequest) (*empty.Empty, error) {
+	req *topomgr.UpdateServerIdsRequest) (*walleapi.Empty, error) {
 	if err := storage.ValidateStreamURI(req.StreamUri); err != nil {
 		return nil, err
 	}
@@ -110,7 +109,7 @@ func (m *Manager) UpdateServerIds(
 		zlog.Infof(
 			"[tm] updated members: %s : %s -> %s", req.StreamUri, prevServerIds, req.ServerIds)
 	}
-	return &empty.Empty{}, nil
+	return &walleapi.Empty{}, nil
 }
 
 func (m *Manager) waitForStreamVersion(
