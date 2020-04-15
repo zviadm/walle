@@ -13,7 +13,8 @@ low tail latencies.
 
 Similar projects:
 - https://wecode.wepay.com/posts/waltz-a-distributed-write-ahead-log
-- TODO(zviad)...
+- https://logdevice.io/
+- TODO(zviadm)...
 
 ## Overview
 
