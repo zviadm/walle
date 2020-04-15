@@ -68,6 +68,9 @@ type streamStorage struct {
 	gapStartIdG  metrics.Gauge
 	gapEndIdG    metrics.Gauge
 	tailIdG      metrics.Gauge
+
+	backfillsC     metrics.Counter
+	backfillBytesC metrics.Counter
 }
 
 func createStreamStorage(
@@ -109,6 +112,7 @@ func openStreamStorage(
 	metaR, err := sess.Scan(metadataDS)
 	panic.OnErr(err)
 	defer func() { panic.OnErr(metaR.Close()) }()
+	metricsKV := metrics.KV{"stream_uri": streamURI}
 	r := &streamStorage{
 		serverId:  serverId,
 		streamURI: streamURI,
@@ -125,10 +129,13 @@ func openStreamStorage(
 		backfillBuf8:     make([]byte, 8),
 		backfillEntryBuf: make([]byte, entryMaxSerializedSize),
 
-		committedIdG: committedIdGauge.V(metrics.KV{"stream_uri": streamURI}),
-		gapStartIdG:  gapStartIdGauge.V(metrics.KV{"stream_uri": streamURI}),
-		gapEndIdG:    gapEndIdGauge.V(metrics.KV{"stream_uri": streamURI}),
-		tailIdG:      tailIdGauge.V(metrics.KV{"stream_uri": streamURI}),
+		committedIdG: committedIdGauge.V(metricsKV),
+		gapStartIdG:  gapStartIdGauge.V(metricsKV),
+		gapEndIdG:    gapEndIdGauge.V(metricsKV),
+		tailIdG:      tailIdGauge.V(metricsKV),
+
+		backfillsC:     backfillsCounter.V(metricsKV),
+		backfillBytesC: backfillBytesCounter.V(metricsKV),
 	}
 	r.metaW, err = sess.Mutate(metadataDS)
 	panic.OnErr(err)

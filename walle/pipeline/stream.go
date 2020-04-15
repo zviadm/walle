@@ -20,7 +20,7 @@ type stream struct {
 	ss                  storage.Stream
 	fetchCommittedEntry fetchFunc
 	q                   *queue
-	backfillsC          metrics.Counter
+	fforwardsC          metrics.Counter
 }
 
 func newStream(
@@ -31,17 +31,17 @@ func newStream(
 		ss:                  ss,
 		fetchCommittedEntry: fetchCommittedEntry,
 		q:                   newQueue(ss.StreamURI()),
-		backfillsC:          backfillsCounter.V(metrics.KV{"stream_uri": ss.StreamURI()}),
+		fforwardsC:          fforwardsCounter.V(metrics.KV{"stream_uri": ss.StreamURI()}),
 	}
-	go r.backfiller(ctx)
+	go r.fastForward(ctx)
 	go r.process(ctx)
 	return r
 }
 
-// backfiller watches if a committed entry is stuck in queue for too long, and if it is
-// will attempt to backfill it from other servers. This can happen if this server misses
-// PutEntry calls and needs to catch up to other servers by creating a gap.
-func (p *stream) backfiller(ctx context.Context) {
+// fastForward watches if a committed entry is stuck in queue for too long, and if it is
+// will attempt to fetch it from other servers and fast forward to it. This can happen if
+// this server misses PutEntry calls and needs to catch up to other servers by creating a gap.
+func (p *stream) fastForward(ctx context.Context) {
 	for ctx.Err() == nil {
 		committedId, notify := p.q.MaxCommittedId()
 		if committedId <= p.ss.TailEntryId() {
@@ -69,11 +69,11 @@ func (p *stream) backfiller(ctx context.Context) {
 			fetchCtx, p.ss.StreamURI(), committedId, committedXX)
 		cancel()
 		if err != nil {
-			zlog.Infof("[sp] stream: %s err fetching - %s", p.ss.StreamURI(), err)
+			zlog.Infof("[ff] stream: %s err fetching - %s", p.ss.StreamURI(), err)
 			continue
 		}
-		p.backfillsC.Count(1)
-		zlog.Infof("[sp] stream: %s, fforward to: %d", p.ss.StreamURI(), entry.EntryId)
+		p.fforwardsC.Count(1)
+		zlog.Infof("[ff] stream: %s, fforward to: %d", p.ss.StreamURI(), entry.EntryId)
 		_ = p.QueuePut(entry, true)
 	}
 }

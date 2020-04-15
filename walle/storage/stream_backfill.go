@@ -20,6 +20,8 @@ func (m *streamStorage) PutGapEntries(entries []*walleapi.Entry) error {
 		n, err := entry.MarshalTo(m.backfillEntryBuf)
 		panic.OnErr(err)
 		panic.OnErr(m.streamFillW.Insert(m.backfillBuf8, m.backfillEntryBuf[:n]))
+		m.backfillBytesC.Count(float64(n))
 	}
+	m.backfillsC.Count(float64(len(entries)))
 	return nil
 }
