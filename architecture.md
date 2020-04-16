@@ -22,3 +22,6 @@ background thread. This way, both tables only do appending writes. Appends are s
 performant compared to doing out of order inserts to backfill entries in an already existing table. Cursor abstraction
 hides away the fact that there are two separate tables and provides merged view of both to read entries
 in increasing EntryId order.
+
+## Storage Engine (WiredTiger)
+
