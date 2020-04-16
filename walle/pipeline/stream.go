@@ -8,29 +8,41 @@ import (
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/zlog"
+	"go.uber.org/atomic"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
 	// QueueMaxTimeout represents max amount of time that items can stay in the queue.
 	// This bounds queue size.
 	QueueMaxTimeout = time.Second
+
+	// maxTotalBacklog is maximum items allwoed to be queued across all streams. After this
+	// limit is hit, it is important to start rejecting requests right away to avoid huge
+	// performance drop, due to GC and memory pressure.
+	// TODO(zviadm): This could be a configurable using a flag.
+	maxTotalBacklog = 128 * 1024
 )
 
 type stream struct {
 	ss                  storage.Stream
 	fetchCommittedEntry fetchFunc
 	q                   *queue
+	totalQ              *atomic.Int64
 	fforwardsC          metrics.Counter
 }
 
 func newStream(
 	ctx context.Context,
 	ss storage.Stream,
-	fetchCommittedEntry fetchFunc) *stream {
+	fetchCommittedEntry fetchFunc,
+	totalQ *atomic.Int64) *stream {
 	r := &stream{
 		ss:                  ss,
 		fetchCommittedEntry: fetchCommittedEntry,
-		q:                   newQueue(ss.StreamURI()),
+		q:                   newQueue(ss.StreamURI(), totalQ),
+		totalQ:              totalQ,
 		fforwardsC:          fforwardsCounter.V(metrics.KV{"stream_uri": ss.StreamURI()}),
 	}
 	go r.fastForward(ctx)
@@ -134,9 +146,18 @@ func (p *stream) process(ctx context.Context) {
 	}
 }
 
+func (p *stream) checkQLimit() error {
+	if p.totalQ.Load() >= maxTotalBacklog {
+		return status.Errorf(codes.Unavailable, "pipeline for: %s is fully backlogged", p.q.streamURI)
+	}
+	return nil
+}
 func (p *stream) QueueCommit(entryId int64, entryXX uint64) *ResultCtx {
 	if entryId <= p.ss.TailEntryId() {
 		err := p.ss.CommitEntry(entryId, entryXX)
+		return newResultWithErr(err)
+	}
+	if err := p.checkQLimit(); err != nil {
 		return newResultWithErr(err)
 	}
 	return p.q.Queue(&request{
@@ -148,6 +169,9 @@ func (p *stream) QueueCommit(entryId int64, entryXX uint64) *ResultCtx {
 func (p *stream) QueuePut(e *walleapi.Entry, isCommitted bool) *ResultCtx {
 	if e.EntryId <= p.ss.TailEntryId() {
 		err := p.ss.PutEntry(e, isCommitted)
+		return newResultWithErr(err)
+	}
+	if err := p.checkQLimit(); err != nil {
 		return newResultWithErr(err)
 	}
 	return p.q.Queue(&request{

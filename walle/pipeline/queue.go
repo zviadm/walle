@@ -7,6 +7,7 @@ import (
 
 	"github.com/zviadm/stats-go/metrics"
 	"github.com/zviadm/walle/walle/storage"
+	"go.uber.org/atomic"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -24,6 +25,7 @@ type queue struct {
 	maxCommittedId      int64
 
 	streamURI  string
+	size       *atomic.Int64
 	sizeG      metrics.Gauge
 	sizeBytesG metrics.Gauge
 }
@@ -38,12 +40,13 @@ const (
 	maxEntryId   = int64(math.MaxInt64 / 2) // avoid any accidental overflow bugs.
 )
 
-func newQueue(streamURI string) *queue {
+func newQueue(streamURI string, size *atomic.Int64) *queue {
 	return &queue{
 		minId:   maxEntryId,
 		v:       make(map[int64]queueItem),
 		notifyC: make(chan struct{}),
 
+		size:       size,
 		sizeG:      queueSizeGauge.V(metrics.KV{"stream_uri": streamURI}),
 		sizeBytesG: queueBytesGauge.V(metrics.KV{"stream_uri": streamURI}),
 	}
@@ -52,6 +55,7 @@ func newQueue(streamURI string) *queue {
 func (q *queue) Close() {
 	q.mx.Lock()
 	defer q.mx.Unlock()
+	q.size.Add(-int64(len(q.v)))
 	q.sizeG.Add(-float64(len(q.v)))
 	for _, item := range q.v {
 		item.Res.set(status.Errorf(codes.NotFound, "%s closed", q.streamURI))
@@ -104,8 +108,11 @@ func (q *queue) PopReady(tailId int64, forceSkip bool, r []queueItem) ([]queueIt
 		return r, q.notifyC
 	}
 	popTillId := tailId
-	item, ok := q.v[tailId+1]
-	if ok && item.R.IsReady(tailId) {
+	for {
+		item, ok := q.v[popTillId+1]
+		if !ok || item.R.Entry == nil {
+			break
+		}
 		popTillId += 1
 	}
 	r = q.popEntriesTill(r, popTillId)
@@ -152,8 +159,9 @@ func (q *queue) popEntriesTill(r []queueItem, endId int64) []queueItem {
 }
 func (q *queue) remove(r *request) {
 	delete(q.v, r.EntryId)
-	q.sizeBytesG.Add(-float64(len(r.Entry.GetData())))
+	q.size.Add(-1)
 	q.sizeG.Add(-1)
+	q.sizeBytesG.Add(-float64(len(r.Entry.GetData())))
 }
 
 func (q *queue) Queue(r *request) *ResultCtx {
@@ -164,8 +172,9 @@ func (q *queue) Queue(r *request) *ResultCtx {
 	if !ok {
 		res := newResult()
 		item = queueItem{R: r, Res: res}
-		q.sizeBytesG.Add(float64(len(r.Entry.GetData())))
+		q.size.Add(1)
 		q.sizeG.Add(1)
+		q.sizeBytesG.Add(float64(len(r.Entry.GetData())))
 	} else {
 		item.R.Committed = item.R.Committed || r.Committed
 		if r.Entry != nil {

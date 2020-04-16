@@ -8,12 +8,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/storage"
+	"go.uber.org/atomic"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 func TestPipelineQueue(t *testing.T) {
-	q := newQueue("/test/1")
+	q := newQueue("/test/1", new(atomic.Int64))
 	for i := 1; i <= 5; i++ {
 		_ = q.Queue(&request{
 			EntryId:   int64(i),
@@ -79,7 +80,7 @@ func TestStreamTimeouts(t *testing.T) {
 	ss, ok := s.Stream("/test/1")
 	require.True(t, ok)
 
-	q := newStream(ctx, ss, fakeFetch)
+	q := newStream(ctx, ss, fakeFetch, new(atomic.Int64))
 	res := q.QueuePut(&walleapi.Entry{EntryId: 2, WriterId: storage.Entry0.WriterId}, false)
 	require.NoError(t, res.Err()) // There should be no immediate error.
 	select {
@@ -93,7 +94,7 @@ func TestStreamTimeouts(t *testing.T) {
 
 // BenchmarkQueue-4 - 1117670 - 1526 ns/op - 257 B/op - 4 allocs/op
 func BenchmarkQueue(b *testing.B) {
-	q := newQueue("/test/1")
+	q := newQueue("/test/1", new(atomic.Int64))
 	qSize := 1024
 	for i := 1; i < qSize; i++ {
 		_ = q.Queue(&request{EntryId: int64(i), Committed: true})

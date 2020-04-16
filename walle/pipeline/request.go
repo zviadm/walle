@@ -13,16 +13,6 @@ type request struct {
 	Entry     *walleapi.Entry
 }
 
-func (r *request) IsReady(tailId int64) bool {
-	if r.Committed && r.Entry != nil {
-		return true
-	}
-	if !r.Committed && r.EntryId <= tailId+1 {
-		return true
-	}
-	return r.EntryId <= tailId
-}
-
 // ResultCtx provides Context like interface to wait for a result of queue operation.
 type ResultCtx struct {
 	mx   sync.Mutex

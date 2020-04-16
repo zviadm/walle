@@ -6,6 +6,7 @@ import (
 
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/storage"
+	"go.uber.org/atomic"
 )
 
 type fetchFunc func(
@@ -22,8 +23,9 @@ type Pipeline struct {
 	flushSync           func()
 	fetchCommittedEntry fetchFunc
 
-	mx sync.Mutex
-	p  map[storage.Stream]*stream
+	mx     sync.Mutex
+	p      map[storage.Stream]*stream
+	totalQ atomic.Int64
 }
 
 // New creates new Pipeline object.
@@ -44,7 +46,7 @@ func (s *Pipeline) ForStream(ss storage.Stream) *stream {
 	defer s.mx.Unlock()
 	p, ok := s.p[ss]
 	if !ok {
-		p = newStream(s.rootCtx, ss, s.fetchCommittedEntry)
+		p = newStream(s.rootCtx, ss, s.fetchCommittedEntry, &s.totalQ)
 		s.p[ss] = p
 	}
 	return p
