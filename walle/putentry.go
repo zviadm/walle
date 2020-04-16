@@ -116,26 +116,37 @@ func (s *Server) checkAndUpdateWriterId(
 	ctx context.Context,
 	ss storage.Metadata,
 	writerId walleapi.WriterId) error {
-	for {
-		ssWriterId, writerAddr, _, _ := ss.WriterInfo()
-		cmpWriterId := storage.CmpWriterIds(writerId, ssWriterId)
-		if cmpWriterId == 0 {
-			return nil
-		}
-		if cmpWriterId < 0 {
-			return status.Errorf(
-				codes.FailedPrecondition, "writer no longer active: %v < %v (%s)", writerId, ssWriterId, writerAddr)
-		}
-		resp, err := broadcast.WriterInfo(ctx, s.c, s.s.ServerId(), ss.StreamURI(), ss.Topology())
-		if err != nil {
-			return err
-		}
-		if storage.CmpWriterIds(resp.WriterId, ssWriterId) <= 0 {
-			return status.Errorf(codes.Internal, "writerId is newer than majority?: %v > %v", writerId, ssWriterId)
-		}
-		zlog.Infof(
-			"[%s] writerId update: %s %v -> %s %v",
-			ss.StreamURI(), writerAddr, ssWriterId, resp.WriterAddr, resp.WriterId)
-		ss.UpdateWriter(resp.WriterId, resp.WriterAddr, time.Duration(resp.LeaseMs)*time.Millisecond)
+	ssWriterId, writerAddr, _, _ := ss.WriterInfo()
+	cmpWriterId := storage.CmpWriterIds(writerId, ssWriterId)
+	if cmpWriterId == 0 {
+		return nil
 	}
+	if cmpWriterId < 0 {
+		return status.Errorf(
+			codes.FailedPrecondition, "writer no longer active: %v < %v (%s)", writerId, ssWriterId, writerAddr)
+	}
+	// Slow path. Make sure there is only one go routine doing the fetching at a time.
+	s.fetchWriterIdMX.Lock()
+	defer s.fetchWriterIdMX.Unlock()
+	ssWriterId, writerAddr, _, _ = ss.WriterInfo()
+	cmpWriterId = storage.CmpWriterIds(writerId, ssWriterId)
+	if cmpWriterId == 0 {
+		return nil
+	}
+	if cmpWriterId < 0 {
+		return status.Errorf(
+			codes.FailedPrecondition, "writer no longer active: %v < %v (%s)", writerId, ssWriterId, writerAddr)
+	}
+	resp, err := broadcast.WriterInfo(ctx, s.c, s.s.ServerId(), ss.StreamURI(), ss.Topology())
+	if err != nil {
+		return err
+	}
+	if storage.CmpWriterIds(resp.WriterId, ssWriterId) <= 0 {
+		return status.Errorf(codes.Internal, "writerId is newer than majority?: %v > %v", writerId, ssWriterId)
+	}
+	zlog.Infof(
+		"[%s] writerId update: %s %v -> %s %v",
+		ss.StreamURI(), writerAddr, ssWriterId, resp.WriterAddr, resp.WriterId)
+	ss.UpdateWriter(resp.WriterId, resp.WriterAddr, time.Duration(resp.LeaseMs)*time.Millisecond)
+	return nil
 }

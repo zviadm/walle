@@ -2,6 +2,7 @@ package walle
 
 import (
 	"context"
+	"sync"
 
 	"github.com/zviadm/walle/walle/broadcast"
 	"github.com/zviadm/walle/walle/pipeline"
@@ -18,7 +19,8 @@ type Server struct {
 	s       storage.Storage
 	c       Client
 
-	pipeline *pipeline.Pipeline
+	pipeline        *pipeline.Pipeline
+	fetchWriterIdMX sync.Mutex
 }
 
 // Client wraps both Api client and Direct client interfaces.
