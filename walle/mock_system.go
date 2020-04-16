@@ -128,12 +128,8 @@ type mockApiClient struct {
 	m *mockSystem
 }
 
-func (m *mockApiClient) ForStream(streamURI string) (wallelib.ApiClient, error) {
+func (m *mockApiClient) ForStream(streamURI string) (walleapi.WalleApiClient, error) {
 	return m, nil
-}
-
-func (m *mockApiClient) IsPreferred() bool {
-	return true
 }
 
 func (m *mockApiClient) ClaimWriter(

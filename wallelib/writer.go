@@ -135,7 +135,6 @@ func (w *Writer) Committed() *walleapi.Entry {
 // This makes sure that entries will be marked as committed fast, even if there are no PutEntry calls,
 // and also makes sure that servers are aware that writer is still alive.
 func (w *Writer) heartbeater(ctx context.Context) {
-	var cli ApiClient
 	for {
 		select {
 		case <-ctx.Done():
@@ -154,10 +153,7 @@ func (w *Writer) heartbeater(ctx context.Context) {
 		err := KeepTryingWithBackoff(
 			ctx, w.longBeat/4, w.longBeat,
 			func(retryN uint) (bool, bool, error) {
-				var err error
-				if cli == nil || !cli.IsPreferred() || retryN > 0 {
-					cli, err = w.c.ForStream(w.streamURI)
-				}
+				cli, err := w.c.ForStream(w.streamURI)
 				if err != nil {
 					return false, false, err
 				}
@@ -189,11 +185,11 @@ func (w *Writer) newPutter() (entryPutter, error) {
 	if err != nil {
 		return nil, err
 	}
-	return wPutter{ApiClient: c, w: w}, nil
+	return wPutter{WalleApiClient: c, w: w}, nil
 }
 
 type wPutter struct {
-	ApiClient
+	walleapi.WalleApiClient
 	w *Writer
 }
 

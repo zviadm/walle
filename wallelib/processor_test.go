@@ -17,10 +17,6 @@ type mockPutter struct {
 	puts  []*walleapi.Entry
 }
 
-func (m *mockPutter) IsPreferred() bool {
-	return true
-}
-
 func (m *mockPutter) Put(ctx context.Context, e *walleapi.Entry) error {
 	if m.NoOp {
 		return ctx.Err()

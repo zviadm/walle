@@ -37,13 +37,9 @@ type processor struct {
 	inflightN    int
 	inflightSize int
 	idxByEntry   map[int64]int // EntryId -> Send IDX
-
-	putter         entryPutter
-	putterFirstIdx int
 }
 
 type entryPutter interface {
-	IsPreferred() bool
 	Put(ctx context.Context, entry *walleapi.Entry) error
 }
 
@@ -113,36 +109,13 @@ func (p *processor) cleanup() {
 	}
 }
 
-// refreshPutter makes sure putter is initialized and ideally IsPreferred().
-func (p *processor) refreshPutter(sendIdx int) error {
-	for p.putter == nil || !p.putter.IsPreferred() {
-		var err error
-		p.putter, err = p.newPutter()
-		if err != nil {
-			select {
-			case <-p.ctx.Done():
-				return p.ctx.Err()
-			case res := <-p.resultQ:
-				p.handleResult(res)
-			case <-time.After(connectTimeout):
-			}
-			continue
-		}
-		p.putterFirstIdx = sendIdx
-	}
-	return nil
-}
-
 func (p *processor) processLoop() {
 	defer p.cleanup()
 
 	// sendIdx is monotonically increasing number, used to identify
 	// order in which Put requests were made for different requests.
 	sendIdx := 0
-	for ; p.ctx.Err() == nil; sendIdx++ {
-		if err := p.refreshPutter(sendIdx); err != nil {
-			continue
-		}
+	for p.ctx.Err() == nil {
 		if len(p.primaryQ) == 0 && len(p.retryQ) == 0 {
 			p.waitOnQs()
 			continue
@@ -156,13 +129,28 @@ func (p *processor) processLoop() {
 			}
 			continue
 		}
+		var putter entryPutter
+		for {
+			var err error
+			putter, err = p.newPutter()
+			if err == nil {
+				break
+			}
+			select {
+			case <-p.ctx.Done():
+			case <-time.After(connectTimeout):
+			case res := <-p.resultQ:
+				p.handleResult(res)
+			}
+		}
 		p.idxByEntry[req.Entry.EntryId] = sendIdx
+		sendIdx += 1
 		p.inflightN += 1
 		p.inflightSize += req.Entry.Size()
 		go func(c entryPutter, req *PutCtx) {
 			err := c.Put(p.ctx, req.Entry)
 			p.resultQ <- putCtxAndErr{P: req, E: err}
-		}(p.putter, req)
+		}(putter, req)
 	}
 }
 
@@ -230,10 +218,5 @@ func (p *processor) handleResult(r putCtxAndErr) {
 			break
 		}
 		p.retryQ[idx], p.retryQ[idx+1] = p.retryQ[idx+1], p.retryQ[idx]
-	}
-	if p.idxByEntry[r.P.Entry.EntryId] >= p.putterFirstIdx {
-		// Reset putter if this request was sent after putter was refreshed/initialized.
-		// That means, this putter was the one that errored out for this request.
-		p.putter = nil
 	}
 }

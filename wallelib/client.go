@@ -14,7 +14,7 @@ package wallelib
 
 import (
 	"context"
-	"math/rand"
+	"sort"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -31,13 +31,7 @@ import (
 // Client represents WALLE client that is pointing to a single cluster.
 type Client interface {
 	// Returns gRPC client to talk to specific streamURI within a cluster.
-	ForStream(streamURI string) (ApiClient, error)
-}
-
-// ApiClient is wrapper over WalleApiClient.
-type ApiClient interface {
-	walleapi.WalleApiClient
-	IsPreferred() bool
+	ForStream(streamURI string) (walleapi.WalleApiClient, error)
 }
 
 type client struct {
@@ -46,6 +40,7 @@ type client struct {
 	mx        sync.Mutex
 	topology  *walleapi.Topology
 	conns     map[string]*grpc.ClientConn // serverId -> conn
+	serverIds map[string][]string         // streamURI -> []serverId
 	preferred map[string][]string         // streamURI -> []serverId
 	rrIdx     map[string]int              // streamURI -> round-robin index
 }
@@ -56,9 +51,10 @@ var ErrConnUnavailable = status.Error(codes.Unavailable, "connection in Transien
 // NewClient creates new client given discovery for WALLE cluster.
 func NewClient(ctx context.Context, d Discovery) *client {
 	c := &client{
-		d:     d,
-		conns: make(map[string]*grpc.ClientConn),
-		rrIdx: make(map[string]int),
+		d:         d,
+		conns:     make(map[string]*grpc.ClientConn),
+		preferred: make(map[string][]string),
+		rrIdx:     make(map[string]int),
 	}
 	topology, notify := d.Topology()
 	c.update(topology)
@@ -113,22 +109,17 @@ func (c *client) close() {
 }
 
 func (c *client) update(topology *walleapi.Topology) {
-	preferred := make(map[string][]string, len(topology.Streams))
+	serverIds := make(map[string][]string, len(topology.Streams))
 	for streamURI, streamT := range topology.Streams {
-		preferredIds := make([]string, len(streamT.ServerIds))
-		copy(preferredIds, streamT.ServerIds)
-
-		// TODO(zviad): actually sort by preference, instead of randomizing the order.
-		rand.Shuffle(len(preferredIds), func(i, j int) {
-			preferredIds[i], preferredIds[j] = preferredIds[j], preferredIds[i]
-		})
-		preferred[streamURI] = preferredIds
+		sIds := append(serverIds[streamURI], streamT.ServerIds...)
+		sort.Sort(sort.StringSlice(sIds))
+		serverIds[streamURI] = sIds
 	}
 
 	c.mx.Lock()
 	defer c.mx.Unlock()
 	c.topology = topology
-	c.preferred = preferred
+	c.serverIds = serverIds
 	// Close and clear out all connections to serverIds that are no longer registered in topology.
 	for serverId, conn := range c.conns {
 		info, ok := topology.Servers[serverId]
@@ -137,33 +128,37 @@ func (c *client) update(topology *walleapi.Topology) {
 			delete(c.conns, serverId)
 		}
 	}
+	for streamURI := range c.preferred {
+		if _, ok := c.serverIds[streamURI]; !ok {
+			delete(c.preferred, streamURI)
+		}
+	}
 	for streamURI := range c.rrIdx {
-		if _, ok := c.preferred[streamURI]; !ok {
+		if _, ok := c.serverIds[streamURI]; !ok {
 			delete(c.rrIdx, streamURI)
 		}
 	}
 }
 
-func (c *client) ForStream(streamURI string) (ApiClient, error) {
+func (c *client) ForStream(streamURI string) (walleapi.WalleApiClient, error) {
 	c.mx.Lock()
 	defer c.mx.Unlock()
-	preferredIds, ok := c.preferred[streamURI]
+	serverIds, ok := c.serverIds[streamURI]
 	if !ok {
 		return nil, errors.Errorf("streamURI: %s, not found in topology", streamURI)
 	}
+	preferredIds := c.preferred[streamURI]
 	offset := c.rrIdx[streamURI]
-	c.rrIdx[streamURI] += 1
-	majorityN := len(preferredIds)/2 + 1
-	minorityN := len(preferredIds) - majorityN
+	c.rrIdx[streamURI] = offset + 1
 	for tryN := 0; tryN < 2; tryN++ {
-		for i := 0; i < len(preferredIds); i++ {
-			var idx int
-			if i < majorityN {
-				idx = (offset + i) % majorityN
+		for i := 0; i < len(preferredIds)+len(serverIds); i++ {
+			var serverId string
+			isPreferred := i < len(preferredIds)
+			if isPreferred {
+				serverId = preferredIds[(offset+i)%len(preferredIds)]
 			} else {
-				idx = majorityN + (offset+i)%minorityN
+				serverId = serverIds[(offset+i)%len(serverIds)]
 			}
-			serverId := preferredIds[idx]
 			conn, err := c.serverConn(serverId)
 			if err != nil {
 				continue
@@ -176,7 +171,8 @@ func (c *client) ForStream(streamURI string) (ApiClient, error) {
 			}
 			return &wrapClient{
 				WalleApiClient: walleapi.NewWalleApiClient(conn),
-				isPreferred:    i < majorityN,
+				c:              c,
+				serverId:       serverId,
 			}, nil
 		}
 	}
@@ -185,11 +181,40 @@ func (c *client) ForStream(streamURI string) (ApiClient, error) {
 
 type wrapClient struct {
 	walleapi.WalleApiClient
-	isPreferred bool
+	c        *client
+	serverId string
 }
 
-func (w *wrapClient) IsPreferred() bool {
-	return w.isPreferred
+func (w *wrapClient) PutEntry(
+	ctx context.Context,
+	in *walleapi.PutEntryRequest,
+	opts ...grpc.CallOption) (*walleapi.PutEntryResponse, error) {
+	resp, err := w.WalleApiClient.PutEntry(ctx, in, opts...)
+	if err != nil {
+		w.c.removePreferred(in.StreamUri, w.serverId)
+	} else {
+		w.c.updatePreferred(in.StreamUri, resp.ServerIds)
+	}
+	return resp, err
+}
+
+func (c *client) removePreferred(streamURI string, serverId string) {
+	c.mx.Lock()
+	defer c.mx.Unlock()
+	for idx, sId := range c.preferred[streamURI] {
+		if sId == serverId {
+			c.preferred[streamURI] = append(
+				c.preferred[streamURI][:idx], c.preferred[streamURI][idx+1:]...)
+			return
+		}
+	}
+}
+func (c *client) updatePreferred(streamURI string, serverIds []string) {
+	c.mx.Lock()
+	defer c.mx.Unlock()
+	preferredIds := append(c.preferred[streamURI][:0], serverIds...)
+	sort.Sort(sort.StringSlice(preferredIds))
+	c.preferred[streamURI] = preferredIds
 }
 
 func (c *client) ForServer(serverId string) (walle_pb.WalleClient, error) {
