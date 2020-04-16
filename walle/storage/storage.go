@@ -23,9 +23,9 @@ type storage struct {
 	metaW    *wt.Mutator
 
 	flushMX     sync.Mutex
-	flusherExit chan struct{}
 	flushQ      chan struct{}
 	flushDone   chan struct{}
+	flusherExit chan struct{}
 
 	maxLocalStreams int
 	// streams contains only locally served streams.
@@ -112,9 +112,9 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 		metaW:           metaW,
 		maxLocalStreams: opts.MaxLocalStreams,
 
-		flusherExit: make(chan struct{}, 1),
 		flushQ:      make(chan struct{}, 1),
 		flushDone:   make(chan struct{}),
+		flusherExit: make(chan struct{}),
 	}
 	if opts.ServerId != "" && opts.ServerId != r.serverId {
 		return nil, errors.Errorf(
