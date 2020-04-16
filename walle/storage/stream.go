@@ -71,6 +71,9 @@ type streamStorage struct {
 
 	backfillsC     metrics.Counter
 	backfillBytesC metrics.Counter
+
+	cursorsG     metrics.Gauge
+	cursorNextsC metrics.Counter
 }
 
 func createStreamStorage(
@@ -136,6 +139,9 @@ func openStreamStorage(
 
 		backfillsC:     backfillsCounter.V(metricsKV),
 		backfillBytesC: backfillBytesCounter.V(metricsKV),
+
+		cursorsG:     streamCursorsGauge.V(metricsKV),
+		cursorNextsC: cursorNextsCounter.V(metricsKV),
 	}
 	r.metaW, err = sess.Mutate(metadataDS)
 	panic.OnErr(err)
@@ -196,6 +202,7 @@ func (m *streamStorage) StreamURI() string {
 func (m *streamStorage) close() {
 	m.roMX.Lock()
 	panic.OnErr(m.sessRO.Close())
+	m.cursorsG.Set(0)
 	m.roMX.Unlock()
 
 	m.backfillMX.Lock()

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/zviadm/stats-go/metrics"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/panic"
 	"github.com/zviadm/wt"
@@ -21,10 +22,14 @@ func (m *streamStorage) ReadFrom(entryId int64) (Cursor, error) {
 	}
 	cursor, err := m.sessRO.Scan(streamDS(m.streamURI))
 	panic.OnErr(err)
+	m.cursorsG.Add(1)
 	r := &streamCursor{
-		roMX:        &m.roMX,
-		sessRO:      m.sessRO,
-		streamURI:   m.streamURI,
+		roMX:         &m.roMX,
+		sessRO:       m.sessRO,
+		streamURI:    m.streamURI,
+		cursorsG:     m.cursorsG,
+		cursorNextsC: m.cursorNextsC,
+
 		cursor:      cursor,
 		committedId: committedId,
 		needsNext:   false,
@@ -39,9 +44,12 @@ func (m *streamStorage) ReadFrom(entryId int64) (Cursor, error) {
 }
 
 type streamCursor struct {
-	roMX        *sync.Mutex
-	sessRO      *wt.Session
-	streamURI   string
+	roMX         *sync.Mutex
+	sessRO       *wt.Session
+	streamURI    string
+	cursorsG     metrics.Gauge
+	cursorNextsC metrics.Counter
+
 	cursor      *wt.Scanner
 	needsNext   bool
 	finished    bool
@@ -55,6 +63,7 @@ func (m *streamCursor) Close() {
 }
 func (m *streamCursor) close() {
 	if !m.sessRO.Closed() && !m.finished {
+		m.cursorsG.Add(-1)
 		panic.OnErr(m.cursor.Close())
 	}
 	m.finished = true
@@ -65,6 +74,7 @@ func (m *streamCursor) Next() (int64, bool) {
 	if m.sessRO.Closed() || m.finished {
 		return 0, false
 	}
+	m.cursorNextsC.Count(1)
 	if m.needsNext {
 		if err := m.cursor.Next(); err != nil {
 			panic.OnNotOk(wt.ErrCode(err) == wt.ErrNotFound, err.Error())
