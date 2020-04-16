@@ -28,6 +28,7 @@ func (s *Server) gapHandler(ctx context.Context) {
 				if gapStart >= gapEnd {
 					break
 				}
+				gapEndFinal := gapEnd
 				if gapEnd > gapStart+maxGapBatch {
 					gapEnd = gapStart + maxGapBatch
 				}
@@ -36,7 +37,7 @@ func (s *Server) gapHandler(ctx context.Context) {
 					zlog.Warningf("[gh] err filling gap: %s %d -> %d, %s", ss.StreamURI(), gapStart, gapEnd, err)
 					break
 				}
-				zlog.Infof("[gh] filled: %s %d -> %d", ss.StreamURI(), gapStart, gapEnd)
+				zlog.Infof("[gh] filled: %s %d -> %d (end: %d)", ss.StreamURI(), gapStart, gapEnd, gapEndFinal)
 			}
 		}
 		select {

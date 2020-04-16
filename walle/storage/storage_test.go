@@ -49,6 +49,10 @@ func TestStreamStorage(t *testing.T) {
 	_, err = ss.UpdateWriter(writerId, "", 0)
 	require.NoError(t, err)
 	for idx := 1; idx <= 5; idx++ {
+		if idx == 3 {
+			// Entries starting at idx:3 have new writerId
+			writerId = MakeWriterId()
+		}
 		entry := &walleapi.Entry{
 			EntryId:  int64(idx),
 			WriterId: writerId,

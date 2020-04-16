@@ -520,9 +520,13 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error 
 
 // Assumes m.mx is acquired.
 func (m *streamStorage) makeGapCommit(entry *walleapi.Entry) {
-	// Clear out all uncommitted entries, and create a GAP.
 	panic.OnErr(m.sess.TxBegin())
-	m.removeAllEntriesFrom(m.committed.Load()+1, entry)
+	if CmpWriterIds(m.tailEntry.WriterId, entry.WriterId) != 0 {
+		// If writer has changed, need to clear out all uncommitted entries.
+		// TODO(zviadm): Is there any danger to not clearing out entries when
+		// writer is the same?
+		m.removeAllEntriesFrom(m.committed.Load()+1, entry)
+	}
 	m.insertEntry(entry)
 	err := m.commitEntry(entry.EntryId, entry.ChecksumXX, true)
 	panic.OnErr(err) // This commit entry mustn't fail. Failure would mean data corrution.
