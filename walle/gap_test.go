@@ -71,7 +71,7 @@ func waitForCommitConvergence(
 	ss, _ := s.s.Stream(streamURI)
 	for {
 		gapStart, gapEnd := ss.GapRange()
-		committed, _ := ss.CommittedEntryId()
+		committed := ss.CommittedId()
 		if gapStart >= gapEnd && committed == expectedCommitId {
 			break
 		}

@@ -41,8 +41,11 @@ type Stream interface {
 	close()
 	IsClosed() bool
 
+	// CommitNotify returns a channel that will be closed if any changes happen to CommittedId.
+	// Channel can be closed even with no changes to CommittedId.
+	CommitNotify() <-chan struct{}
 	// Returns EntryId for maximum committed entry.
-	CommittedEntryId() (committedId int64, notify <-chan struct{})
+	CommittedId() int64
 	// Returns EntryId for last entry that is stored. May not be committed. TailEntryId can decrease
 	// if uncommitted entries get removed due to a writer change.
 	TailEntryId() int64

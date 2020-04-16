@@ -49,13 +49,13 @@ type streamStorage struct {
 	entryBuf []byte
 	topology atomic.Value // Type is: *walleapi.StreamTopology
 
-	wInfo           *writerInfo
-	wInfoRO         atomic.Value // *writerInfo
-	renewedLease    atomic.Value // time.Time
-	committed       int64
-	gapStartId      atomic.Int64
-	gapEndId        atomic.Int64
-	committedNotify chan struct{}
+	wInfo        *writerInfo
+	wInfoRO      atomic.Value // *writerInfo
+	renewedLease atomic.Value // time.Time
+	gapStartId   atomic.Int64
+	gapEndId     atomic.Int64
+	committed    atomic.Int64
+	commitNotify atomic.Value // chan struct{}
 
 	tailEntry   *walleapi.Entry
 	tailEntryId atomic.Int64
@@ -125,10 +125,9 @@ func openStreamStorage(
 		serverId:  serverId,
 		streamURI: streamURI,
 
-		sess:            sess,
-		buf8:            make([]byte, 8),
-		entryBuf:        make([]byte, entryMaxSerializedSize),
-		committedNotify: make(chan struct{}),
+		sess:     sess,
+		buf8:     make([]byte, 8),
+		entryBuf: make([]byte, entryMaxSerializedSize),
 
 		sessRO: sessRO,
 		roBuf8: make([]byte, 8),
@@ -172,8 +171,10 @@ func openStreamStorage(
 
 	v, err = metaR.ReadValue([]byte(streamURI + sfxCommittedId))
 	panic.OnErr(err)
-	r.committed = int64(binary.BigEndian.Uint64(v))
-	r.committedIdG.Set(float64(r.committed))
+	committed := int64(binary.BigEndian.Uint64(v))
+	r.committed.Store(committed)
+	r.committedIdG.Set(float64(committed))
+	r.commitNotify.Store(make(chan struct{}))
 	v, err = metaR.ReadValue([]byte(streamURI + sfxGapStartId))
 	panic.OnErr(err)
 	gapStartId := int64(binary.BigEndian.Uint64(v))
@@ -189,12 +190,12 @@ func openStreamStorage(
 	r.streamR, err = sess.Scan(streamDS(streamURI))
 	panic.OnErr(err)
 	defer func() { panic.OnErr(r.streamR.Reset()) }()
-	binary.BigEndian.PutUint64(r.buf8, uint64(r.committed))
+	binary.BigEndian.PutUint64(r.buf8, uint64(committed))
 	err = r.streamR.Search(r.buf8)
 	panic.OnErr(err)
 	var tailEntry *walleapi.Entry
 	for {
-		tailEntry = unmarshalValue(r.streamURI, r.committed, r.streamR)
+		tailEntry = unmarshalValue(r.streamURI, committed, r.streamR)
 		r.tailEntryXX[tailEntry.EntryId%int64(len(r.tailEntryXX))] = tailEntry.ChecksumXX
 		err := r.streamR.Next()
 		if err != nil && wt.ErrCode(err) == wt.ErrNotFound {
@@ -223,7 +224,7 @@ func (m *streamStorage) close() {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	panic.OnErr(m.sess.Close())
-	close(m.committedNotify)
+	close(m.commitNotify.Load().(chan struct{}))
 }
 func (m *streamStorage) IsClosed() bool {
 	m.mx.Lock()
@@ -296,20 +297,21 @@ func (m *streamStorage) TailEntries(n int) ([]*walleapi.Entry, error) {
 	if m.sess.Closed() {
 		return nil, status.Errorf(codes.NotFound, "%s not found", m.streamURI)
 	}
-	binary.BigEndian.PutUint64(m.buf8, uint64(m.committed))
+	committed := m.committed.Load()
+	binary.BigEndian.PutUint64(m.buf8, uint64(committed))
 	mType, err := m.streamR.SearchNear(m.buf8)
 	panic.OnErr(err)
 	panic.OnNotOk(mType == wt.MatchedExact, "committed entries mustn't have any gaps")
 
-	tailN := int(m.tailEntry.EntryId - m.committed + 1)
+	tailN := int(m.tailEntry.EntryId - committed + 1)
 	if n > 0 && n < tailN {
 		tailN = n
 	}
 	r := make([]*walleapi.Entry, tailN)
 	for idx := range r {
-		r[idx] = unmarshalValue(m.streamURI, m.committed, m.streamR)
+		r[idx] = unmarshalValue(m.streamURI, committed, m.streamR)
 		panic.OnNotOk(
-			r[idx].EntryId == m.committed+int64(idx),
+			r[idx].EntryId == committed+int64(idx),
 			"tail entry missing: %s [%d..%d] %d",
 			m.streamURI, m.committed, m.tailEntry.EntryId, idx)
 		if idx != len(r)-1 {
@@ -321,10 +323,11 @@ func (m *streamStorage) TailEntries(n int) ([]*walleapi.Entry, error) {
 	return r, nil
 }
 
-func (m *streamStorage) CommittedEntryId() (committedId int64, notify <-chan struct{}) {
-	m.mx.Lock()
-	defer m.mx.Unlock()
-	return m.committed, m.committedNotify
+func (m *streamStorage) CommitNotify() <-chan struct{} {
+	return m.commitNotify.Load().(chan struct{})
+}
+func (m *streamStorage) CommittedId() int64 {
+	return m.committed.Load()
 }
 func (m *streamStorage) TailEntryId() int64 {
 	return m.tailEntryId.Load()
@@ -369,7 +372,8 @@ func (m *streamStorage) CommitEntry(entryId int64, entryXX uint64) error {
 // Updates committedEntry, assuming m.mx is acquired. Returns False, if entryId is too far in the future
 // and local storage doesn't yet know about missing entries in between.
 func (m *streamStorage) commitEntry(entryId int64, entryXX uint64, newGap bool) error {
-	if entryId <= m.committed {
+	committed := m.committed.Load()
+	if entryId <= committed {
 		return nil
 	}
 	if entryId > m.tailEntry.EntryId {
@@ -378,7 +382,7 @@ func (m *streamStorage) commitEntry(entryId int64, entryXX uint64, newGap bool) 
 	existingEntryXX, ok := m.readEntryXX(entryId)
 	if !ok {
 		return status.Errorf(
-			codes.DataLoss, "uncommitted entry %d: missing [%d..%d]", entryId, m.committed, m.tailEntry.EntryId)
+			codes.DataLoss, "uncommitted entry %d: missing [%d..%d]", entryId, committed, m.tailEntry.EntryId)
 	}
 	if existingEntryXX != entryXX {
 		return status.Errorf(
@@ -388,7 +392,8 @@ func (m *streamStorage) commitEntry(entryId int64, entryXX uint64, newGap bool) 
 	if newGap {
 		panic.OnNotOk(m.sess.InTx(), "new gap must happen inside a transaction")
 		if m.gapStartId.Load() == 0 {
-			gapStartId := m.committed + 1
+			// gapStartId must be updated before gapEndId.
+			gapStartId := committed + 1
 			m.gapStartId.Store(gapStartId)
 			m.gapStartIdG.Set(float64(gapStartId))
 			binary.BigEndian.PutUint64(m.buf8, uint64(gapStartId))
@@ -401,11 +406,11 @@ func (m *streamStorage) commitEntry(entryId int64, entryXX uint64, newGap bool) 
 		panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxGapEndId), m.buf8))
 	}
 
-	m.committed = entryId
-	m.committedIdG.Set(float64(m.committed))
-	close(m.committedNotify)
-	m.committedNotify = make(chan struct{})
-	binary.BigEndian.PutUint64(m.buf8, uint64(m.committed))
+	m.committed.Store(entryId)
+	m.committedIdG.Set(float64(entryId))
+	close(m.commitNotify.Load().(chan struct{}))
+	m.commitNotify.Store(make(chan struct{})) // commitNotify must be updated after committedId.
+	binary.BigEndian.PutUint64(m.buf8, uint64(entryId))
 	panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxCommittedId), m.buf8))
 	return nil
 }
@@ -428,14 +433,15 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error 
 		m.makeGapCommit(entry)
 		return nil
 	}
-	if entry.EntryId <= m.committed {
+	committed := m.committed.Load()
+	if entry.EntryId <= committed {
 		if !isCommitted {
-			return status.Errorf(codes.OutOfRange, "put entryId: %d <= %d", entry.EntryId, m.committed)
+			return status.Errorf(codes.OutOfRange, "put entryId: %d <= %d", entry.EntryId, committed)
 		}
 		if entry.EntryId < m.gapStartId.Load() {
 			return nil // not missing, and not last committed entry.
 		}
-		if entry.EntryId == m.committed {
+		if entry.EntryId == committed {
 			e := m.readEntry(entry.EntryId)
 			if e != nil && CmpWriterIds(e.WriterId, entry.WriterId) >= 0 {
 				return nil
@@ -448,7 +454,7 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error 
 	prevEntryXX, ok := m.readEntryXX(entry.EntryId - 1)
 	if !ok {
 		return status.Errorf(
-			codes.DataLoss, "uncommitted entry %d: missing [%d..%d]", entry.EntryId-1, m.committed, m.tailEntry.EntryId)
+			codes.DataLoss, "uncommitted entry %d: missing [%d..%d]", entry.EntryId-1, committed, m.tailEntry.EntryId)
 	}
 	expectedXX := wallelib.CalculateChecksumXX(prevEntryXX, entry.Data)
 	if expectedXX != entry.ChecksumXX {
@@ -457,7 +463,7 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error 
 				codes.OutOfRange, "put checksum mismatch for new entry: %d, %d != %d, %v",
 				entry.EntryId, entry.ChecksumXX, expectedXX, entry.WriterId)
 		}
-		if entry.EntryId-1 <= m.committed {
+		if entry.EntryId-1 <= committed {
 			// This mustn't happen. Otherwise probably a sign of data corruption or serious data
 			// consistency bugs.
 			return status.Errorf(
@@ -484,12 +490,12 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error 
 		entryExists = (cmpWriterId == 0) && (existingEntry.ChecksumXX == entry.ChecksumXX)
 	}
 
-	if !isCommitted && m.tailEntry.EntryId-m.committed >= int64(len(m.tailEntryXX)) {
+	if !isCommitted && m.tailEntry.EntryId-committed >= int64(len(m.tailEntryXX)) {
 		// This should never happen unless client is really buggy. No client should allow
 		// uncommitted entries to grow unbounded.
 		return status.Errorf(
 			codes.OutOfRange, "put entry can't succeed for: %d, too many uncommitted entries: %d .. %d",
-			entry.EntryId, m.committed, m.tailEntry.EntryId)
+			entry.EntryId, committed, m.tailEntry.EntryId)
 	}
 
 	if needsTrim {
@@ -512,10 +518,11 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error 
 	return nil
 }
 
+// Assumes m.mx is acquired.
 func (m *streamStorage) makeGapCommit(entry *walleapi.Entry) {
 	// Clear out all uncommitted entries, and create a GAP.
 	panic.OnErr(m.sess.TxBegin())
-	m.removeAllEntriesFrom(m.committed+1, entry)
+	m.removeAllEntriesFrom(m.committed.Load()+1, entry)
 	m.insertEntry(entry)
 	err := m.commitEntry(entry.EntryId, entry.ChecksumXX, true)
 	panic.OnErr(err) // This commit entry mustn't fail. Failure would mean data corrution.
@@ -534,12 +541,12 @@ func (m *streamStorage) readEntry(entryId int64) *walleapi.Entry {
 		panic.OnNotOk(wt.ErrCode(err) == wt.ErrNotFound, err.Error())
 		return nil
 	}
-	entry := unmarshalValue(m.streamURI, m.committed, m.streamR)
+	entry := unmarshalValue(m.streamURI, m.committed.Load(), m.streamR)
 	panic.OnErr(m.streamR.Reset())
 	return entry
 }
 func (m *streamStorage) readEntryXX(entryId int64) (uint64, bool) {
-	if entryId >= m.committed && entryId <= m.tailEntry.EntryId {
+	if entryId >= m.committed.Load() && entryId <= m.tailEntry.EntryId {
 		return m.tailEntryXX[entryId%int64(len(m.tailEntryXX))], true
 	}
 	entry := m.readEntry(entryId)
@@ -552,7 +559,7 @@ func (m *streamStorage) insertEntry(entry *walleapi.Entry) {
 	if entry.EntryId > m.tailEntry.EntryId {
 		m.updateTailEntry(entry)
 	}
-	if entry.EntryId >= m.committed && entry.EntryId <= m.tailEntry.EntryId {
+	if entry.EntryId >= m.committed.Load() && entry.EntryId <= m.tailEntry.EntryId {
 		m.tailEntryXX[entry.EntryId%int64(len(m.tailEntryXX))] = entry.ChecksumXX
 	}
 

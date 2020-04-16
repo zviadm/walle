@@ -14,7 +14,7 @@ import (
 )
 
 func (m *streamStorage) ReadFrom(entryId int64) (Cursor, error) {
-	committedId, _ := m.CommittedEntryId()
+	committedId := m.CommittedId()
 	m.roMX.Lock()
 	defer m.roMX.Unlock()
 	if m.sessRO.Closed() {

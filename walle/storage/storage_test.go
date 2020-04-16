@@ -60,7 +60,7 @@ func TestStreamStorage(t *testing.T) {
 
 	err = ss.PutEntry(entries[1], false)
 	require.NoError(t, err)
-	committed, _ := ss.CommittedEntryId()
+	committed := ss.CommittedId()
 	require.EqualValues(t, 0, committed)
 	gapStart, gapEnd := ss.GapRange()
 	require.EqualValues(t, 0, gapStart)
@@ -75,7 +75,7 @@ func TestStreamStorage(t *testing.T) {
 
 	err = ss.PutEntry(entries[3], true)
 	require.NoError(t, err)
-	committed, _ = ss.CommittedEntryId()
+	committed = ss.CommittedId()
 	require.EqualValues(t, 3, committed)
 	gapStart, gapEnd = ss.GapRange()
 	require.EqualValues(t, 1, gapStart)

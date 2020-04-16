@@ -33,7 +33,8 @@ func (s *Server) PollStream(
 		defer cancel()
 	}
 	for {
-		committedId, notify := ss.CommittedEntryId()
+		notify := ss.CommitNotify()
+		committedId := ss.CommittedId()
 		if committedId >= req.PollEntryId {
 			break
 		}
@@ -83,8 +84,8 @@ func (s *Server) StreamEntries(
 	}
 	var committedId int64
 	for {
-		var notify <-chan struct{}
-		committedId, notify = ss.CommittedEntryId()
+		notify := ss.CommitNotify()
+		committedId = ss.CommittedId()
 		if entryId < 0 {
 			entryId = committedId
 		}
