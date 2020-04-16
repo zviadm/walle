@@ -5,6 +5,7 @@ import (
 	"flag"
 	"sync"
 
+	"github.com/zviadm/stats-go/metrics"
 	"github.com/zviadm/walle/walle/broadcast"
 	"github.com/zviadm/walle/walle/pipeline"
 	"github.com/zviadm/walle/walle/storage"
@@ -37,6 +38,7 @@ type Server struct {
 	mxGap          sync.Mutex
 	notifyGapC     chan struct{}
 	streamsWithGap map[string]struct{}
+	notifyGapsC    metrics.Counter
 }
 
 // Client wraps both Api client and Direct client interfaces.
@@ -63,11 +65,10 @@ func NewServer(
 	r.pipeline = pipeline.New(ctx, r.fetchCommittedEntry, r.notifyGap)
 
 	r.watchTopology(ctx, d, topoMgr)
-	go r.writerInfoWatcher(ctx)
-	go r.backfillGapsLoop(ctx)
 
-	// Renew all writer leases at startup.
+	// Renew all writer leases at startup & check all streams for Gaps.
 	for _, streamURI := range s.LocalStreams() {
+		r.notifyGap(streamURI)
 		ss, ok := s.Stream(streamURI)
 		if !ok {
 			continue // can race with topology watcher.
@@ -78,6 +79,8 @@ func NewServer(
 		}
 		ss.RenewLease(writerId, wallelib.ReconnectDelay)
 	}
+	go r.writerInfoWatcher(ctx)
+	go r.backfillGapsLoop(ctx)
 	return r
 }
 
@@ -95,6 +98,7 @@ func (s *Server) processRequestHeader(req requestHeader) (ss storage.Stream, err
 		}
 	}()
 	if s.inflightReqs.Add(1) > s.maxInflightReqs {
+		requestsRejectedC.Count(1)
 		return nil, status.Errorf(codes.ResourceExhausted, "too many requests in-flight: %d", s.maxInflightReqs)
 	}
 	if req.GetServerId() != s.s.ServerId() {

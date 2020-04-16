@@ -157,7 +157,8 @@ func (p *stream) process(ctx context.Context) {
 
 func (p *stream) checkQLimit() error {
 	if p.totalQ.Load() >= p.maxTotalQ {
-		return status.Errorf(codes.Unavailable, "pipeline for: %s is fully backlogged", p.q.streamURI)
+		requestsRejectedC.Count(1)
+		return status.Errorf(codes.ResourceExhausted, "pipeline for: %s is fully backlogged", p.q.streamURI)
 	}
 	return nil
 }
