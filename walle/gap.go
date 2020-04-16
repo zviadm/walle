@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	maxGapBatch = 10000 // Maximum GAP entries processed in one batch.
+	maxGapBatch = 100000 // Maximum GAP entries processed in one batch.
 )
 
 // Gap handler detects and fills gaps in streams in background.

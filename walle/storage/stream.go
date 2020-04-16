@@ -89,7 +89,12 @@ func createStreamStorage(
 	sessRO *wt.Session,
 	sessFill *wt.Session) Stream {
 	panic.OnErr(ValidateStreamURI(streamURI))
-	panic.OnErr(sess.Create(streamDS(streamURI), wt.DataSourceCfg{BlockCompressor: "snappy"}))
+	panic.OnErr(sess.Create(
+		streamDS(streamURI),
+		wt.DataSourceCfg{
+			BlockCompressor: "snappy",
+			Type:            "lsm",
+		}))
 
 	panic.OnErr(sess.TxBegin(wt.TxCfg{Sync: wt.True}))
 	metaW, err := sess.Mutate(metadataDS)
@@ -227,6 +232,10 @@ func (m *streamStorage) close() {
 	defer m.mx.Unlock()
 	panic.OnErr(m.sess.Close())
 	close(m.commitNotify.Load().(chan struct{}))
+	m.committedIdG.Set(0)
+	m.gapStartIdG.Set(0)
+	m.gapEndIdG.Set(0)
+	m.tailIdG.Set(0)
 }
 func (m *streamStorage) IsClosed() bool {
 	m.mx.Lock()
