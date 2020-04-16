@@ -58,7 +58,10 @@ func (s *Server) gapHandlerForStream(
 		return err
 	}
 	ss.UpdateGapStart(gapEnd)
-	return nil
+	// Flushing isn't necessary from correctness perspective, however waiting on flush
+	// will throttle Gap filling so that it doesn't write too much data without any flushes
+	// happening.
+	return s.s.Flush(ctx)
 }
 
 // Reads and processes committed entries in range: [startId, endId). Will backfill any of the
