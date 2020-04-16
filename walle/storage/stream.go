@@ -53,8 +53,8 @@ type streamStorage struct {
 	wInfoRO         atomic.Value // *writerInfo
 	renewedLease    atomic.Value // time.Time
 	committed       int64
-	gapStartId      int64
-	gapEndId        int64
+	gapStartId      atomic.Int64
+	gapEndId        atomic.Int64
 	committedNotify chan struct{}
 
 	tailEntry   *walleapi.Entry
@@ -176,12 +176,14 @@ func openStreamStorage(
 	r.committedIdG.Set(float64(r.committed))
 	v, err = metaR.ReadValue([]byte(streamURI + sfxGapStartId))
 	panic.OnErr(err)
-	r.gapStartId = int64(binary.BigEndian.Uint64(v))
-	r.gapStartIdG.Set(float64(r.gapStartId))
+	gapStartId := int64(binary.BigEndian.Uint64(v))
+	r.gapStartId.Store(gapStartId)
+	r.gapStartIdG.Set(float64(gapStartId))
 	v, err = metaR.ReadValue([]byte(streamURI + sfxGapEndId))
 	panic.OnErr(err)
-	r.gapEndId = int64(binary.BigEndian.Uint64(v))
-	r.gapEndIdG.Set(float64(r.gapEndId))
+	gapEndId := int64(binary.BigEndian.Uint64(v))
+	r.gapEndId.Store(gapEndId)
+	r.gapEndIdG.Set(float64(gapEndId))
 
 	// Read all tail entries from storage to populate: r.tailEntryXX array.
 	r.streamR, err = sess.Scan(streamDS(streamURI))
@@ -328,30 +330,31 @@ func (m *streamStorage) TailEntryId() int64 {
 	return m.tailEntryId.Load()
 }
 func (m *streamStorage) GapRange() (startId int64, endId int64) {
-	m.mx.Lock()
-	defer m.mx.Unlock()
-	return m.gapStartId, m.gapEndId
+	return m.gapStartId.Load(), m.gapEndId.Load()
 }
 func (m *streamStorage) UpdateGapStart(entryId int64) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
-	if m.sess.Closed() || entryId <= m.gapStartId {
+	if m.sess.Closed() || entryId <= m.gapStartId.Load() {
 		return
 	}
-	m.gapStartId = entryId
-	if m.gapStartId >= m.gapEndId {
-		m.gapStartId = 0 // caught up with committed.
-		m.gapEndId = 0
+	if entryId >= m.gapEndId.Load() {
+		// Caught up with committed. It is important to update gapEndId first
+		// to make sure we don't create artifical Gap of [0..gapEnd] for a time.
+		m.gapEndId.Store(0)
+		m.gapStartId.Store(0)
+		m.gapStartIdG.Set(0)
+		m.gapEndIdG.Set(0)
 		panic.OnErr(m.sess.TxBegin())
 		panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxGapStartId), make([]byte, 8)))
 		panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxGapEndId), make([]byte, 8)))
 		panic.OnErr(m.sess.TxCommit())
 	} else {
-		binary.BigEndian.PutUint64(m.buf8, uint64(m.gapStartId))
+		m.gapStartId.Store(entryId)
+		m.gapStartIdG.Set(float64(entryId))
+		binary.BigEndian.PutUint64(m.buf8, uint64(entryId))
 		panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxGapStartId), m.buf8))
 	}
-	m.gapStartIdG.Set(float64(m.gapStartId))
-	m.gapEndIdG.Set(float64(m.gapEndId))
 }
 
 func (m *streamStorage) CommitEntry(entryId int64, entryXX uint64) error {
@@ -384,16 +387,17 @@ func (m *streamStorage) commitEntry(entryId int64, entryXX uint64, newGap bool) 
 	}
 	if newGap {
 		panic.OnNotOk(m.sess.InTx(), "new gap must happen inside a transaction")
-		if m.gapStartId == 0 {
-			m.gapStartId = m.committed + 1
-			m.gapStartIdG.Set(float64(m.gapStartId))
+		if m.gapStartId.Load() == 0 {
+			gapStartId := m.committed + 1
+			m.gapStartId.Store(gapStartId)
+			m.gapStartIdG.Set(float64(gapStartId))
+			binary.BigEndian.PutUint64(m.buf8, uint64(gapStartId))
+			panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxGapStartId), m.buf8))
 		}
-		binary.BigEndian.PutUint64(m.buf8, uint64(m.gapStartId))
-		panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxGapStartId), m.buf8))
 
-		m.gapEndId = entryId
-		m.gapEndIdG.Set(float64(m.gapEndId))
-		binary.BigEndian.PutUint64(m.buf8, uint64(m.gapEndId))
+		m.gapEndId.Store(entryId)
+		m.gapEndIdG.Set(float64(entryId))
+		binary.BigEndian.PutUint64(m.buf8, uint64(entryId))
 		panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxGapEndId), m.buf8))
 	}
 
@@ -428,7 +432,7 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error 
 		if !isCommitted {
 			return status.Errorf(codes.OutOfRange, "put entryId: %d <= %d", entry.EntryId, m.committed)
 		}
-		if entry.EntryId < m.gapStartId {
+		if entry.EntryId < m.gapStartId.Load() {
 			return nil // not missing, and not last committed entry.
 		}
 		if entry.EntryId == m.committed {
