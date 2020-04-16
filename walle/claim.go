@@ -230,6 +230,7 @@ func (s *Server) NewWriter(
 	if err != nil {
 		return nil, err
 	}
+	defer s.inflightReqs.Add(-1)
 	zlog.Infof(
 		"[%s] writerId update: %s %v", ss.StreamURI(), req.WriterAddr, req.WriterId)
 	remainingLease, err := ss.UpdateWriter(req.WriterId, req.WriterAddr, time.Duration(req.LeaseMs)*time.Millisecond)
@@ -255,6 +256,7 @@ func (s *Server) TailEntries(
 	if err != nil {
 		return err
 	}
+	defer s.inflightReqs.Add(-1)
 	entries, err := ss.TailEntries(0)
 	if err != nil {
 		return err

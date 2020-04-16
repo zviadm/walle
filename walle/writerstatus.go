@@ -41,6 +41,7 @@ func (s *Server) WriterInfo(
 	if err != nil {
 		return nil, err
 	}
+	defer s.inflightReqs.Add(-1)
 	writerId, writerAddr, lease, remainingLease := ss.WriterInfo()
 	return &walle_pb.WriterInfoResponse{
 		WriterId:         writerId,

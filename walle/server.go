@@ -2,6 +2,7 @@ package walle
 
 import (
 	"context"
+	"flag"
 	"sync"
 
 	"github.com/zviadm/walle/walle/broadcast"
@@ -9,8 +10,15 @@ import (
 	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/walle/walle/topomgr"
 	"github.com/zviadm/walle/wallelib"
+	"go.uber.org/atomic"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+)
+
+var (
+	flagMaxInternalInflightRequests = flag.Int(
+		"walle.max_internal_inflight_requests", 16*1024,
+		"Once this limit is reached, all new requests get rejected with RESOURCE_EXHAUSTED errors.")
 )
 
 // Server implements both WalleApiServer and WalleServer interfaces.
@@ -19,7 +27,11 @@ type Server struct {
 	s       storage.Storage
 	c       Client
 
-	pipeline        *pipeline.Pipeline
+	pipeline *pipeline.Pipeline
+
+	maxInflightReqs int64
+	inflightReqs    atomic.Int64
+
 	fetchWriterIdMX sync.Mutex
 }
 
@@ -37,8 +49,9 @@ func NewServer(
 	d wallelib.Discovery,
 	topoMgr *topomgr.Manager) *Server {
 	r := &Server{
-		rootCtx: ctx,
-		s:       s,
+		rootCtx:         ctx,
+		s:               s,
+		maxInflightReqs: int64(*flagMaxInternalInflightRequests),
 	}
 	r.c = wrapClient(c, s.ServerId(), r)
 	r.pipeline = pipeline.New(ctx, r.fetchCommittedEntry)
@@ -70,6 +83,14 @@ type requestHeader interface {
 }
 
 func (s *Server) processRequestHeader(req requestHeader) (ss storage.Stream, err error) {
+	defer func() {
+		if err != nil {
+			s.inflightReqs.Add(-1)
+		}
+	}()
+	if s.inflightReqs.Add(1) > s.maxInflightReqs {
+		return nil, status.Errorf(codes.ResourceExhausted, "too many requests in-flight: %d", s.maxInflightReqs)
+	}
 	if req.GetServerId() != s.s.ServerId() {
 		return nil, status.Errorf(codes.NotFound, "server_id: %s not found", req.GetServerId())
 	}

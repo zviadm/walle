@@ -69,6 +69,7 @@ func (s *Server) PutEntryInternal(
 	if err != nil {
 		return nil, err
 	}
+	defer s.inflightReqs.Add(-1)
 	writerId := req.Entry.WriterId
 	isCommitted := req.CommittedEntryId >= req.Entry.EntryId
 	err = s.checkAndUpdateWriterId(ctx, ss, writerId)

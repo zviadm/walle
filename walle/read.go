@@ -140,6 +140,7 @@ func (s *Server) ReadEntries(
 	if err != nil {
 		return err
 	}
+	defer s.inflightReqs.Add(-1)
 	cursor, err := ss.ReadFrom(req.StartEntryId)
 	if err != nil {
 		return err
