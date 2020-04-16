@@ -72,6 +72,9 @@ func CmpWriterIds(w1, w2 walleapi.WriterId) int {
 func streamDS(streamURI string) string {
 	return "table:stream" + strings.ReplaceAll(streamURI, "/", "-")
 }
+func streamBackfillDS(streamURI string) string {
+	return "table:stream_backfill" + strings.ReplaceAll(streamURI, "/", "-")
+}
 
 var reStreamURI = regexp.MustCompile("/[a-z0-9_/]+")
 

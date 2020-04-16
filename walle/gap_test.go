@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/walle/wallelib"
 )
@@ -58,6 +59,24 @@ func TestProtocolGapRecovery(t *testing.T) {
 	// If client heartbeat is working properly, once 'serverIds[1]' is healthy again, it should force
 	// it to catchup with rest of the servers.
 	waitForCommitConvergence(ctxTimeout, t, m, serverIds[1], "/mock/1", eeD4.Entry.EntryId)
+
+	for sIdx := 0; sIdx < 2; sIdx++ {
+		cc, err := c.ForServer(serverIds[sIdx])
+		require.NoError(t, err)
+		entries, err := readEntriesAll(ctx, cc, &walle_pb.ReadEntriesRequest{
+			ServerId:      serverIds[sIdx],
+			StreamUri:     "/mock/1",
+			StreamVersion: cluster3Node.Streams["/mock/1"].Version,
+			FromServerId:  serverIds[sIdx],
+
+			StartEntryId: 0,
+			EndEntryId:   eeD4.Entry.EntryId + 1,
+		})
+		require.NoError(t, err)
+		for idx, entry := range entries {
+			require.EqualValues(t, idx, entry.EntryId)
+		}
+	}
 }
 
 func waitForCommitConvergence(

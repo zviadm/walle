@@ -19,7 +19,6 @@ import (
 )
 
 type mockSystem struct {
-	walle_pb.WalleClient
 	storagePath string
 
 	servers    map[string]*Server
@@ -30,7 +29,7 @@ type mockSystem struct {
 func newMockSystem(
 	ctx context.Context,
 	topology *walleapi.Topology,
-	storagePath string) (*mockSystem, *mockApiClient) {
+	storagePath string) (*mockSystem, *mockClient) {
 	m := &mockSystem{
 		storagePath: storagePath,
 		servers:     make(map[string]*Server, len(topology.Servers)),
@@ -62,7 +61,7 @@ func newMockSystem(
 		time.Sleep(wallelib.LeaseMinimum)
 		m.cleanup()
 	}()
-	return m, apiClient
+	return m, client
 }
 
 func (m *mockSystem) cleanup() {

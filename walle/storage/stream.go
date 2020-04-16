@@ -91,10 +91,10 @@ func createStreamStorage(
 	panic.OnErr(ValidateStreamURI(streamURI))
 	panic.OnErr(sess.Create(
 		streamDS(streamURI),
-		wt.DataSourceCfg{
-			BlockCompressor: "snappy",
-			Type:            "lsm",
-		}))
+		wt.DataSourceCfg{BlockCompressor: "snappy"}))
+	panic.OnErr(sess.Create(
+		streamBackfillDS(streamURI),
+		wt.DataSourceCfg{BlockCompressor: "snappy"}))
 
 	panic.OnErr(sess.TxBegin(wt.TxCfg{Sync: wt.True}))
 	metaW, err := sess.Mutate(metadataDS)
@@ -159,7 +159,7 @@ func openStreamStorage(
 	panic.OnErr(err)
 	r.streamW, err = sess.Mutate(streamDS(streamURI))
 	panic.OnErr(err)
-	r.streamFillW, err = sessFill.Mutate(streamDS(streamURI))
+	r.streamFillW, err = sessFill.Mutate(streamBackfillDS(streamURI))
 	panic.OnErr(err)
 
 	r.wInfo = &writerInfo{}
@@ -445,18 +445,22 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) (bool,
 		return true, nil
 	}
 	committed := m.committed.Load()
-	if entry.EntryId <= committed {
-		if !isCommitted {
-			return false, status.Errorf(codes.OutOfRange, "put entryId: %d <= %d", entry.EntryId, committed)
-		}
-		if entry.EntryId < m.gapStartId.Load() {
-			return false, nil // not missing, and not last committed entry.
-		}
-		if entry.EntryId == committed {
-			e := m.readEntry(entry.EntryId)
-			if e != nil && CmpWriterIds(e.WriterId, entry.WriterId) >= 0 {
-				return false, nil
+	if entry.EntryId < committed {
+		return false, status.Errorf(codes.OutOfRange, "put entryId: %d < %d", entry.EntryId, committed)
+	} else if entry.EntryId == committed {
+		existing := m.readEntry(entry.EntryId)
+		panic.OnNotOk(existing != nil, "committed entry missing: %d", entry.EntryId)
+		if existing.ChecksumXX != entry.ChecksumXX {
+			code := codes.OutOfRange
+			if isCommitted {
+				code = codes.DataLoss
 			}
+			return false, status.Errorf(
+				code, "put checksum mismatch for committed entry: %d, %d != %d, %v",
+				entry.EntryId, entry.ChecksumXX, existing.ChecksumXX, entry.WriterId)
+		}
+		if CmpWriterIds(existing.WriterId, entry.WriterId) >= 0 {
+			return false, nil
 		}
 		m.insertEntry(entry)
 		return false, nil

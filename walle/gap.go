@@ -2,6 +2,8 @@ package walle
 
 import (
 	"context"
+	"io"
+	"time"
 
 	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
@@ -11,7 +13,10 @@ import (
 )
 
 const (
-	maxGapBatch = 100000 // Maximum GAP entries processed in one batch.
+	// maxGapBatch limits maximum number of entries that get processed in single
+	// backfilling batch. Processing of a single batch shouldn't take more than few
+	// seconds.
+	maxGapBatch = 100000
 )
 
 // notifyGap notifies backfiller that a gap might have been created for given
@@ -27,6 +32,8 @@ func (s *Server) notifyGap(streamURI string) {
 }
 
 // backfillGapsLoop watches for gaps and backfills them in background.
+// This is the only Go routine that makes PutGapEntry calls on storage, thus
+// it always makes them in monotonically increasing order.
 func (s *Server) backfillGapsLoop(ctx context.Context) {
 	for {
 		select {
@@ -49,9 +56,7 @@ func (s *Server) backfillGapsLoop(ctx context.Context) {
 	}
 }
 
-func (s *Server) checkAndBackfillGap(
-	ctx context.Context,
-	streamURI string) bool {
+func (s *Server) checkAndBackfillGap(ctx context.Context, streamURI string) bool {
 	ss, ok := s.s.Stream(streamURI)
 	if !ok {
 		return true
@@ -79,7 +84,7 @@ func (s *Server) backfillGap(
 	gapStart int64,
 	gapEnd int64) error {
 	err := s.readAndProcessEntries(
-		ctx, ss, gapStart, gapEnd, nil)
+		ctx, ss, gapStart, gapEnd, ss.PutGapEntry, true)
 	if err != nil {
 		return err
 	}
@@ -90,30 +95,24 @@ func (s *Server) backfillGap(
 	return s.s.Flush(ctx)
 }
 
-// Reads and processes committed entries in range: [startId, endId). Will backfill any of the
-// missing entries. [startId, endId), must be a valid committed range.
+// readAndProcessEntries reads entries in range: [startId, endId) and calls
+// processEntry call back on them. Will fetch missing entries from other servers.
+// If processFetchedOnly is true, will only run processEntry function on entries that
+// were fetched from other servers.
 func (s *Server) readAndProcessEntries(
 	ctx context.Context,
 	ss storage.Stream,
 	startId int64,
 	endId int64,
-	processEntry func(entry *walleapi.Entry) error) error {
-	var cursor storage.Cursor
-	defer func() {
-		if cursor != nil {
-			cursor.Close()
-		}
-	}()
-
+	processEntry func(entry *walleapi.Entry) error,
+	processFetchedOnly bool) error {
+	cursor, err := ss.ReadFrom(startId)
+	if err != nil {
+		return err
+	}
+	defer cursor.Close()
 	entryId := startId
 	for entryId < endId {
-		if cursor == nil {
-			var err error
-			cursor, err = ss.ReadFrom(entryId)
-			if err != nil {
-				return err
-			}
-		}
 		entryIdLocal, ok := cursor.Next()
 		if !ok {
 			return errors.Errorf(
@@ -122,17 +121,15 @@ func (s *Server) readAndProcessEntries(
 		}
 		if entryIdLocal > entryId {
 			if entryIdLocal > endId {
-				entryIdLocal = endId // This ends processing.
+				entryIdLocal = endId
 			}
-			// cursor.Close()
-			// cursor = nil
-			err := s.fetchAndBackfillEntries(
+			err := s.streamAndProcessEntries(
 				ctx, ss, entryId, entryIdLocal, processEntry)
 			if err != nil {
 				return err
 			}
 		}
-		if processEntry != nil {
+		if entryIdLocal < endId && !processFetchedOnly {
 			entry := cursor.Entry()
 			if err := processEntry(entry); err != nil {
 				return err
@@ -143,10 +140,9 @@ func (s *Server) readAndProcessEntries(
 	return nil
 }
 
-// fetchAndBackfillEntries fetches committed entries from other servers in range: [startId, endId), and commits
-// them locally. Entries are streamed and stored right away thus, partial success is possible. Returns success
-// only if all entries were successfully fetched and stored locally.
-func (s *Server) fetchAndBackfillEntries(
+// streamAndProcessEntries streams committed entries from other servers in range: [startId, endId), and
+// calls processEntry callback on them.
+func (s *Server) streamAndProcessEntries(
 	ctx context.Context,
 	ss storage.Stream,
 	startId int64, endId int64,
@@ -164,38 +160,31 @@ func (s *Server) fetchAndBackfillEntries(
 			errs = append(errs, err)
 			continue
 		}
+		streamCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel() // it's ok if this cancel gets delayed till for loop finishes.
+		r, err := c.ReadEntries(streamCtx, &walle_pb.ReadEntriesRequest{
+			ServerId:      serverId,
+			StreamUri:     ss.StreamURI(),
+			StreamVersion: ssTopology.Version,
+			FromServerId:  s.s.ServerId(),
+			StartEntryId:  startId,
+			EndEntryId:    endId,
+		})
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
 		for {
-			streamCtx, cancel := context.WithCancel(ctx)
-			entries, readErr := readEntriesAll(streamCtx, c, &walle_pb.ReadEntriesRequest{
-				ServerId:      serverId,
-				StreamUri:     ss.StreamURI(),
-				StreamVersion: ssTopology.Version,
-				FromServerId:  s.s.ServerId(),
-				StartEntryId:  startId,
-				EndEntryId:    endId,
-			})
-			cancel()
-			if len(entries) > 0 {
-				err := ss.PutGapEntries(entries)
-				if err != nil {
-					return err
-				}
-				for _, entry := range entries {
-					if processEntry != nil {
-						if err := processEntry(entry); err != nil {
-							return err
-						}
-					}
-				}
-
-				startId = entries[len(entries)-1].EntryId + 1
-				if startId >= endId {
+			entry, err := r.Recv()
+			if err != nil {
+				if err == io.EOF {
 					return nil
 				}
-			}
-			if readErr != nil {
-				errs = append(errs, readErr)
+				errs = append(errs, err)
 				break
+			}
+			if err := processEntry(entry); err != nil {
+				return err
 			}
 		}
 	}

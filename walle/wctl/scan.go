@@ -32,35 +32,37 @@ func cmdScan(
 	exitOnErr(err)
 	c, err := cli.ForStream(streamURI)
 	exitOnErr(err)
-	streamCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	fromEntryId := int64(*entryId)
-	readN := 0
-	for *count == 0 || readN < *count {
-		stream, err := c.StreamEntries(streamCtx, &walleapi.StreamEntriesRequest{
-			StreamUri:   streamURI,
-			FromEntryId: fromEntryId,
-		})
+
+	startId := int64(*entryId)
+	endId := int64(*entryId) + int64(*count)
+	if startId < 0 || *count == 0 {
+		resp, err := c.PollStream(ctx, &walleapi.PollStreamRequest{StreamUri: streamURI})
 		exitOnErr(err)
-		readNew := false
-		for i := 0; ; i++ {
-			entry, err := stream.Recv()
-			if err == io.EOF {
-				break
-			}
-			exitOnErr(err)
-			readN += 1
-			readNew = (i >= 1)
-			fromEntryId = entry.EntryId
-			if readN%10000 == 0 {
-				fmt.Printf(
-					"%d: w:%v checksum:%d\n",
-					entry.EntryId, entry.WriterId, entry.ChecksumXX)
-			}
+		if startId < 0 {
+			startId = resp.EntryId
+			endId = startId + int64(*count)
 		}
-		if !readNew {
-			break
+		if *count == 0 {
+			endId = resp.EntryId + 1
 		}
 	}
-	fmt.Printf("%d: read %d\n", fromEntryId, readN)
+	stream, err := c.StreamEntries(ctx, &walleapi.StreamEntriesRequest{
+		StreamUri:    streamURI,
+		StartEntryId: startId,
+		EndEntryId:   endId,
+	})
+	exitOnErr(err)
+	for i := 0; ; i++ {
+		entry, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		exitOnErr(err)
+		if i%10000 == 0 {
+			fmt.Printf(
+				"%d: w:%v checksum:%d\n",
+				entry.EntryId, entry.WriterId, entry.ChecksumXX)
+		}
+	}
+	fmt.Printf("%d: read %d\n", endId, endId-startId)
 }

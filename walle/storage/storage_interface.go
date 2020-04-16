@@ -65,9 +65,10 @@ type Stream interface {
 	// if entry is missing locally.
 	CommitEntry(entryId int64, entryXX uint64) error
 
-	// PutGapEntries is an optimized call for backfilling missing entries. It is callers responsibility
-	// to make sure entries are all valid and smaller than CommittedEntryId.
-	PutGapEntries(entries []*walleapi.Entry) error
+	// PutGapEntry is a separate lcall for backfilling missing entries. It is callers responsibility
+	// to make sure entries are all valid. For best performance, PutGapEntry calls must be made in
+	// monotonically increasing order of EntryId.
+	PutGapEntry(entry *walleapi.Entry) error
 	UpdateGapStart(entryId int64)
 }
 

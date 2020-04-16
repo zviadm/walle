@@ -11,12 +11,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-const (
-	// maxSizeToSend is maximum amount of data that will be sent on a single stream
-	// before it is closed.
-	maxSizeToSend = 4 * 1024 * 1024
-)
-
 // PollStream implements WalleApiServer interface.
 func (s *Server) PollStream(
 	ctx context.Context,
@@ -73,64 +67,9 @@ func (s *Server) StreamEntries(
 	if !ok {
 		return status.Errorf(codes.NotFound, "%s not found", req.GetStreamUri())
 	}
-	entryId := req.FromEntryId
-	internalCtx := stream.Context()
-	reqDeadline, ok := stream.Context().Deadline()
-	if ok {
-		var cancel context.CancelFunc
-		internalCtx, cancel = context.WithTimeout(
-			internalCtx, reqDeadline.Sub(time.Now())*4/5)
-		defer cancel()
-	}
-	var committedId int64
-	for {
-		notify := ss.CommitNotify()
-		committedId = ss.CommittedId()
-		if entryId < 0 {
-			entryId = committedId
-		}
-		if entryId <= committedId {
-			break
-		}
-		_, writerAddr, _, remainingLease := ss.WriterInfo()
-		minimumLease := time.Duration(0)
-		if isInternalWriter(writerAddr) {
-			minimumLease = -reResolveTimeout
-		}
-		if remainingLease < minimumLease {
-			return status.Errorf(codes.Unavailable,
-				"writer: %s lease expired for streamURI: %s", writerAddr, req.StreamUri)
-		}
-		select {
-		case <-s.rootCtx.Done():
-			return nil
-		case <-internalCtx.Done():
-			return nil
-		case <-stream.Context().Done():
-			return stream.Context().Err()
-		case <-notify:
-		}
-	}
-
-	streamedSize := 0
-	oneOk := false
-	sendEntry := func(e *walleapi.Entry) error {
-		if err := stream.Send(e); err != nil {
-			return err
-		}
-		streamedSize += e.Size()
-		oneOk = true
-		if streamedSize > maxSizeToSend {
-			return io.EOF
-		}
-		return nil
-	}
 	err := s.readAndProcessEntries(
-		internalCtx, ss, entryId, committedId+1, sendEntry)
-	if !oneOk && err != nil {
-		return err
-	}
-	return nil
+		stream.Context(), ss, req.StartEntryId, req.EndEntryId, stream.Send, false)
+	return err
 }
 
 // ReadEntries implements WalleServer interface.
@@ -146,8 +85,7 @@ func (s *Server) ReadEntries(
 		return err
 	}
 	defer cursor.Close()
-	streamedSize := 0
-	for entryId := req.StartEntryId; entryId < req.EndEntryId && streamedSize < maxSizeToSend; entryId++ {
+	for entryId := req.StartEntryId; entryId < req.EndEntryId; entryId++ {
 		eId, ok := cursor.Next()
 		if !ok || eId != entryId {
 			return status.Errorf(codes.NotFound,
@@ -159,7 +97,6 @@ func (s *Server) ReadEntries(
 		if err != nil {
 			return err
 		}
-		streamedSize += entry.Size()
 	}
 	return nil
 }
@@ -225,8 +162,7 @@ func (s *Server) fetchCommittedEntry(
 	return nil, status.Errorf(codes.Unavailable, "errs: %d / %d - %s", len(errs), len(serverIds), errs)
 }
 
-// readEntriesAll makes ReadEntries request and consumes all entries from the stream. Keeping streams open
-// for too long makes code more complicated, it is better to stream and process things large chunk by chunk.
+// readEntriesAll makes ReadEntries request and consumes all entries from the stream.
 func readEntriesAll(
 	ctx context.Context,
 	c walle_pb.WalleClient,
