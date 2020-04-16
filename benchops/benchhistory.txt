@@ -1,3 +1,19 @@
+# 2020/04/16
+# NOTES: Performance and stability goals are now met. Including performance when large gaps are created and backfilled.
+# Setup:
+# -- wctl-0: n1-highcpu-2  (machine where benchmark client runs)
+# -- wnode-0, wnode-1, wnode-2: n1-highcpu-4, with LocalSSD, nobarrier
+# Three benchmarks:
+$ GOGC=400 ./wctl bench -prefix /bench -qps 10000 -kbs 10000 -streams 1
+$ GOGC=400 ./wctl bench -prefix /bench -qps 10000 -kbs 10000 -streams 10
+$ GOGC=400 ./wctl bench -prefix /bench -qps 10000 -kbs 10000 -streams 30
+# Benchmark goal was ~10k QPS with reasonable tail latencies. Benchmarks show
+# 10k QPS, with p50 <10ms, p95 <20ms, p999 <50-100ms.
+#
+# Number of streams doesn't have significant negative affect on server performance, but does
+# affect benchmarking client's performance itself, skewing the tail latencies a bit more.
+
+
 # 2020/04/07
 # NOTES: Still some rare sightings of data corruption. Single stream perf looks good. Multi stream throughput is good,
 # but tail latencies can tend to spike sometimes (creating too many GAPs unnecessarily).

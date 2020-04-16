@@ -27,6 +27,8 @@ var (
 	putLatency999Gauge = metrics.DefineGauge("wctl/put_latency_ms_p999", metrics.WithTags("stream_uri"))
 )
 
+var memBallast []byte
+
 func cmdBench(
 	ctx context.Context,
 	rootPb *walleapi.Topology,
@@ -44,6 +46,8 @@ func cmdBench(
 	metrics.SetInstanceName("wctl")
 	err := datadog.ExporterGo(ctx)
 	exitOnErr(err)
+
+	memBallast = make([]byte, *throughputKBs*1024*5)
 
 	c, err := wallelib.NewClientFromRootPb(ctx, rootPb, clusterURI)
 	exitOnErr(err)
