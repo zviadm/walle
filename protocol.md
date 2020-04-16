@@ -9,7 +9,8 @@ The answer to that is due to two main concerns/requirements: "read leases" and "
 An issue with most standard consensus algorithms, in their base form, is that they tradeoff everything else
 for absolute correctness. Including trading off performance for data reads. In practice, this tradeoff rarely
 tends to be acceptable. In traditional Paxos or Raft, even when they have a concept of a "master", to read
-"current state", first a write needs to be performed to synchronize. Famous "Paxos Made Live" [1] paper talks
+"current state", first a write needs to be performed to synchronize. Famous "Paxos Made Live"
+[[1]](https://www.cs.utexas.edu/users/lorenzo/corsi/cs380d/papers/paper2-1.pdf) paper talks
 about this concept in "master leases" section.
 
 There aren't well known standardized versions of "master leases" extension for any of the popular consensus
@@ -67,4 +68,4 @@ still no data loss because `n1` node still has all the entries that is getting r
 
 
 
-[1] https://www.cs.utexas.edu/users/lorenzo/corsi/cs380d/papers/paper2-1.pdf
+[1]
