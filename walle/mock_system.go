@@ -160,7 +160,7 @@ func (m *mockApiClient) WriterStatus(
 func (m *mockApiClient) PutEntry(
 	ctx context.Context,
 	in *walleapi.PutEntryRequest,
-	opts ...grpc.CallOption) (*walleapi.Empty, error) {
+	opts ...grpc.CallOption) (*walleapi.PutEntryResponse, error) {
 	s, err := m.m.RandServer()
 	if err != nil {
 		return nil, err

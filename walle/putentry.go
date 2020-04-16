@@ -28,7 +28,7 @@ var emptyOk = &walleapi.Empty{}
 
 // PutEntry implements WalleApiServer interface.
 func (s *Server) PutEntry(
-	ctx context.Context, req *walleapi.PutEntryRequest) (*walleapi.Empty, error) {
+	ctx context.Context, req *walleapi.PutEntryRequest) (*walleapi.PutEntryResponse, error) {
 	if req.Entry == nil {
 		return nil, status.Errorf(codes.InvalidArgument, "req.Entry must be set for WriterId")
 	}
@@ -42,7 +42,7 @@ func (s *Server) PutEntry(
 		return nil, status.Errorf(codes.NotFound, "%s not found", req.GetStreamUri())
 	}
 	ssTopology := ss.Topology()
-	_, err := broadcast.Call(ctx, s.c, ssTopology.ServerIds, putEntryLiveWait, putEntryBgWait,
+	serverIds, err := broadcast.Call(ctx, s.c, ssTopology.ServerIds, putEntryLiveWait, putEntryBgWait,
 		func(c walle_pb.WalleClient, ctx context.Context, serverId string) error {
 			_, err := c.PutEntryInternal(ctx, &walle_pb.PutEntryInternalRequest{
 				ServerId:         serverId,
@@ -58,7 +58,7 @@ func (s *Server) PutEntry(
 	if err != nil {
 		return nil, err
 	}
-	return emptyOk, nil
+	return &walleapi.PutEntryResponse{ServerIds: serverIds}, nil
 }
 
 // PutEntryInternal implements WalleServer interface.

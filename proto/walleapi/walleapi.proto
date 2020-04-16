@@ -6,7 +6,7 @@ import "gogo.proto";
 service WalleApi {
 	rpc ClaimWriter(ClaimWriterRequest) returns (ClaimWriterResponse) {}
 	rpc WriterStatus(WriterStatusRequest) returns (WriterStatusResponse) {}
-	rpc PutEntry(PutEntryRequest) returns (Empty) {}
+	rpc PutEntry(PutEntryRequest) returns (PutEntryResponse) {}
 
 	// PollStream polls stream for last committed entry. This rpc can be used as
 	// a long poll to wait for changes on the stream. If no changes happen within
@@ -65,6 +65,10 @@ message PutEntryRequest {
 	int64 committed_entry_id = 2;
 	uint64 committed_entry_x_x = 3;
 	Entry entry = 4;
+}
+message PutEntryResponse {
+	// List of quorum majority that succeded fastest.
+	repeated string server_ids = 1;
 }
 
 message PollStreamRequest {
