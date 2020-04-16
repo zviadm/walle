@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"flag"
 	"time"
 
 	"github.com/zviadm/stats-go/metrics"
@@ -17,21 +18,21 @@ const (
 	// QueueMaxTimeout represents max amount of time that items can stay in the queue.
 	// This bounds queue size.
 	QueueMaxTimeout = time.Second
-
-	// maxTotalBacklog is maximum items allwoed to be queued across all streams. After this
-	// limit is hit, it is important to start rejecting requests right away to avoid huge
-	// performance drop, due to GC and memory pressure.
-	// TODO(zviadm): This could be a configurable using a flag.
-	maxTotalBacklog = 128 * 1024
 )
+
+var flagMaxTotalBacklog = flag.Int(
+	"walle.max_put_queue_size", 32*1024,
+	"Maximum number of Put requests that can be queued in memory across all streams.")
 
 type stream struct {
 	ss                  storage.Stream
 	fetchCommittedEntry fetchFunc
 	notifyGap           notifyGapFunc
 	q                   *queue
-	totalQ              *atomic.Int64
-	fforwardsC          metrics.Counter
+
+	maxTotalQ  int64
+	totalQ     *atomic.Int64
+	fforwardsC metrics.Counter
 }
 
 func newStream(
@@ -45,6 +46,7 @@ func newStream(
 		fetchCommittedEntry: fetchCommittedEntry,
 		notifyGap:           notifyGap,
 		q:                   newQueue(ss.StreamURI(), totalQ),
+		maxTotalQ:           int64(*flagMaxTotalBacklog),
 		totalQ:              totalQ,
 		fforwardsC:          fforwardsCounter.V(metrics.KV{"stream_uri": ss.StreamURI()}),
 	}
@@ -154,7 +156,7 @@ func (p *stream) process(ctx context.Context) {
 }
 
 func (p *stream) checkQLimit() error {
-	if p.totalQ.Load() >= maxTotalBacklog {
+	if p.totalQ.Load() >= p.maxTotalQ {
 		return status.Errorf(codes.Unavailable, "pipeline for: %s is fully backlogged", p.q.streamURI)
 	}
 	return nil
