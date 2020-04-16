@@ -15,6 +15,8 @@ var backfillsCounter = metrics.DefineCounter(
 	"walle/storage/backfills", metrics.WithTags("stream_uri"))
 var backfillBytesCounter = metrics.DefineCounter(
 	"walle/storage/backfill_bytes", metrics.WithTags("stream_uri"))
+var backfillTotalMsCounter = metrics.DefineCounter(
+	"walle/storage/backfill_total_ms", metrics.WithTags("stream_uri"))
 
 var streamCursorsGauge = metrics.DefineGauge(
 	"walle/storage/cursors", metrics.WithTags("stream_uri"))

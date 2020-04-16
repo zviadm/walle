@@ -68,8 +68,9 @@ type streamStorage struct {
 	gapEndIdG    metrics.Gauge
 	tailIdG      metrics.Gauge
 
-	backfillsC     metrics.Counter
-	backfillBytesC metrics.Counter
+	backfillsC       metrics.Counter
+	backfillBytesC   metrics.Counter
+	backfillTotalMsC metrics.Counter
 
 	cursorsG     metrics.Gauge
 	cursorNextsC metrics.Counter
@@ -142,8 +143,9 @@ func openStreamStorage(
 		gapEndIdG:    gapEndIdGauge.V(metricsKV),
 		tailIdG:      tailIdGauge.V(metricsKV),
 
-		backfillsC:     backfillsCounter.V(metricsKV),
-		backfillBytesC: backfillBytesCounter.V(metricsKV),
+		backfillsC:       backfillsCounter.V(metricsKV),
+		backfillBytesC:   backfillBytesCounter.V(metricsKV),
+		backfillTotalMsC: backfillTotalMsCounter.V(metricsKV),
 
 		cursorsG:     streamCursorsGauge.V(metricsKV),
 		cursorNextsC: cursorNextsCounter.V(metricsKV),
