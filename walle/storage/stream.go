@@ -426,63 +426,63 @@ func (m *streamStorage) commitEntry(entryId int64, entryXX uint64, newGap bool) 
 	return nil
 }
 
-func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error {
+func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) (bool, error) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	if m.sess.Closed() {
-		return status.Errorf(codes.NotFound, "%s not found", m.streamURI)
+		return false, status.Errorf(codes.NotFound, "%s not found", m.streamURI)
 	}
 
 	// NOTE(zviad): if !isCommitted, writerId needs to be checked here again atomically, in the lock.
 	if !isCommitted && CmpWriterIds(entry.WriterId, m.wInfo.Id) < 0 {
-		return status.Errorf(codes.FailedPrecondition, "%v < %v", entry.WriterId, m.wInfo.Id)
+		return false, status.Errorf(codes.FailedPrecondition, "%v < %v", entry.WriterId, m.wInfo.Id)
 	}
 	if entry.EntryId > m.tailEntry.EntryId+1 {
 		if !isCommitted {
-			return status.Errorf(codes.OutOfRange, "put entryId: %d > %d + 1", entry.EntryId, m.tailEntry.EntryId)
+			return false, status.Errorf(codes.OutOfRange, "put entryId: %d > %d + 1", entry.EntryId, m.tailEntry.EntryId)
 		}
 		m.makeGapCommit(entry)
-		return nil
+		return true, nil
 	}
 	committed := m.committed.Load()
 	if entry.EntryId <= committed {
 		if !isCommitted {
-			return status.Errorf(codes.OutOfRange, "put entryId: %d <= %d", entry.EntryId, committed)
+			return false, status.Errorf(codes.OutOfRange, "put entryId: %d <= %d", entry.EntryId, committed)
 		}
 		if entry.EntryId < m.gapStartId.Load() {
-			return nil // not missing, and not last committed entry.
+			return false, nil // not missing, and not last committed entry.
 		}
 		if entry.EntryId == committed {
 			e := m.readEntry(entry.EntryId)
 			if e != nil && CmpWriterIds(e.WriterId, entry.WriterId) >= 0 {
-				return nil
+				return false, nil
 			}
 		}
 		m.insertEntry(entry)
-		return nil
+		return false, nil
 	}
 
 	prevEntryXX, ok := m.readEntryXX(entry.EntryId - 1)
 	if !ok {
-		return status.Errorf(
+		return false, status.Errorf(
 			codes.DataLoss, "uncommitted entry %d: missing [%d..%d]", entry.EntryId-1, committed, m.tailEntry.EntryId)
 	}
 	expectedXX := wallelib.CalculateChecksumXX(prevEntryXX, entry.Data)
 	if expectedXX != entry.ChecksumXX {
 		if !isCommitted {
-			return status.Errorf(
+			return false, status.Errorf(
 				codes.OutOfRange, "put checksum mismatch for new entry: %d, %d != %d, %v",
 				entry.EntryId, entry.ChecksumXX, expectedXX, entry.WriterId)
 		}
 		if entry.EntryId-1 <= committed {
 			// This mustn't happen. Otherwise probably a sign of data corruption or serious data
 			// consistency bugs.
-			return status.Errorf(
+			return false, status.Errorf(
 				codes.DataLoss, "put checksum mismatch for committed entry: %d, %d != %d, %v",
 				entry.EntryId, entry.ChecksumXX, expectedXX, entry.WriterId)
 		}
 		m.makeGapCommit(entry)
-		return nil
+		return true, nil
 	}
 
 	entryExists := false
@@ -491,7 +491,7 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error 
 		existingEntry := m.readEntry(entry.EntryId)
 		cmpWriterId := CmpWriterIds(existingEntry.WriterId, entry.WriterId)
 		if cmpWriterId > 0 {
-			return status.Errorf(
+			return false, status.Errorf(
 				codes.OutOfRange, "put entry writer too old: %d, %v < %v",
 				entry.EntryId, entry.WriterId, existingEntry.WriterId)
 		}
@@ -504,7 +504,7 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error 
 	if !isCommitted && m.tailEntry.EntryId-committed >= int64(len(m.tailEntryXX)) {
 		// This should never happen unless client is really buggy. No client should allow
 		// uncommitted entries to grow unbounded.
-		return status.Errorf(
+		return false, status.Errorf(
 			codes.OutOfRange, "put entry can't succeed for: %d, too many uncommitted entries: %d .. %d",
 			entry.EntryId, committed, m.tailEntry.EntryId)
 	}
@@ -526,7 +526,7 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error 
 	if needsTrim {
 		panic.OnErr(m.sess.TxCommit())
 	}
-	return nil
+	return false, nil
 }
 
 // Assumes m.mx is acquired.

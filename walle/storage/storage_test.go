@@ -62,7 +62,7 @@ func TestStreamStorage(t *testing.T) {
 		entries = append(entries, entry)
 	}
 
-	err = ss.PutEntry(entries[1], false)
+	_, err = ss.PutEntry(entries[1], false)
 	require.NoError(t, err)
 	committed := ss.CommittedId()
 	require.EqualValues(t, 0, committed)
@@ -74,10 +74,10 @@ func TestStreamStorage(t *testing.T) {
 	require.EqualValues(t, 1, len(entriesR)) // entry1 shouldn't be visible yet.
 	require.EqualValues(t, 0, entriesR[0].EntryId)
 
-	err = ss.PutEntry(entries[3], false)
+	_, err = ss.PutEntry(entries[3], false)
 	require.EqualValues(t, codes.OutOfRange, status.Convert(err).Code())
 
-	err = ss.PutEntry(entries[3], true)
+	_, err = ss.PutEntry(entries[3], true)
 	require.NoError(t, err)
 	committed = ss.CommittedId()
 	require.EqualValues(t, 3, committed)
@@ -99,7 +99,7 @@ func TestStreamStorage(t *testing.T) {
 
 	c0, err := ss.ReadFrom(1)
 	require.NoError(t, err)
-	err = ss.PutEntry(entries[5], true)
+	_, err = ss.PutEntry(entries[5], true)
 	require.NoError(t, err)
 	entryId, ok := c0.Next()
 	require.True(t, ok)
@@ -126,7 +126,7 @@ func TestStreamStorage(t *testing.T) {
 	entry5new.WriterId = MakeWriterId()
 	_, err = ss.UpdateWriter(entry5new.WriterId, "", 0)
 	require.NoError(t, err)
-	err = ss.PutEntry(entry5new, true)
+	_, err = ss.PutEntry(entry5new, true)
 	require.NoError(t, err)
 	entriesR = streamReadAll(t, ss, 5)
 	require.Len(t, entriesR, 1)
@@ -164,7 +164,7 @@ func TestStreamStorageRaces(t *testing.T) {
 			Data:       data,
 			ChecksumXX: checksum,
 		}
-		err := ss.PutEntry(entry, true)
+		_, err := ss.PutEntry(entry, true)
 		require.NoError(t, err)
 	}
 	cancel()
@@ -268,7 +268,7 @@ func benchmarkPutEntry(b *testing.B, committed bool) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		err = ss.PutEntry(entries[i], committed)
+		_, err = ss.PutEntry(entries[i], committed)
 		if err != nil {
 			b.Fatal(err)
 		}

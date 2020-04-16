@@ -60,7 +60,7 @@ type Stream interface {
 
 	// PutEntry puts new entry in storage. PutEntry can handle all types of entries, will return an
 	// error if put can't succeed either due to missing data or due to checksum mismatch.
-	PutEntry(entry *walleapi.Entry, isCommitted bool) error
+	PutEntry(entry *walleapi.Entry, isCommitted bool) (createdGap bool, err error)
 	// CommitEntry marks entry with given EntryId and checksum as committed. Can return an error
 	// if entry is missing locally.
 	CommitEntry(entryId int64, entryXX uint64) error

@@ -80,7 +80,7 @@ func TestStreamTimeouts(t *testing.T) {
 	ss, ok := s.Stream("/test/1")
 	require.True(t, ok)
 
-	q := newStream(ctx, ss, fakeFetch, new(atomic.Int64))
+	q := newStream(ctx, ss, fakeFetch, fakeNotify, new(atomic.Int64))
 	res := q.QueuePut(&walleapi.Entry{EntryId: 2, WriterId: storage.Entry0.WriterId}, false)
 	require.NoError(t, res.Err()) // There should be no immediate error.
 	select {

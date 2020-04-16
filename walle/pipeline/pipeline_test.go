@@ -21,6 +21,8 @@ func fakeFetch(
 	return nil, errors.New("not implemented")
 }
 
+func fakeNotify(streamURI string) {}
+
 // BenchmarkFullPipeline_1-4 - 1.00 cgocalls/op	- 4 allocs/op
 func BenchmarkFullPipeline_1(b *testing.B) {
 	benchmarkFullPipeline(b, 1)
@@ -43,7 +45,7 @@ func benchmarkFullPipeline(b *testing.B, nStreams int) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	p := New(ctx, fakeFetch)
+	p := New(ctx, fakeFetch, fakeNotify)
 	var streams []storage.Stream
 	for idx := 0; idx < nStreams; idx++ {
 		uri := "/test/" + strconv.Itoa(idx)

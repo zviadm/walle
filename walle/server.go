@@ -33,6 +33,10 @@ type Server struct {
 	inflightReqs    atomic.Int64
 
 	fetchWriterIdMX sync.Mutex
+
+	mxGap          sync.Mutex
+	notifyGapC     chan struct{}
+	streamsWithGap map[string]struct{}
 }
 
 // Client wraps both Api client and Direct client interfaces.
@@ -52,13 +56,15 @@ func NewServer(
 		rootCtx:         ctx,
 		s:               s,
 		maxInflightReqs: int64(*flagMaxInternalInflightRequests),
+		notifyGapC:      make(chan struct{}, 1),
+		streamsWithGap:  make(map[string]struct{}),
 	}
 	r.c = wrapClient(c, s.ServerId(), r)
-	r.pipeline = pipeline.New(ctx, r.fetchCommittedEntry)
+	r.pipeline = pipeline.New(ctx, r.fetchCommittedEntry, r.notifyGap)
 
 	r.watchTopology(ctx, d, topoMgr)
 	go r.writerInfoWatcher(ctx)
-	go r.gapHandler(ctx)
+	go r.backfillGapsLoop(ctx)
 
 	// Renew all writer leases at startup.
 	for _, streamURI := range s.LocalStreams() {

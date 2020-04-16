@@ -53,5 +53,6 @@ func BootstrapRoot(s storage.Storage, rootURI string, rootFile string, rootInfo 
 		return err
 	}
 	ss, _ := s.Stream(rootURI)
-	return ss.PutEntry(entry, true)
+	_, err = ss.PutEntry(entry, true)
+	return err
 }

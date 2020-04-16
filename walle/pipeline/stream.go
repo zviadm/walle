@@ -28,6 +28,7 @@ const (
 type stream struct {
 	ss                  storage.Stream
 	fetchCommittedEntry fetchFunc
+	notifyGap           notifyGapFunc
 	q                   *queue
 	totalQ              *atomic.Int64
 	fforwardsC          metrics.Counter
@@ -37,10 +38,12 @@ func newStream(
 	ctx context.Context,
 	ss storage.Stream,
 	fetchCommittedEntry fetchFunc,
+	notifyGap notifyGapFunc,
 	totalQ *atomic.Int64) *stream {
 	r := &stream{
 		ss:                  ss,
 		fetchCommittedEntry: fetchCommittedEntry,
+		notifyGap:           notifyGap,
 		q:                   newQueue(ss.StreamURI(), totalQ),
 		totalQ:              totalQ,
 		fforwardsC:          fforwardsCounter.V(metrics.KV{"stream_uri": ss.StreamURI()}),
@@ -139,7 +142,11 @@ func (p *stream) process(ctx context.Context) {
 			if req.R.Entry == nil {
 				err = p.ss.CommitEntry(req.R.EntryId, req.R.EntryXX)
 			} else {
-				err = p.ss.PutEntry(req.R.Entry, req.R.Committed)
+				var createdGap bool
+				createdGap, err = p.ss.PutEntry(req.R.Entry, req.R.Committed)
+				if createdGap {
+					p.notifyGap(p.ss.StreamURI())
+				}
 			}
 			req.Res.set(err)
 		}
@@ -168,7 +175,10 @@ func (p *stream) QueueCommit(entryId int64, entryXX uint64) *ResultCtx {
 }
 func (p *stream) QueuePut(e *walleapi.Entry, isCommitted bool) *ResultCtx {
 	if e.EntryId <= p.ss.TailEntryId() {
-		err := p.ss.PutEntry(e, isCommitted)
+		createdGap, err := p.ss.PutEntry(e, isCommitted)
+		if createdGap {
+			p.notifyGap(p.ss.StreamURI())
+		}
 		return newResultWithErr(err)
 	}
 	if err := p.checkQLimit(); err != nil {

@@ -2,7 +2,6 @@ package walle
 
 import (
 	"context"
-	"time"
 
 	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
@@ -15,40 +14,66 @@ const (
 	maxGapBatch = 100000 // Maximum GAP entries processed in one batch.
 )
 
-// Gap handler detects and fills gaps in streams in background.
-func (s *Server) gapHandler(ctx context.Context) {
+// notifyGap notifies backfiller that a gap might have been created for given
+// streamURI.
+func (s *Server) notifyGap(streamURI string) {
+	s.mxGap.Lock()
+	s.streamsWithGap[streamURI] = struct{}{}
+	s.mxGap.Unlock()
+	select {
+	case s.notifyGapC <- struct{}{}:
+	default:
+	}
+}
+
+// backfillGapsLoop watches for gaps and backfills them in background.
+func (s *Server) backfillGapsLoop(ctx context.Context) {
 	for {
-		for _, streamURI := range s.s.LocalStreams() {
-			ss, ok := s.s.Stream(streamURI)
-			if !ok {
-				continue
-			}
-			for {
-				gapStart, gapEnd := ss.GapRange()
-				if gapStart >= gapEnd {
-					break
-				}
-				gapEndFinal := gapEnd
-				if gapEnd > gapStart+maxGapBatch {
-					gapEnd = gapStart + maxGapBatch
-				}
-				err := s.gapHandlerForStream(ctx, ss, gapStart, gapEnd)
-				if err != nil {
-					zlog.Warningf("[gh] err filling gap: %s %d -> %d, %s", ss.StreamURI(), gapStart, gapEnd, err)
-					break
-				}
-				zlog.Infof("[gh] filled: %s %d -> %d (end: %d)", ss.StreamURI(), gapStart, gapEnd, gapEndFinal)
-			}
-		}
 		select {
+		case <-s.notifyGapC:
 		case <-ctx.Done():
 			return
-		case <-time.After(time.Second): // TODO(zviad): Do this based on notifications?
+		}
+		s.mxGap.Lock()
+		streamsWithGap := s.streamsWithGap
+		s.streamsWithGap = make(map[string]struct{}, len(streamsWithGap))
+		s.mxGap.Unlock()
+		for len(streamsWithGap) > 0 {
+			for streamURI := range streamsWithGap {
+				ok := s.checkAndBackfillGap(ctx, streamURI)
+				if ok {
+					delete(streamsWithGap, streamURI)
+				}
+			}
 		}
 	}
 }
 
-func (s *Server) gapHandlerForStream(
+func (s *Server) checkAndBackfillGap(
+	ctx context.Context,
+	streamURI string) bool {
+	ss, ok := s.s.Stream(streamURI)
+	if !ok {
+		return true
+	}
+	gapStart, gapEnd := ss.GapRange()
+	if gapStart >= gapEnd {
+		return true
+	}
+	gapEndFinal := gapEnd
+	if gapEnd > gapStart+maxGapBatch {
+		gapEnd = gapStart + maxGapBatch
+	}
+	err := s.backfillGap(ctx, ss, gapStart, gapEnd)
+	if err != nil {
+		zlog.Warningf("[gh] err filling gap: %s %d -> %d, %s", ss.StreamURI(), gapStart, gapEnd, err)
+		return false
+	}
+	zlog.Infof("[gh] filled: %s %d -> %d (end: %d)", ss.StreamURI(), gapStart, gapEnd, gapEndFinal)
+	return gapEnd == gapEndFinal
+}
+
+func (s *Server) backfillGap(
 	ctx context.Context,
 	ss storage.Stream,
 	gapStart int64,
@@ -101,7 +126,7 @@ func (s *Server) readAndProcessEntries(
 			}
 			// cursor.Close()
 			// cursor = nil
-			err := s.fetchAndStoreEntries(
+			err := s.fetchAndBackfillEntries(
 				ctx, ss, entryId, entryIdLocal, processEntry)
 			if err != nil {
 				return err
@@ -118,10 +143,10 @@ func (s *Server) readAndProcessEntries(
 	return nil
 }
 
-// fetchAndStoreEntries fetches committed entries from other servers in range: [startId, endId), and commits
+// fetchAndBackfillEntries fetches committed entries from other servers in range: [startId, endId), and commits
 // them locally. Entries are streamed and stored right away thus, partial success is possible. Returns success
 // only if all entries were successfully fetched and stored locally.
-func (s *Server) fetchAndStoreEntries(
+func (s *Server) fetchAndBackfillEntries(
 	ctx context.Context,
 	ss storage.Stream,
 	startId int64, endId int64,
