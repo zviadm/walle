@@ -108,6 +108,11 @@ func (w *Writer) cancelCtx(err error) {
 	w.Close()
 }
 
+// StreamURI returns stream_uri that writer is writing to.
+func (w *Writer) StreamURI() string {
+	return w.streamURI
+}
+
 // Done returns channel that will get closed when Writer itself becomes closed.
 // Writer will automatically close if it determines that it is no longer the
 // exclusive writer and no further PutEntry calls can succeed.
