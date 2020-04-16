@@ -69,7 +69,7 @@ func (m *mockSystem) cleanup() {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	for _, s := range m.servers {
-		s.s.Close()
+		<-s.s.CloseC()
 	}
 	m.servers = nil
 	_ = os.RemoveAll(m.storagePath)

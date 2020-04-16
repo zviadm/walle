@@ -49,10 +49,9 @@ type streamStorage struct {
 	entryBuf []byte
 	topology atomic.Value // Type is: *walleapi.StreamTopology
 
-	writerId        walleapi.WriterId
-	writerAddr      string
-	writerLease     time.Duration
-	renewedLease    time.Time
+	wInfo           *writerInfo
+	wInfoRO         atomic.Value // *writerInfo
+	renewedLease    atomic.Value // time.Time
 	committed       int64
 	gapStartId      int64
 	gapEndId        int64
@@ -74,6 +73,12 @@ type streamStorage struct {
 
 	cursorsG     metrics.Gauge
 	cursorNextsC metrics.Counter
+}
+
+type writerInfo struct {
+	Id    walleapi.WriterId
+	Addr  string
+	Lease time.Duration
 }
 
 func createStreamStorage(
@@ -132,6 +137,7 @@ func openStreamStorage(
 		backfillBuf8:     make([]byte, 8),
 		backfillEntryBuf: make([]byte, entryMaxSerializedSize),
 
+		// stats
 		committedIdG: committedIdGauge.V(metricsKV),
 		gapStartIdG:  gapStartIdGauge.V(metricsKV),
 		gapEndIdG:    gapEndIdGauge.V(metricsKV),
@@ -150,16 +156,19 @@ func openStreamStorage(
 	r.streamFillW, err = sessFill.Mutate(streamDS(streamURI))
 	panic.OnErr(err)
 
+	r.wInfo = &writerInfo{}
 	v, err := metaR.ReadValue([]byte(streamURI + sfxWriterId))
 	panic.OnErr(err)
-	err = r.writerId.Unmarshal(v)
+	err = r.wInfo.Id.Unmarshal(v)
 	panic.OnErr(err)
 	v, err = metaR.ReadValue([]byte(streamURI + sfxWriterAddr))
 	panic.OnErr(err)
-	r.writerAddr = string(v)
+	r.wInfo.Addr = string(v)
 	v, err = metaR.ReadValue([]byte(streamURI + sfxWriterLeaseNs))
 	panic.OnErr(err)
-	r.writerLease = time.Duration(binary.BigEndian.Uint64(v))
+	r.wInfo.Lease = time.Duration(binary.BigEndian.Uint64(v))
+	r.wInfoRO.Store(r.wInfo)
+	r.renewedLease.Store(time.Time{})
 
 	v, err = metaR.ReadValue([]byte(streamURI + sfxCommittedId))
 	panic.OnErr(err)
@@ -228,9 +237,9 @@ func (m *streamStorage) setTopology(t *walleapi.StreamTopology) {
 }
 
 func (m *streamStorage) WriterInfo() (walleapi.WriterId, string, time.Duration, time.Duration) {
-	m.mx.Lock()
-	defer m.mx.Unlock()
-	return m.writerId, m.writerAddr, m.writerLease, m.remainingLease()
+	wInfo := m.wInfoRO.Load().(*writerInfo)
+	remainingLease := m.renewedLease.Load().(time.Time).Add(wInfo.Lease).Sub(time.Now())
+	return wInfo.Id, wInfo.Addr, wInfo.Lease, remainingLease
 }
 func (m *streamStorage) UpdateWriter(
 	writerId walleapi.WriterId, writerAddr string, lease time.Duration) (time.Duration, error) {
@@ -239,46 +248,43 @@ func (m *streamStorage) UpdateWriter(
 	if m.sess.Closed() {
 		return 0, status.Errorf(codes.NotFound, "%s not found", m.streamURI)
 	}
-	cmpWriterId := CmpWriterIds(writerId, m.writerId)
+	cmpWriterId := CmpWriterIds(writerId, m.wInfo.Id)
 	if cmpWriterId < 0 {
-		return 0, status.Errorf(codes.FailedPrecondition, "%v < %v", writerId, m.writerId)
+		return 0, status.Errorf(codes.FailedPrecondition, "%v < %v", writerId, m.wInfo.Id)
 	}
 	if cmpWriterId == 0 {
 		return 0, nil
 	}
-	remainingLease := m.remainingLease()
-	m.writerId = writerId
-	m.writerAddr = writerAddr
-	m.writerLease = lease
-	m.renewedLease = time.Now()
+	now := time.Now()
+	remainingLease := m.renewedLease.Load().(time.Time).Add(m.wInfo.Lease).Sub(now)
+	m.wInfo = &writerInfo{
+		Id:    writerId,
+		Addr:  writerAddr,
+		Lease: lease,
+	}
+	m.wInfoRO.Store(m.wInfo)
+	m.renewedLease.Store(now)
 
-	writerIdB, err := m.writerId.Marshal()
+	writerIdB, err := m.wInfo.Id.Marshal()
 	panic.OnErr(err)
 	panic.OnErr(m.sess.TxBegin(wt.TxCfg{Sync: wt.True}))
 	panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxWriterId), writerIdB))
-	panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxWriterAddr), []byte(m.writerAddr)))
-	binary.BigEndian.PutUint64(m.buf8, uint64(lease.Nanoseconds()))
+	panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxWriterAddr), []byte(m.wInfo.Addr)))
+	binary.BigEndian.PutUint64(m.buf8, uint64(m.wInfo.Lease.Nanoseconds()))
 	panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxWriterLeaseNs), []byte(m.buf8)))
 	panic.OnErr(m.sess.TxCommit())
 	return remainingLease, nil
 }
-func (m *streamStorage) remainingLease() time.Duration {
-	return m.renewedLease.Add(m.writerLease).Sub(time.Now())
-}
 func (m *streamStorage) RenewLease(
 	writerId walleapi.WriterId, extraBuffer time.Duration) error {
-	m.mx.Lock()
-	defer m.mx.Unlock()
-	cmpWriterId := CmpWriterIds(writerId, m.writerId)
-	if cmpWriterId < 0 {
-		return status.Errorf(codes.FailedPrecondition, "%v < %v", writerId, m.writerId)
-	}
-	if cmpWriterId > 0 {
-		// RenewLease should never be called with newer writerId.
-		return status.Errorf(codes.Internal, "renew lease: %v > %v", writerId, m.writerId)
-	}
+	// It is always safe to update renewLease, however we must never
+	// return success if writer has changed.
 	panic.OnNotOk(extraBuffer >= 0, "extra buffer must be >=0: %s", extraBuffer)
-	m.renewedLease = time.Now().Add(extraBuffer)
+	m.renewedLease.Store(time.Now().Add(extraBuffer))
+	mWriterId := m.wInfoRO.Load().(*writerInfo).Id
+	if CmpWriterIds(mWriterId, writerId) != 0 {
+		return status.Errorf(codes.FailedPrecondition, "%v != %v", writerId, mWriterId)
+	}
 	return nil
 }
 
@@ -374,7 +380,7 @@ func (m *streamStorage) commitEntry(entryId int64, entryXX uint64, newGap bool) 
 	if existingEntryXX != entryXX {
 		return status.Errorf(
 			codes.OutOfRange, "commit checksum mismatch for entry: %d, %d != %d, %v",
-			entryId, entryXX, existingEntryXX, m.writerId)
+			entryId, entryXX, existingEntryXX, m.wInfo.Id)
 	}
 	if newGap {
 		panic.OnNotOk(m.sess.InTx(), "new gap must happen inside a transaction")
@@ -408,8 +414,8 @@ func (m *streamStorage) PutEntry(entry *walleapi.Entry, isCommitted bool) error 
 	}
 
 	// NOTE(zviad): if !isCommitted, writerId needs to be checked here again atomically, in the lock.
-	if !isCommitted && CmpWriterIds(entry.WriterId, m.writerId) < 0 {
-		return status.Errorf(codes.FailedPrecondition, "%v < %v", entry.WriterId, m.writerId)
+	if !isCommitted && CmpWriterIds(entry.WriterId, m.wInfo.Id) < 0 {
+		return status.Errorf(codes.FailedPrecondition, "%v < %v", entry.WriterId, m.wInfo.Id)
 	}
 	if entry.EntryId > m.tailEntry.EntryId+1 {
 		if !isCommitted {
