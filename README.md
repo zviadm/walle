@@ -81,8 +81,8 @@ of infrastructure to do leader election. WALLE provides APIs that can be used to
 for a particular stream. APIs also come with protocols on how failover happens if current "writer" is no longer responsive.
 
 Exclusive writer of a stream also comes with the built-in "read lease" or "master lease" concept. This allows
-exclusive "writer" to server reads of the "current state", without needing to perform network calls and writes for
-syncing. More on this in the detailed [protocol](./protocol.md) description.
+exclusive "writer" to serve reads of the "current state", without needing to perform network calls and other
+synchronization operations. More on this in the detailed [protocol](./protocol.md) description.
 
 ### Topology
 
@@ -92,3 +92,4 @@ TODO(zviadm):...
 
 * [Protocol](./protocol.md) documentation
 * [Architecture](./architecture.md) overview
+* [Benchmarks](./benchmarks.md) and notes on performance

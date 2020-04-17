@@ -54,3 +54,6 @@ in increasing EntryId order.
 WALLE stores all its persistent state in a local [WiredTiger](http://source.wiredtiger.com/develop/index.html) database.
 WiredTiger's BTree engine is a good fit for WALLE's use-case, since all writes are appends in different tables. Because of
 predictable write behavior, writes shouldn't cause any page loads or page evictions, and can always be fully cached.
+
+In addition to production grade durability, WiredTiger also provides built-in support for compression for all data
+store on disk.
