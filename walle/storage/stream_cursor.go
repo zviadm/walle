@@ -30,9 +30,11 @@ func (m *streamStorage) ReadFrom(entryId int64) (Cursor, error) {
 		cursorNextsC: m.cursorNextsC,
 		committedId:  committedId,
 	}
-	cursor0, err := m.sessRO.Scan(streamDS(m.streamURI))
+	cursor0, err := m.sessRO.Scan(
+		streamDS(m.streamURI), wt.ScanCfg{ReadOnce: wt.True})
 	panic.OnErr(err)
-	cursor1, err := m.sessRO.Scan(streamBackfillDS(m.streamURI))
+	cursor1, err := m.sessRO.Scan(
+		streamBackfillDS(m.streamURI), wt.ScanCfg{ReadOnce: wt.True})
 	panic.OnErr(err)
 	cursors := []*wtCursor{{c: cursor0}, {c: cursor1}}
 	for _, c := range cursors {

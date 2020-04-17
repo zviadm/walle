@@ -95,12 +95,12 @@ func cmdServers(
 	topoMgr := topolib.NewClient(root)
 	t, err := topoMgr.FetchTopology(ctx, &topomgr_pb.FetchTopologyRequest{ClusterUri: clusterURI})
 	exitOnErr(err)
-	var serverIds []sort.StringSlice
+	var serverIds sort.StringSlice
 	for serverId := range t.Servers {
 		serverIds = append(serverIds, serverId)
 	}
 	serverIds.Sort()
-	for serverId := range serverIds {
+	for _, serverId := range serverIds {
 		fmt.Printf("%s - %s\n", serverId, t.Servers[serverId].Address)
 	}
 }

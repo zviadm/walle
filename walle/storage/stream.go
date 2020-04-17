@@ -22,6 +22,26 @@ const (
 	maxUncommittedEntries = 4 * 1024
 )
 
+var (
+	streamCfg = wt.DataSourceCfg{
+		AccessPatternHint: wt.AccessSequential,
+		BlockCompressor:   "snappy",
+		// Configure LeafPageMax large enough to get most of the benefit of sequential
+		// data transfer. On SSDs, configuring block size larger than 256KB would bring
+		// only very marginal benefits, at cost of much larger page sizes.
+		LeafPageMax: 256 * 1024,
+		// Make sure no values ever overflow, and all values are stored in leaf pages,
+		// even if it means that leaf pages will end up being larger for those items.
+		LeafValueMax: 2 * 1024 * 1024,
+		// Since all writes are sequential, page split should result in creating
+		// new full sized page.
+		SplitPct: 100,
+		// Keep MemoryPageMax relatively small to make sure no insert blocks for too
+		// long. It is better to have more frequent smaller stalls for WALLE.
+		MemoryPageMax: 4 * 1024 * 1024,
+	}
+)
+
 type streamStorage struct {
 	serverId  string
 	streamURI string
@@ -89,12 +109,8 @@ func createStreamStorage(
 	sessRO *wt.Session,
 	sessFill *wt.Session) Stream {
 	panic.OnErr(ValidateStreamURI(streamURI))
-	panic.OnErr(sess.Create(
-		streamDS(streamURI),
-		wt.DataSourceCfg{BlockCompressor: "snappy"}))
-	panic.OnErr(sess.Create(
-		streamBackfillDS(streamURI),
-		wt.DataSourceCfg{BlockCompressor: "snappy"}))
+	panic.OnErr(sess.Create(streamDS(streamURI), streamCfg))
+	panic.OnErr(sess.Create(streamBackfillDS(streamURI), streamCfg))
 
 	panic.OnErr(sess.TxBegin(wt.TxCfg{Sync: wt.True}))
 	metaW, err := sess.Mutate(metadataDS)

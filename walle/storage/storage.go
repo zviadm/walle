@@ -55,10 +55,11 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 		opts.MaxLocalStreams = 100
 	}
 	cfg := wt.ConnCfg{
-		Create:     wt.Bool(opts.Create),
-		Log:        "enabled,compressor=snappy",
-		SessionMax: opts.MaxLocalStreams*3 + 30, // +30 is as a buffer since WT internal threads also use sessions.
-		CacheSize:  opts.CacheSizeMB * 1024 * 1024,
+		Create:          wt.Bool(opts.Create),
+		Log:             "enabled,compressor=snappy",
+		SessionMax:      opts.MaxLocalStreams*3 + 30, // +30 is as a buffer since WT internal threads also use sessions.
+		CacheSize:       opts.CacheSizeMB * 1024 * 1024,
+		TransactionSync: "enabled=false", // Flushes happen manually by `flusher` go routine.
 
 		// Statistics:    []wt.Statistics{wt.StatsFast},
 		// StatisticsLog: "wait=30,source=table:",
@@ -69,7 +70,10 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 	}
 	metaS, err := c.OpenSession()
 	panic.OnErr(err)
-	panic.OnErr(metaS.Create(metadataDS, wt.DataSourceCfg{BlockCompressor: "snappy"}))
+	// Metadata table is expected to be very small with very low traffic,
+	// thus there is no need for compression or any other options on it.
+	metadataCfg := wt.DataSourceCfg{}
+	panic.OnErr(metaS.Create(metadataDS, metadataCfg))
 	metaR, err := metaS.Scan(metadataDS)
 	panic.OnErr(err)
 	defer metaR.Close()
