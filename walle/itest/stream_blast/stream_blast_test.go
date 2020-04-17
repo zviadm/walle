@@ -28,7 +28,7 @@ func TestStreamBlast(t *testing.T) {
 	for i := 0; i < benchURIs; i++ {
 		ww, err := servicelib.RunGoService(
 			ctx, "../../wctl", append(
-				[]string{"-c", clusterURI, "create", path.Join(benchURIPrefix, strconv.Itoa(i))}, serverIds...),
+				[]string{"-c", clusterURI, "crupdate", path.Join(benchURIPrefix, strconv.Itoa(i))}, serverIds...),
 			"")
 		require.NoError(t, err)
 		require.EqualValues(t, 0, ww.Wait())
