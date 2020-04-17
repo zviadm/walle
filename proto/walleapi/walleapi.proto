@@ -17,7 +17,11 @@ service WalleApi {
 	// between real timeout errors and just long poll expiring.
 	rpc PollStream(PollStreamRequest) returns (Entry) {}
 
-	// StreamEntries streams committed entries in a given range.
+	// StreamEntries streams committed entries in a given range: [start_id...end_id).
+	// If given entry ids aren't yet committed, will wait for them to appear and stream
+	// them out as they do.
+	// Thus, this call can be used to either read old existing entries, or to stream
+	// new entries as they appear.
 	// TODO(zviad): This api isn't final. Most likely will need various changes.
 	rpc StreamEntries(StreamEntriesRequest) returns (stream Entry) {}
 }

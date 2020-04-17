@@ -63,13 +63,54 @@ func (s *Server) PollStream(
 func (s *Server) StreamEntries(
 	req *walleapi.StreamEntriesRequest,
 	stream walleapi.WalleApi_StreamEntriesServer) error {
+	if req.StartEntryId >= req.EndEntryId {
+		return status.Errorf(codes.InvalidArgument, "invalid range: [%d..%d)", req.StartEntryId, req.EndEntryId)
+	}
 	ss, ok := s.s.Stream(req.GetStreamUri())
 	if !ok {
 		return status.Errorf(codes.NotFound, "%s not found", req.GetStreamUri())
 	}
-	err := s.readAndProcessEntries(
-		stream.Context(), ss, req.StartEntryId, req.EndEntryId, stream.Send, false)
-	return err
+	var committed int64
+	startId := req.StartEntryId
+	for {
+		notify := ss.CommitNotify()
+		committed = ss.CommittedId()
+		if committed >= startId {
+			break
+		}
+		select {
+		case <-stream.Context().Done():
+			return stream.Context().Err()
+		case <-notify:
+		}
+	}
+	for {
+		endId := committed + 1
+		if endId > req.EndEntryId {
+			endId = req.EndEntryId
+		}
+		err := s.readAndProcessEntries(
+			stream.Context(), ss, startId, endId, stream.Send, false)
+		if err != nil {
+			return err
+		}
+		if endId == req.EndEntryId {
+			return nil
+		}
+		startId = endId
+		for {
+			notify := ss.CommitNotify()
+			committed = ss.CommittedId()
+			if committed >= endId {
+				break
+			}
+			select {
+			case <-stream.Context().Done():
+				return stream.Context().Err()
+			case <-notify:
+			}
+		}
+	}
 }
 
 // ReadEntries implements WalleServer interface.

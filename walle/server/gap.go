@@ -5,11 +5,13 @@ import (
 	"io"
 	"time"
 
-	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/storage"
+	"github.com/zviadm/walle/wallelib"
 	"github.com/zviadm/zlog"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -115,8 +117,8 @@ func (s *Server) readAndProcessEntries(
 	for entryId < endId {
 		entryIdLocal, ok := cursor.Next()
 		if !ok {
-			return errors.Errorf(
-				"ERR_FATAL; committed entry wasn't found by cursor: %d > %d (from: %d)!",
+			return status.Errorf(
+				codes.Internal, "committed entry wasn't found by cursor: %d > %d (from: %d)!",
 				entryIdLocal, endId, entryId)
 		}
 		if entryIdLocal > entryId {
@@ -188,5 +190,11 @@ func (s *Server) streamAndProcessEntries(
 			}
 		}
 	}
-	return errors.Errorf("err fetching: %s - %s", ss.StreamURI(), errs)
+	errCode := codes.Unavailable
+	for _, err := range errs {
+		if code := status.Convert(err).Code(); wallelib.IsErrFinal(code) {
+			errCode = code
+		}
+	}
+	return status.Errorf(errCode, "err fetching: %s - %s", ss.StreamURI(), errs)
 }

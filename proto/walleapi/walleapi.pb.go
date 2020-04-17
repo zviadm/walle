@@ -906,7 +906,11 @@ type WalleApiClient interface {
 	// and hitting DeadlineExceeded error. This is to make it easy to distinguish
 	// between real timeout errors and just long poll expiring.
 	PollStream(ctx context.Context, in *PollStreamRequest, opts ...grpc.CallOption) (*Entry, error)
-	// StreamEntries streams committed entries in a given range.
+	// StreamEntries streams committed entries in a given range: [start_id...end_id).
+	// If given entry ids aren't yet committed, will wait for them to appear and stream
+	// them out as they do.
+	// Thus, this call can be used to either read old existing entries, or to stream
+	// new entries as they appear.
 	// TODO(zviad): This api isn't final. Most likely will need various changes.
 	StreamEntries(ctx context.Context, in *StreamEntriesRequest, opts ...grpc.CallOption) (WalleApi_StreamEntriesClient, error)
 }
@@ -998,7 +1002,11 @@ type WalleApiServer interface {
 	// and hitting DeadlineExceeded error. This is to make it easy to distinguish
 	// between real timeout errors and just long poll expiring.
 	PollStream(context.Context, *PollStreamRequest) (*Entry, error)
-	// StreamEntries streams committed entries in a given range.
+	// StreamEntries streams committed entries in a given range: [start_id...end_id).
+	// If given entry ids aren't yet committed, will wait for them to appear and stream
+	// them out as they do.
+	// Thus, this call can be used to either read old existing entries, or to stream
+	// new entries as they appear.
 	// TODO(zviad): This api isn't final. Most likely will need various changes.
 	StreamEntries(*StreamEntriesRequest, WalleApi_StreamEntriesServer) error
 }
