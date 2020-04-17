@@ -33,7 +33,7 @@ func (s *Server) ClaimWriter(
 	}
 	writerId := storage.MakeWriterId()
 	ssTopology := ss.Topology()
-	serverIds, err := broadcast.Call(ctx, s.c, ssTopology.ServerIds, 0, 0,
+	serverIds, err := broadcast.Call(ctx, s.c, ssTopology.ServerIds, 0, putEntryBgWait,
 		func(c walle_pb.WalleClient, ctx context.Context, serverId string) error {
 			_, err := c.NewWriter(ctx, &walle_pb.NewWriterRequest{
 				ServerId:      serverId,
@@ -244,7 +244,11 @@ func (s *Server) NewWriter(
 		if err != nil {
 			return nil, err
 		}
-		time.Sleep(remainingLease)
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(remainingLease):
+		}
 	}
 	return &walleapi.Empty{}, nil
 }
