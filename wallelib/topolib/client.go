@@ -1,4 +1,5 @@
-package topomgr
+// Package topolib provides client wrapper to talk with TopoManager service.
+package topolib
 
 import (
 	"context"

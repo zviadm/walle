@@ -12,6 +12,7 @@ import (
 	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/walle/walle/topomgr"
 	"github.com/zviadm/walle/wallelib"
+	"github.com/zviadm/walle/wallelib/topolib"
 )
 
 // SetupRootNodes bootstraps new WALLE deployment and sets up root servers to serve it.
@@ -49,7 +50,7 @@ func SetupRootNodes(
 	var err error
 	rootCli, err = wallelib.NewClientFromRootPb(ctx, rootPb, "")
 	require.NoError(t, err)
-	topoMgr := topomgr.NewClient(rootCli)
+	topoMgr := topolib.NewClient(rootCli)
 	topology, err := topoMgr.FetchTopology(
 		ctx, &topomgr_pb.FetchTopologyRequest{ClusterUri: rootURI})
 	require.NoError(t, err)
@@ -109,7 +110,7 @@ func SetupClusterNodes(
 	}
 	wg.Wait()
 	require.NoError(t, runErr)
-	topoMgr := topomgr.NewClient(rootCli)
+	topoMgr := topolib.NewClient(rootCli)
 	clusterPb, err := topoMgr.FetchTopology(
 		ctx, &topomgr_pb.FetchTopologyRequest{ClusterUri: clusterURI})
 	require.NoError(t, err)
@@ -124,7 +125,7 @@ func CreateStream(
 	clusterURI string,
 	streamURI string,
 	serverIds []string) {
-	topoMgr := topomgr.NewClient(root)
+	topoMgr := topolib.NewClient(root)
 	_, err := topoMgr.CrUpdateStream(ctx, &topomgr_pb.CrUpdateStreamRequest{
 		ClusterUri: clusterURI,
 		StreamUri:  streamURI,

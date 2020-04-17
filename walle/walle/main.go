@@ -27,6 +27,7 @@ import (
 	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/walle/walle/topomgr"
 	"github.com/zviadm/walle/wallelib"
+	"github.com/zviadm/walle/wallelib/topolib"
 )
 
 var memBallast []byte
@@ -205,7 +206,7 @@ func registerServerInfo(
 	// Must register new server before it can start serving anything.
 	// If registration fails, there is no point in starting up.
 	zlog.Infof("updating serverInfo: %s -> %s (%s)...", existingServerInfo, serverInfo, clusterURI)
-	topoMgr := topomgr.NewClient(root)
+	topoMgr := topolib.NewClient(root)
 	_, err := topoMgr.RegisterServer(ctx, &topomgr_pb.RegisterServerRequest{
 		ClusterUri: clusterURI,
 		ServerId:   serverId,

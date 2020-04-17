@@ -12,7 +12,7 @@ import (
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/walle/itest"
 	"github.com/zviadm/walle/walle/storage"
-	"github.com/zviadm/walle/walle/topomgr"
+	"github.com/zviadm/walle/wallelib/topolib"
 	"github.com/zviadm/zlog"
 )
 
@@ -22,7 +22,7 @@ func TestResizeQuorum(t *testing.T) {
 	defer servicelib.KillAll()
 
 	services, rootPb, cli := itest.SetupRootNodes(ctx, t, 1)
-	topoMgr := topomgr.NewClient(cli)
+	topoMgr := topolib.NewClient(cli)
 	nTotal := 5
 	for idx := 1; idx < nTotal; idx++ {
 		s := expandTopology(ctx, t, topoMgr, rootPb.RootUri, itest.RootDefaultPort+idx)

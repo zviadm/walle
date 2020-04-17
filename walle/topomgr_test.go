@@ -44,7 +44,7 @@ func TestTopoMgrApi(t *testing.T) {
 	_, err := topoMgr.FetchTopology(ctx,
 		&topomgr_pb.FetchTopologyRequest{ClusterUri: clusterURI})
 	require.Error(t, err)
-	require.EqualValues(t, codes.Unavailable, status.Convert(err).Code())
+	require.EqualValues(t, codes.NotFound, status.Convert(err).Code())
 
 	topoMgr.Manage(clusterURI)
 	time.Sleep(time.Second) // Wait for topomgr to become master.

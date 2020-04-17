@@ -13,6 +13,7 @@ import (
 	topomgr_pb "github.com/zviadm/walle/proto/topomgr"
 	"github.com/zviadm/walle/walle/topomgr"
 	"github.com/zviadm/walle/wallelib"
+	"github.com/zviadm/walle/wallelib/topolib"
 )
 
 func main() {
@@ -33,7 +34,7 @@ func main() {
 	}
 	root, err := wallelib.NewClientFromRootPb(ctx, rootPb, rootPb.RootUri)
 	exitOnErr(err)
-	topoMgr := topomgr.NewClient(root)
+	topoMgr := topolib.NewClient(root)
 
 	args := flag.Args()
 	if len(args) == 0 {
