@@ -1,4 +1,4 @@
-# WALLE - Write-ahead Log, Lossless Edition
+# WALLE - Write-ahead Log & Leader Election
 
 WALLE is an experimental system to provide different kind of reusable piece for building other persistent and replicated
 systems like databases. At high level, WALLE provides integrated leader election and durable write ahead logging. Primary
