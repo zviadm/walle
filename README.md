@@ -7,15 +7,15 @@ for using it as a write ahead log for variety of persistent systems.
 
 Key aspects that WALLE strives for:
 - Durability and consistency. Equivalent to database systems (i.e. FSYNC).
-- Low tail latencies (even in 0.99 and 0.999 percentiles). p.75 latency of a single
-write ~"1 network round trip + fsync". p.999-s <100-200ms.
-- High throughput. Using pipelining, instead of batching to achieve very high throughput while still
+- Low tail latencies (even in `0.99` and `0.999` percentiles). `p.75` latency of a single
+write ~"network round trip + fsync". `p.999-s` <100ms even under high throughput.
+- High throughput. Using pipelining, instead of batching, to achieve very high throughput while still
 maintaining very low tail latencies.
 
 Similar projects:
 - https://wecode.wepay.com/posts/waltz-a-distributed-write-ahead-log
 - https://logdevice.io/
-- TODO(zviadm): Few others to find (from LinkedIn, Uber, ...)
+- TODO(zviadm): Few others to mention (from LinkedIn, Uber, ...)
 
 ## Overview
 
@@ -82,7 +82,7 @@ for a particular stream. APIs also come with protocols on how failover happens i
 
 Exclusive writer of a stream also comes with the built-in "read lease" or "master lease" concept. This allows
 exclusive "writer" to server reads of the "current state", without needing to perform network calls and writes for
-syncing. More on this in the detailed [protocol](./protocol) description.
+syncing. More on this in the detailed [protocol](./protocol.md) description.
 
 ### Topology
 
@@ -90,5 +90,5 @@ TODO(zviadm):...
 
 # More
 
-* [Protocol](./protocol) documentation
-* [Architecture](./architecture) overview
+* [Protocol](./protocol.md) documentation
+* [Architecture](./architecture.md) overview

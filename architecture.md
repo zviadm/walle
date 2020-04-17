@@ -40,7 +40,7 @@ times.
 ## Gap backfilling (Durability, Throughput & Latency)
 
 Important part of WALLE design is the ability for new servers to quickly join an active quorum without
-having to backfill all entries first. More details about protocol itself in [protocol](./protocol) documentation.
+having to backfill all entries first. More details about protocol itself in [protocol](./protocol.md) documentation.
 
 To handle backfilling of entries without degrading performance, WALLE servers maintain two separate tables for
 each stream. First table contains entries only from live requests. Second table contains entries only from backfilling
