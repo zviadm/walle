@@ -23,7 +23,7 @@ import (
 	topomgr_pb "github.com/zviadm/walle/proto/topomgr"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
-	"github.com/zviadm/walle/walle"
+	"github.com/zviadm/walle/walle/server"
 	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/walle/walle/topomgr"
 	"github.com/zviadm/walle/wallelib"
@@ -102,7 +102,7 @@ func main() {
 	}()
 
 	if *bootstrapRootURI != "" {
-		err := walle.BootstrapRoot(ss, *bootstrapRootURI, rootFile, serverInfo)
+		err := server.BootstrapRoot(ss, *bootstrapRootURI, rootFile, serverInfo)
 		fatalOnErr(err)
 		zlog.Infof(
 			"bootstrapped %s, server: %s - %s",
@@ -129,7 +129,7 @@ func main() {
 	rootCli := wallelib.NewClient(ctx, rootD)
 	go watchTopologyAndSave(ctx, rootD, rootFile)
 	var d wallelib.Discovery
-	var c walle.Client
+	var c server.Client
 	if servingRootURI {
 		d = rootD
 		c = rootCli
@@ -148,7 +148,7 @@ func main() {
 	if servingRootURI {
 		topoMgr = topomgr.NewManager(rootCli, serverInfo.Address)
 	}
-	ws := walle.NewServer(ctx, ss, c, d, topoMgr)
+	ws := server.NewServer(ctx, ss, c, d, topoMgr)
 	statsHandler := grpcstats.NewServer()
 	s := grpc.NewServer(grpc.StatsHandler(statsHandler))
 	walle_pb.RegisterWalleServer(s, ws)

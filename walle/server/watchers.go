@@ -1,4 +1,4 @@
-package walle
+package server
 
 import (
 	"context"
