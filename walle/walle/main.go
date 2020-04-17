@@ -148,7 +148,7 @@ func main() {
 	if servingRootURI {
 		topoMgr = topomgr.NewManager(rootCli, serverInfo.Address)
 	}
-	ws := server.NewServer(ctx, ss, c, d, topoMgr)
+	ws := server.New(ctx, ss, c, d, topoMgr)
 	statsHandler := grpcstats.NewServer()
 	s := grpc.NewServer(grpc.StatsHandler(statsHandler))
 	walle_pb.RegisterWalleServer(s, ws)

@@ -47,8 +47,8 @@ type Client interface {
 	broadcast.Client
 }
 
-// NewServer creates new Server object.
-func NewServer(
+// New creates new Server object.
+func New(
 	ctx context.Context,
 	s storage.Storage,
 	c Client,

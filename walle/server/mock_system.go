@@ -51,7 +51,7 @@ func newMockSystem(
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	for serverId := range topology.Servers {
-		m.servers[serverId] = NewServer(
+		m.servers[serverId] = New(
 			ctx, storages[serverId], client, d, nil)
 	}
 	go func() {
