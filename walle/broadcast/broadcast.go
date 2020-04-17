@@ -2,12 +2,12 @@ package broadcast
 
 import (
 	"context"
-	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/wallelib"
+	"go.uber.org/atomic"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -30,7 +30,7 @@ func Call(
 		c walle_pb.WalleClient,
 		ctx context.Context,
 		serverId string) error) (successIds []string, err error) {
-	callCtx, cancelCalls := context.WithCancel(ctx)
+	callCtx, cancelCalls := context.WithCancel(context.Background())
 	callStart := time.Now()
 	defer func() {
 		if err != nil || callCtx.Err() != nil {
@@ -62,12 +62,12 @@ func Call(
 		Err      error
 	}
 	errsC := make(chan *callErr, len(serverIds))
-	callsInFlight := int64(len(serverIds))
+	callsInFlight := atomic.NewInt64(int64(len(serverIds)))
 	for _, serverId := range serverIds {
 		c, err := cli.ForServer(serverId)
 		if err != nil {
 			errsC <- &callErr{ServerId: serverId, Err: err}
-			if atomic.AddInt64(&callsInFlight, -1) == 0 {
+			if callsInFlight.Add(-1) == 0 {
 				cancelCalls()
 			}
 			continue
@@ -75,7 +75,7 @@ func Call(
 		go func(c walle_pb.WalleClient, serverId string) {
 			err := call(c, callCtx, serverId)
 			errsC <- &callErr{ServerId: serverId, Err: err}
-			if atomic.AddInt64(&callsInFlight, -1) == 0 {
+			if callsInFlight.Add(-1) == 0 {
 				cancelCalls()
 			}
 		}(c, serverId)

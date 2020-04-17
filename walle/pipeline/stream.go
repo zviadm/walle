@@ -21,7 +21,7 @@ const (
 )
 
 var flagMaxTotalBacklog = flag.Int(
-	"walle.max_put_queue_size", 32*1024,
+	"walle.max_put_queue_size", 64*1024,
 	"Maximum number of Put requests that can be queued in memory across all streams.")
 
 type stream struct {

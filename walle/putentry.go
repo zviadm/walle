@@ -64,7 +64,17 @@ func (s *Server) PutEntry(
 // PutEntryInternal implements WalleServer interface.
 func (s *Server) PutEntryInternal(
 	ctx context.Context,
-	req *walle_pb.PutEntryInternalRequest) (*walleapi.Empty, error) {
+	req *walle_pb.PutEntryInternalRequest) (resp *walleapi.Empty, err error) {
+	defer func() {
+		if err == context.Canceled {
+			err = status.Error(codes.Canceled, "put canceled by broadcast")
+		} else if err != nil {
+			errCode := status.Convert(err).Code()
+			if errCode == codes.Internal || errCode == codes.DataLoss {
+				zlog.Errorf("%s: %s", req.StreamUri, err)
+			}
+		}
+	}()
 	ss, err := s.processRequestHeader(req)
 	if err != nil {
 		return nil, err
