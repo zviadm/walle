@@ -10,7 +10,7 @@ require (
 	github.com/zviadm/stats-go v0.0.3
 	github.com/zviadm/stats-go/exporters/datadog v0.0.0-20200416122956-fa8cba8d81b7
 	github.com/zviadm/stats-go/handlers/grpcstats v0.0.2-0.20200416122956-fa8cba8d81b7
-	github.com/zviadm/tt v0.0.0
+	github.com/zviadm/tt v0.0.1
 	github.com/zviadm/walle/proto v0.0.0
 	github.com/zviadm/walle/wallelib v0.0.0
 	github.com/zviadm/wt v0.0.0
@@ -21,7 +21,6 @@ require (
 )
 
 replace (
-	github.com/zviadm/tt => ./tt
 	github.com/zviadm/walle/proto => ./proto
 	github.com/zviadm/walle/wallelib => ./wallelib
 	github.com/zviadm/wt => ./wt
