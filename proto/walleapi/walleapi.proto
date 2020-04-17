@@ -3,6 +3,8 @@ option go_package = "github.com/zviadm/walle/proto/walleapi";
 
 import "gogo.proto";
 
+// WalleApi service contains RPCs that users of WALLE can use to interact with
+// it.
 service WalleApi {
 	rpc ClaimWriter(ClaimWriterRequest) returns (ClaimWriterResponse) {}
 	rpc WriterStatus(WriterStatusRequest) returns (WriterStatusResponse) {}

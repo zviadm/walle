@@ -4,6 +4,8 @@ option go_package = "github.com/zviadm/walle/proto/walle";
 import "gogo.proto";
 import "walleapi/walleapi.proto";
 
+// Walle service contains WALLE internal RPCs. These are RPCs that WALLE
+// servers make between each other.
 service Walle {
 	rpc NewWriter(NewWriterRequest) returns (Empty) {}
 	rpc WriterInfo(WriterInfoRequest) returns (WriterInfoResponse) {}
