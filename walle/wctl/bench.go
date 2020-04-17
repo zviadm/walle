@@ -2,8 +2,13 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"flag"
 	"fmt"
+	"log"
+	"math"
+	mrand "math/rand"
+	"os"
 	"path"
 	"sort"
 	"strconv"
@@ -40,6 +45,7 @@ func cmdBench(
 	writerLease := f.Duration("lease", 10*time.Second, "Writer lease duration.")
 	qps := f.Int("qps", 10, "Target total QPS.")
 	throughputKBs := f.Int("kbs", 10, "Target total throughput in KB per second.")
+	dist := f.String("dist", "log_normal", "Entry size distribution. Options are: log_normal, uniform.")
 	totalTime := f.Duration("time", 0, "Total bench duration. If 0, will run forever.")
 	f.Parse(args)
 
@@ -51,6 +57,26 @@ func cmdBench(
 
 	c, err := wallelib.NewClientFromRootPb(ctx, rootPb, clusterURI)
 	exitOnErr(err)
+
+	_, err = rand.Read(benchData)
+	exitOnErr(err)
+	var sDist sizeDist
+	sizeAvg := (*throughputKBs) * 1024 / (*qps)
+	switch *dist {
+	case "log_normal":
+		// Log normal distribution.
+		// Median: sizeAvg / 2
+		// Mean: sizeAvg
+		mu := math.Log(float64(sizeAvg) / 2)
+		sigma := math.Sqrt(2 * (math.Log(float64(sizeAvg)) - mu))
+		sDist = &normalDist{mu: mu, sigma: sigma}
+	case "average":
+		// Uniform distribution: [sizeAvg/2 ... sizeAvg + sizeAvg/2]
+		sDist = &uniformDist{min: sizeAvg / 2, max: sizeAvg * 3 / 2}
+	default:
+		log.Println("unknown type:", *dist)
+		os.Exit(1)
+	}
 
 	ws := make([]*wallelib.Writer, *nStreams)
 	for idx := range ws {
@@ -65,18 +91,49 @@ func cmdBench(
 		ctx, cancel = context.WithTimeout(ctx, *totalTime)
 		defer cancel()
 	}
-	for i := range benchData {
-		benchData[i] = byte(i)
-	}
 	wg := sync.WaitGroup{}
 	wg.Add(len(ws))
 	for idx, w := range ws {
 		go func(idx int, w *wallelib.Writer) {
-			putBatch(ctx, idx, w, *qps/len(ws), (*throughputKBs)*1024/len(ws))
+			putBatch(ctx, idx, w, *qps/len(ws), sDist)
 			wg.Done()
 		}(idx, w)
 	}
 	wg.Wait()
+}
+
+func boundSize(size int) int {
+	if size < 0 {
+		return 0
+	}
+	if size > wallelib.MaxEntrySize {
+		return wallelib.MaxEntrySize
+	}
+	return size
+}
+
+type sizeDist interface {
+	RandSize() int
+}
+
+type normalDist struct {
+	mu    float64
+	sigma float64
+}
+
+func (d *normalDist) RandSize() int {
+	rnd := mrand.NormFloat64()
+	size := int(math.Exp(rnd*d.sigma + d.mu))
+	return boundSize(size)
+}
+
+type uniformDist struct {
+	min int
+	max int
+}
+
+func (d *uniformDist) RandSize() int {
+	return boundSize(d.min + mrand.Intn(d.max-d.min))
 }
 
 func putBatch(
@@ -84,7 +141,7 @@ func putBatch(
 	wIdx int,
 	w *wallelib.Writer,
 	qps int,
-	tps int) {
+	sDist sizeDist) {
 
 	metricsKV := metrics.KV{"stream_uri": w.StreamURI()}
 	totalPutsC := totalPutsCounter.V(metricsKV)
@@ -100,11 +157,6 @@ func putBatch(
 	putIdx := 0
 	putTotalSize := 0
 
-	// TODO(zviad): It would be better if this was random
-	dataSize := (tps + qps - 1) / qps
-	if dataSize > wallelib.MaxEntrySize {
-		dataSize = wallelib.MaxEntrySize
-	}
 	ticker := time.NewTicker(time.Second / time.Duration(qps))
 	defer ticker.Stop()
 
@@ -112,6 +164,7 @@ func putBatch(
 	printProgress := func() {
 		tDelta := time.Now().Sub(t0)
 		sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
+		sort.Slice(puts[:putIdx], func(i, j int) bool { return puts[i].Entry.Size() < puts[j].Entry.Size() })
 		p99 := latencies[len(latencies)*99/100]
 		p999 := latencies[len(latencies)*999/1000]
 		zlog.Infof(
@@ -134,8 +187,9 @@ func putBatch(
 		}
 		select {
 		case <-ticker.C:
-			dataIdx := i % (wallelib.MaxEntrySize - dataSize + 1)
-			putCtx := w.PutEntry(benchData[dataIdx : dataIdx+dataSize])
+			size := sDist.RandSize()
+			dataIdx := i % (wallelib.MaxEntrySize - size + 1)
+			putCtx := w.PutEntry(benchData[dataIdx : dataIdx+size])
 			puts = append(puts, putCtx)
 			putT0 = append(putT0, time.Now())
 		case <-putDone:

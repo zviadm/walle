@@ -1,12 +1,12 @@
 # WALLE - Write-ahead Log & Leader Election
 
-WALLE is an experimental system to provide different kind of reusable piece for building other persistent and replicated
-systems like databases. At high level, WALLE provides integrated leader election and durable write ahead logging. Primary
-goal of WALLE experiment is to show that it is possible to have a distributed write ahead log, that meets all criteria
-for using it as a write ahead log for variety of persistent systems.
+WALLE is an experimental system that aims to provide different kind of reusable piece for building other persistent
+and replicated systems like databases. At high level, WALLE provides integrated leader election and durable write-ahead
+logging. Primary goal of WALLE experiment is to show that it is possible to have a distributed write ahead log, that meets
+all criteria for using it as a write ahead log for variety of persistent systems.
 
 Key aspects that WALLE strives for:
-- Durability and consistency. Equivalent to database systems (i.e. FSYNC).
+- Durability and consistency. Equivalent to database systems (i.e. writes are fsync-ed).
 - Low tail latencies (even in `0.99` and `0.999` percentiles). `p.75` latency of a single
 write ~"network round trip + fsync". `p.999-s` <100ms even under high throughput.
 - High throughput. Using pipelining, instead of batching, to achieve very high throughput while still
