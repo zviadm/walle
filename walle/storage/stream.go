@@ -24,8 +24,8 @@ const (
 
 var (
 	streamCfg = wt.DataSourceCfg{
-		AccessPatternHint: wt.AccessSequential,
 		BlockCompressor:   "snappy",
+		AccessPatternHint: wt.AccessSequential,
 		// Configure LeafPageMax large enough to get most of the benefit of sequential
 		// data transfer. On SSDs, configuring block size larger than 256KB would bring
 		// only very marginal benefits, at cost of much larger page sizes.
