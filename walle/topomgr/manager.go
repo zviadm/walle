@@ -136,7 +136,7 @@ func (m *Manager) clusterMX(clusterURI string) (c *clusterData, unlock func(), e
 	}()
 	c, ok := m.clusters[clusterURI]
 	if !ok || c.writer == nil {
-		return nil, nil, status.Errorf(codes.Unavailable, "not serving: %s", clusterURI)
+		return nil, nil, status.Errorf(codes.NotFound, "not serving: %s", clusterURI)
 	}
 	if !c.writer.IsExclusive() {
 		return nil, nil, status.Errorf(codes.Unavailable,

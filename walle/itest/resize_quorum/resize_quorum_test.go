@@ -50,7 +50,7 @@ func expandTopology(
 	serverId := serverIdsDiff(t, rootPb.Servers, rootPb.Streams[rootURI].ServerIds)
 	serverIds := append(rootPb.Streams[rootURI].ServerIds, serverId)
 	zlog.Info("TEST: --- expanding to: ", serverAddrs(rootPb.Servers, serverIds))
-	_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
+	_, err = topoMgr.CrUpdateStream(ctx, &topomgr_pb.CrUpdateStreamRequest{
 		ClusterUri: rootURI,
 		StreamUri:  rootURI,
 		ServerIds:  serverIds,
@@ -86,7 +86,7 @@ func shrinkTopology(
 
 	serverIds := rootPb.Streams[rootURI].ServerIds[1:]
 	zlog.Info("TEST: --- shrinking to: ", serverAddrs(rootPb.Servers, serverIds))
-	_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
+	_, err = topoMgr.CrUpdateStream(ctx, &topomgr_pb.CrUpdateStreamRequest{
 		ClusterUri: rootURI,
 		StreamUri:  rootURI,
 		ServerIds:  serverIds,

@@ -3,16 +3,19 @@ option go_package = "github.com/zviadm/walle/proto/topomgr";
 
 import "walleapi/walleapi.proto";
 
+// TopoManager service provides RPCs to view and modify WALLE cluster topology.
+// TopoManager RPCs are designed so that they are safe to retry, and exhibit idempotent
+// behaviour.
 service TopoManager {
+	// FetchTopology returns full topology for a given cluster_uri.
 	rpc FetchTopology(FetchTopologyRequest) returns (Topology) {}
 
 	// RegisterServer call registers WALLE server node with a cluster. It is expected
 	// to be called by the WALLE server process itself.
 	rpc RegisterServer(RegisterServerRequest) returns (Empty) {}
 
-	// TODO(zviad): These APIs are experimental. Most likely they will need to be
-	// tweaked or renamed.
-	rpc UpdateServerIds(UpdateServerIdsRequest) returns (Empty) {}
+	// CrUpdateStream creates new stream or updates members of an existing stream to new members.
+	rpc CrUpdateStream(CrUpdateStreamRequest) returns (Empty) {}
 }
 
 message FetchTopologyRequest {
@@ -25,7 +28,7 @@ message RegisterServerRequest {
 	ServerInfo server_info = 3;
 }
 
-message UpdateServerIdsRequest {
+message CrUpdateStreamRequest {
 	string cluster_uri = 1;
 	string stream_uri = 2;
 	repeated string server_ids = 3;

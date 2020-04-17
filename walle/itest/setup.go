@@ -64,7 +64,7 @@ func SetupRootNodes(
 		break
 	}
 	for i := 1; i < rootN; i++ {
-		_, err = topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
+		_, err = topoMgr.CrUpdateStream(ctx, &topomgr_pb.CrUpdateStreamRequest{
 			ClusterUri: rootURI,
 			StreamUri:  rootURI,
 			ServerIds:  serverIds[:i+1]})
@@ -125,7 +125,7 @@ func CreateStream(
 	streamURI string,
 	serverIds []string) {
 	topoMgr := topomgr.NewClient(root)
-	_, err := topoMgr.UpdateServerIds(ctx, &topomgr_pb.UpdateServerIdsRequest{
+	_, err := topoMgr.CrUpdateStream(ctx, &topomgr_pb.CrUpdateStreamRequest{
 		ClusterUri: clusterURI,
 		StreamUri:  streamURI,
 		ServerIds:  serverIds})

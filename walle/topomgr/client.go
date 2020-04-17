@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/zviadm/walle/proto/topomgr"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/wallelib"
@@ -44,7 +43,7 @@ func (t *client) connectAndDo(
 				return false, false, err
 			}
 			if wStatus.RemainingLeaseMs <= 0 {
-				return false, false, errors.Errorf("no active manager for: %s", clusterURI)
+				return false, false, status.Errorf(codes.Unavailable, "no active manager for: %s", clusterURI)
 			}
 			conn, err := grpc.DialContext(ctx, wStatus.WriterAddr, grpc.WithInsecure(), grpc.WithBlock())
 			if err != nil {
@@ -76,11 +75,11 @@ func (t *client) RegisterServer(
 		})
 	return r, err
 }
-func (t *client) UpdateServerIds(
-	ctx context.Context, in *topomgr.UpdateServerIdsRequest, opts ...grpc.CallOption) (r *walleapi.Empty, err error) {
+func (t *client) CrUpdateStream(
+	ctx context.Context, in *topomgr.CrUpdateStreamRequest, opts ...grpc.CallOption) (r *walleapi.Empty, err error) {
 	err = t.connectAndDo(ctx, in.ClusterUri,
 		func(ctx context.Context, c topomgr.TopoManagerClient) error {
-			r, err = c.UpdateServerIds(ctx, in, opts...)
+			r, err = c.CrUpdateStream(ctx, in, opts...)
 			return err
 		})
 	return r, err

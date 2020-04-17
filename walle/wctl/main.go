@@ -65,8 +65,8 @@ func main() {
 		}
 		streamURI, args := args[0], args[1:]
 		serverIds := args
-		_, err := topoMgr.UpdateServerIds(
-			ctx, &topomgr_pb.UpdateServerIdsRequest{
+		_, err := topoMgr.CrUpdateStream(
+			ctx, &topomgr_pb.CrUpdateStreamRequest{
 				ClusterUri: clusterURI,
 				StreamUri:  streamURI,
 				ServerIds:  serverIds,

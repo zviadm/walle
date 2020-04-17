@@ -66,10 +66,10 @@ func (m *Manager) FetchTopology(
 	return topology, nil
 }
 
-// UpdateServerIds implements topomgr.TomoManagerServer interface.
-func (m *Manager) UpdateServerIds(
+// CrUpdateStream implements topomgr.TomoManagerServer interface.
+func (m *Manager) CrUpdateStream(
 	ctx context.Context,
-	req *topomgr.UpdateServerIdsRequest) (*walleapi.Empty, error) {
+	req *topomgr.CrUpdateStreamRequest) (*walleapi.Empty, error) {
 	if err := storage.ValidateStreamURI(req.StreamUri); err != nil {
 		return nil, err
 	}
@@ -87,7 +87,7 @@ func (m *Manager) UpdateServerIds(
 
 	changed, err := verifyAndDiffMembershipChange(topology, req.StreamUri, req.ServerIds)
 	if err != nil {
-		return nil, status.Error(codes.FailedPrecondition, err.Error())
+		return nil, err
 	}
 
 	// First make sure majority of current members are at the latest version.
@@ -98,7 +98,7 @@ func (m *Manager) UpdateServerIds(
 	}
 	if changed {
 		prevServerIds := topology.Streams[req.StreamUri].GetServerIds()
-		putCtx, topology, err := m.updateServerIds(
+		putCtx, topology, err := m.crUpdateStream(
 			ctx, req, topology.Streams[req.StreamUri].GetVersion())
 		if err := resolvePutCtx(ctx, putCtx, err); err != nil {
 			return nil, err
@@ -138,9 +138,9 @@ func (m *Manager) waitForStreamVersion(
 		})
 }
 
-func (m *Manager) updateServerIds(
+func (m *Manager) crUpdateStream(
 	ctx context.Context,
-	req *topomgr.UpdateServerIdsRequest,
+	req *topomgr.CrUpdateStreamRequest,
 	streamVersion int64) (*wallelib.PutCtx, *walleapi.Topology, error) {
 	c, unlock, err := m.clusterMX(req.ClusterUri)
 	if err != nil {
@@ -148,7 +148,7 @@ func (m *Manager) updateServerIds(
 	}
 	defer unlock()
 	if c.topology.Streams[req.StreamUri].GetVersion() != streamVersion {
-		return nil, nil, status.Errorf(codes.Unavailable, "conflict with concurrent topology update for: %s", req.StreamUri)
+		return nil, nil, status.Errorf(codes.Aborted, "conflict with concurrent topology update for: %s", req.StreamUri)
 	}
 	topology := proto.Clone(c.topology).(*walleapi.Topology)
 	topology.Version += 1
