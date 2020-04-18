@@ -42,9 +42,10 @@ func benchmarkFullPipeline(b *testing.B, nStreams int) {
 	tmpDir := storage.TestTmpDir()
 	s, err := storage.Init(tmpDir, storage.InitOpts{Create: true, MaxLocalStreams: nStreams})
 	require.NoError(b, err)
+	b.Cleanup(s.Close)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	b.Cleanup(cancel)
 	p := New(ctx, fakeFetch, fakeNotify)
 	var streams []storage.Stream
 	for idx := 0; idx < nStreams; idx++ {
