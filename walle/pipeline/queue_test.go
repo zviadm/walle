@@ -74,7 +74,7 @@ func TestStreamTimeouts(t *testing.T) {
 	tmpDir := storage.TestTmpDir()
 	s, err := storage.Init(tmpDir, storage.InitOpts{Create: true, MaxLocalStreams: 2})
 	require.NoError(t, err)
-	err = s.UpsertStream(
+	err = s.CrUpdateStream(
 		"/test/1", &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})
 	require.NoError(t, err)
 	ss, ok := s.Stream("/test/1")

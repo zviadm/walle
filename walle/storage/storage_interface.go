@@ -12,13 +12,13 @@ import (
 // or due to on disk data corruption issues.
 type Storage interface {
 	ServerId() string
-	// Updates or creates new stream with given topology. Can return an error if
+	// CrUpdateStream creates or updates stream with given topology. Can return an error if
 	// local resoures are exhausted and storage can no longer handle adding more streams.
-	// This call is not thread safe. There must be only one thread that makes Update calls.
-	UpsertStream(streamURI string, topology *walleapi.StreamTopology) error
+	// This call is not thread safe. There must be only one thread that makes CrUpdate calls.
+	CrUpdateStream(streamURI string, topology *walleapi.StreamTopology) error
 	// Close closes storage. Closing can leak underlying memory that is held by WiredTiger
 	// C library. Assumption is that, after closing storage, program will exit promptly.
-	// Close is not thread safe, and should be called by same thread that calls UpsertStream
+	// Close is not thread safe, and should be called by same thread that calls CrUpdateStream
 	// method.
 	Close()
 	// CloseC returns channel that will be closed once storage is closed.

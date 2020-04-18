@@ -230,7 +230,7 @@ func (m *storage) Stream(streamURI string) (Stream, bool) {
 
 // UpstertStream call is NOT thread-safe. Must be called from a single
 // thread only.
-func (m *storage) UpsertStream(
+func (m *storage) CrUpdateStream(
 	streamURI string, topology *walleapi.StreamTopology) error {
 
 	tt, ok := m.streamT[streamURI]

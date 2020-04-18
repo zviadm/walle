@@ -57,7 +57,7 @@ func (s *Server) updateTopology(t *walleapi.Topology, topoMgr *topomgr.Manager) 
 		if storage.IsMember(streamT, s.s.ServerId()) {
 			continue
 		}
-		err := s.s.UpsertStream(streamURI, streamT)
+		err := s.s.CrUpdateStream(streamURI, streamT)
 		panic.OnErr(err)
 		if topoMgr != nil && strings.HasPrefix(streamURI, topomgr.Prefix) {
 			topoMgr.StopManaging(streamURI)
@@ -67,7 +67,7 @@ func (s *Server) updateTopology(t *walleapi.Topology, topoMgr *topomgr.Manager) 
 		if !storage.IsMember(streamT, s.s.ServerId()) {
 			continue
 		}
-		err := s.s.UpsertStream(streamURI, streamT)
+		err := s.s.CrUpdateStream(streamURI, streamT)
 		if err != nil {
 			zlog.Errorf("ERR_FATAL; err updating topology: %s %s", streamURI, err)
 			continue
