@@ -70,7 +70,7 @@ func cmdBench(
 		mu := math.Log(float64(sizeAvg) / 2)
 		sigma := math.Sqrt(2 * (math.Log(float64(sizeAvg)) - mu))
 		sDist = &normalDist{mu: mu, sigma: sigma}
-	case "average":
+	case "uniform":
 		// Uniform distribution: [sizeAvg/2 ... sizeAvg + sizeAvg/2]
 		sDist = &uniformDist{min: sizeAvg / 2, max: sizeAvg * 3 / 2}
 	default:
