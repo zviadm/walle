@@ -6,10 +6,9 @@ still show case what is actually possible, and find an upper bound of sorts on p
 
 ## Setup
 
-Benchmarks were setup with 1 dedicated benchmarking client node and 3 WALLE nodes. All nodes were
-setup in same availability zone to test for maximum throughput. Most likely results would be same
-as long as all nodes are in same region. Janky scripts that were used to setup up benchmarks are
-located in [./benchops](./benchops) folder.
+Benchmarks were setup with 1 dedicated benchmarking client node and 3 WALLE nodes. Nodes were setup in
+GCP, each node in different availability zone of the same region. Janky scripts that were used to setup
+up benchmarks are located in [./benchops](./benchops) folder.
 
 Hardware:
 * WCTL benchmarking node:
