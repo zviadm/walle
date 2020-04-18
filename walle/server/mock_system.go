@@ -176,7 +176,16 @@ func (m *mockApiClient) PollStream(
 
 func (m *mockApiClient) StreamEntries(
 	ctx context.Context,
-	req *walleapi.StreamEntriesRequest,
+	in *walleapi.StreamEntriesRequest,
 	opts ...grpc.CallOption) (walleapi.WalleApi_StreamEntriesClient, error) {
-	return nil, errors.Errorf("not implemented")
+	s, err := m.m.RandServer()
+	if err != nil {
+		return nil, err
+	}
+	sClient, sServer, closeF := newEntriesStreams(ctx)
+	go func() {
+		err := s.StreamEntries(in, sServer)
+		closeF(err)
+	}()
+	return sClient, nil
 }

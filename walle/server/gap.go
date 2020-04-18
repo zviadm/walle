@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"io"
+	"math/rand"
 	"time"
 
 	walle_pb "github.com/zviadm/walle/proto/walle"
@@ -33,6 +34,16 @@ func (s *Server) notifyGap(streamURI string) {
 	}
 }
 
+func (s *Server) consumeGapNotifies() map[string]struct{} {
+	s.mxGap.Lock()
+	defer s.mxGap.Unlock()
+	r := s.streamsWithGap
+	if len(r) > 0 {
+		s.streamsWithGap = make(map[string]struct{}, len(r))
+	}
+	return r
+}
+
 // backfillGapsLoop watches for gaps and backfills them in background.
 // This is the only Go routine that makes PutGapEntry calls on storage, thus
 // it always makes them in monotonically increasing order.
@@ -43,41 +54,50 @@ func (s *Server) backfillGapsLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		}
-		s.mxGap.Lock()
-		streamsWithGap := s.streamsWithGap
-		s.streamsWithGap = make(map[string]struct{}, len(streamsWithGap))
-		s.mxGap.Unlock()
+		streamsWithGap := s.consumeGapNotifies()
 		for len(streamsWithGap) > 0 {
+			errAll := true
 			for streamURI := range streamsWithGap {
-				ok := s.checkAndBackfillGap(ctx, streamURI)
-				if ok {
-					delete(streamsWithGap, streamURI)
+				err := s.checkAndBackfillGap(ctx, streamURI)
+				errAll = errAll && (err != nil)
+			}
+			streamsWithGapNew := s.consumeGapNotifies()
+			for streamURI := range streamsWithGapNew {
+				streamsWithGap[streamURI] = struct{}{}
+			}
+			if errAll && len(streamsWithGapNew) == 0 {
+				// If everything errored out, take a little
+				// break before retrying again.
+				select {
+				case <-ctx.Done():
+				case <-time.After(time.Second):
 				}
 			}
 		}
 	}
 }
 
-func (s *Server) checkAndBackfillGap(ctx context.Context, streamURI string) bool {
+func (s *Server) checkAndBackfillGap(ctx context.Context, streamURI string) error {
 	ss, ok := s.s.Stream(streamURI)
 	if !ok {
-		return true
+		return nil
 	}
-	gapStart, gapEnd := ss.GapRange()
-	if gapStart >= gapEnd {
-		return true
+	for {
+		gapStart, gapEnd := ss.GapRange()
+		if gapStart >= gapEnd {
+			return nil
+		}
+		gapEndFinal := gapEnd
+		if gapEnd > gapStart+maxGapBatch {
+			gapEnd = gapStart + maxGapBatch
+		}
+		err := s.backfillGap(ctx, ss, gapStart, gapEnd)
+		if err != nil {
+			zlog.Warningf("[gh] err filling gap: %s %d -> %d, %s", ss.StreamURI(), gapStart, gapEnd, err)
+			return err
+		}
+		zlog.Infof("[gh] filled: %s %d -> %d (end: %d)", ss.StreamURI(), gapStart, gapEnd, gapEndFinal)
 	}
-	gapEndFinal := gapEnd
-	if gapEnd > gapStart+maxGapBatch {
-		gapEnd = gapStart + maxGapBatch
-	}
-	err := s.backfillGap(ctx, ss, gapStart, gapEnd)
-	if err != nil {
-		zlog.Warningf("[gh] err filling gap: %s %d -> %d, %s", ss.StreamURI(), gapStart, gapEnd, err)
-		return false
-	}
-	zlog.Infof("[gh] filled: %s %d -> %d (end: %d)", ss.StreamURI(), gapStart, gapEnd, gapEndFinal)
-	return gapEnd == gapEndFinal
 }
 
 func (s *Server) backfillGap(
@@ -152,7 +172,8 @@ func (s *Server) streamAndProcessEntries(
 
 	ssTopology := ss.Topology()
 	var errs []error
-	for _, serverId := range ssTopology.ServerIds {
+	for _, idx := range rand.Perm(len(ssTopology.ServerIds)) {
+		serverId := ssTopology.ServerIds[idx]
 		if serverId == s.s.ServerId() {
 			continue
 		}
@@ -162,7 +183,7 @@ func (s *Server) streamAndProcessEntries(
 			errs = append(errs, err)
 			continue
 		}
-		streamCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		streamCtx, cancel := context.WithTimeout(ctx, time.Minute)
 		defer cancel() // it's ok if this cancel gets delayed till for loop finishes.
 		r, err := c.ReadEntries(streamCtx, &walle_pb.ReadEntriesRequest{
 			ServerId:      serverId,
