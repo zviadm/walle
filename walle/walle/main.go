@@ -90,9 +90,10 @@ func main() {
 
 	zlog.Infof("initializing storage: %s...", dbPath)
 	ss, err := storage.Init(dbPath, storage.InitOpts{
-		Create:          true,
-		CacheSizeMB:     cacheSizeMB,
-		MaxLocalStreams: *maxLocalStreams,
+		Create:            true,
+		CacheSizeMB:       cacheSizeMB,
+		MaxLocalStreams:   *maxLocalStreams,
+		LeakMemoryOnClose: true,
 	})
 	fatalOnErr(err)
 	zlog.Infof("initialized storage: %s", ss.ServerId())

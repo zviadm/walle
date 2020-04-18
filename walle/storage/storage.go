@@ -16,11 +16,12 @@ import (
 )
 
 type storage struct {
-	serverId string
-	closeC   chan struct{}
-	c        *wt.Connection
-	metaS    *wt.Session
-	metaW    *wt.Mutator
+	serverId  string
+	closeC    chan struct{}
+	fastClose bool
+	c         *wt.Connection
+	metaS     *wt.Session
+	metaW     *wt.Mutator
 
 	flushMX     sync.Mutex
 	flushQ      chan struct{}
@@ -42,6 +43,9 @@ type InitOpts struct {
 	ServerId        string // use provided serverId. only needed in testing.
 	CacheSizeMB     int
 	MaxLocalStreams int // maximum number of local streams supported.
+	// If True, will leak memory when closing. This speed up close, and can be safe
+	// if process is about to exit anyways.
+	LeakMemoryOnClose bool
 }
 
 // Init call opens or creates WALLE database.
@@ -111,6 +115,7 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 	r := &storage{
 		serverId:        serverId,
 		closeC:          make(chan struct{}),
+		fastClose:       opts.LeakMemoryOnClose,
 		c:               c,
 		metaS:           metaS,
 		metaW:           metaW,
@@ -288,7 +293,7 @@ func (m *storage) Close() {
 	})
 	m.flusherExit <- struct{}{}
 	<-m.flusherExit
-	panic.OnErr(m.c.Close(wt.ConnCloseCfg{LeakMemory: wt.True}))
+	panic.OnErr(m.c.Close(wt.ConnCloseCfg{LeakMemory: wt.Bool(m.fastClose)}))
 	close(m.closeC)
 }
 
