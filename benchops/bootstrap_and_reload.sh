@@ -11,7 +11,7 @@ $SCRIPTDIR/build_and_scp.sh 2 copyonly
 ZONE=${ZONES[0]}
 gcloud compute ssh --zone $ZONE wnode-0 -- "
 test -f /mnt/disks/w0/walle/root.pb ||
-./walle -walle.storage_dir=/mnt/disks/w0/walle -walle.port=5005 -walle.bootstrap_uri=/cluster/bench"
+./walle -walle.storage_dir=/mnt/disks/w0/walle -walle.host=\`(hostname -f)\` -walle.port=5005 -walle.bootstrap_uri=/cluster/bench"
 gcloud compute scp --zone $ZONE wnode-0:/mnt/disks/w0/walle/root.pb /tmp/root.pb
 for i in {1..2}; do
 	ZONE=${ZONES[$i]}
