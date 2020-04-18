@@ -56,3 +56,26 @@ fully wiped and replaced with a clean node.
 # Performance considerations
 
 ...
+
+## Hardware
+
+List of hardware priorities for WALLE nodes.
+
+### SSD storage & `fsync` latency
+`fsync` latency is fundamental requirement to achieve low latency writes. Low latency `fsync`-s can be achieved
+by using battery backed disk devices or battery backed raid controllers. GCP style Local SSD that flushes
+every 2 seconds, mounted with `nobarrier` option, is also going to be fine from durability perspective
+for almost all use cases.
+
+### CPU capacity
+WALLE servers are generally going to be CPU bound, especially for higher QPS, lower bandwidth use cases. Ratio of
+~4-8 hyperthreaded cores (i.e. vCPUs) per each SSD disk would provide good balance between CPU and Disk.
+
+### Disk i/o capacity
+Disk i/o capacity is unlikely to be bottleneck with reasonable SSD disks. WALLE reads and writes from disk are well
+optimized. It is more likely that either CPU or disk space capacity would run out first, before disk i/o would become
+a problem on SSDs.
+
+### Memory
+WALLE has fairly small memory requirements. Ratio of 1GB per hyperthreaded core should be enough in all use
+cases. Most likely, even less memory per core could work too.
