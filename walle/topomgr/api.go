@@ -98,8 +98,29 @@ func (m *Manager) CrUpdateStream(
 	}
 	if changed {
 		prevServerIds := topology.Streams[req.StreamUri].GetServerIds()
-		putCtx, topology, err := m.crUpdateStream(
-			ctx, req, topology.Streams[req.StreamUri].GetVersion())
+		topology := proto.Clone(c.topology).(*walleapi.Topology)
+		topology.Version += 1
+		streamT := topology.Streams[req.StreamUri]
+		if streamT == nil {
+			streamT = &walleapi.StreamTopology{}
+			if topology.Streams == nil {
+				topology.Streams = make(map[string]*walleapi.StreamTopology, 1)
+			}
+			topology.Streams[req.StreamUri] = streamT
+		}
+		streamT.ServerIds = req.ServerIds
+		if len(prevServerIds) != 1 {
+			// Other than special case of going from 1 -> 2 nodes, it is important
+			// to make sure that majority in new member set are also at the latest version
+			// already.
+			if err := m.waitForStreamVersion(ctx, topology, req.StreamUri); err != nil {
+				return nil, err
+			}
+		}
+		streamT.Version += 1
+
+		putCtx, err := m.crUpdateStream(
+			ctx, req.ClusterUri, req.StreamUri, topology)
 		if err := resolvePutCtx(ctx, putCtx, err); err != nil {
 			return nil, err
 		}
@@ -140,28 +161,17 @@ func (m *Manager) waitForStreamVersion(
 
 func (m *Manager) crUpdateStream(
 	ctx context.Context,
-	req *topomgr.CrUpdateStreamRequest,
-	streamVersion int64) (*wallelib.PutCtx, *walleapi.Topology, error) {
-	c, unlock, err := m.clusterMX(req.ClusterUri)
+	clusterURI string,
+	streamURI string,
+	topologyNew *walleapi.Topology) (*wallelib.PutCtx, error) {
+	c, unlock, err := m.clusterMX(clusterURI)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	defer unlock()
-	if c.topology.Streams[req.StreamUri].GetVersion() != streamVersion {
-		return nil, nil, status.Errorf(codes.Aborted, "conflict with concurrent topology update for: %s", req.StreamUri)
+	if c.topology.Streams[streamURI].GetVersion() != topologyNew.Streams[streamURI].GetVersion()-1 {
+		return nil, status.Errorf(codes.Aborted, "conflict with concurrent topology update for: %s", streamURI)
 	}
-	topology := proto.Clone(c.topology).(*walleapi.Topology)
-	topology.Version += 1
-	streamT := topology.Streams[req.StreamUri]
-	if streamT == nil {
-		streamT = &walleapi.StreamTopology{}
-		if topology.Streams == nil {
-			topology.Streams = make(map[string]*walleapi.StreamTopology, 1)
-		}
-		topology.Streams[req.StreamUri] = streamT
-	}
-	streamT.Version += 1
-	streamT.ServerIds = req.ServerIds
-	putCtx, err := c.commitTopology(topology)
-	return putCtx, topology, err
+	putCtx, err := c.commitTopology(topologyNew)
+	return putCtx, err
 }
