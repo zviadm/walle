@@ -74,7 +74,7 @@ func BenchmarkPutEntryNoCommit(b *testing.B) {
 	benchmarkPutEntry(b, false)
 }
 
-// BenchmarkPutEntryCommitted-4 - 2.00 cgocalls/op - 128 B/op - 2 allocs/op
+// BenchmarkPutEntryCommitted-4 - 2.00 cgocalls/op - 96 B/op - 1 allocs/op
 func BenchmarkPutEntryCommitted(b *testing.B) {
 	benchmarkPutEntry(b, true)
 }

@@ -83,6 +83,15 @@ type streamStorage struct {
 	// [committed..tailEntryId]. EntryId maps to index: EntryId%(len(tailEntryXX)).
 	tailEntryXX [maxUncommittedEntries]uint64
 
+	// metadata keys
+	mkWriterId      []byte
+	mkWriterAddr    []byte
+	mkWriterLeaseNs []byte
+	mkCommittedId   []byte
+	mkGapStartId    []byte
+	mkGapEndId      []byte
+
+	// stats
 	committedIdG metrics.Gauge
 	gapStartIdG  metrics.Gauge
 	gapEndIdG    metrics.Gauge
@@ -158,6 +167,14 @@ func openStreamStorage(
 		backfillBuf8:     make([]byte, 8),
 		backfillEntryBuf: make([]byte, entryMaxSerializedSize),
 
+		// metadata Keys
+		mkWriterId:      []byte(streamURI + sfxWriterId),
+		mkWriterAddr:    []byte(streamURI + sfxWriterAddr),
+		mkWriterLeaseNs: []byte(streamURI + sfxWriterLeaseNs),
+		mkCommittedId:   []byte(streamURI + sfxCommittedId),
+		mkGapStartId:    []byte(streamURI + sfxGapStartId),
+		mkGapEndId:      []byte(streamURI + sfxGapEndId),
+
 		// stats
 		committedIdG: committedIdGauge.V(metricsKV),
 		gapStartIdG:  gapStartIdGauge.V(metricsKV),
@@ -179,31 +196,31 @@ func openStreamStorage(
 	panic.OnErr(err)
 
 	r.wInfo = &writerInfo{}
-	v, err := metaR.ReadValue([]byte(streamURI + sfxWriterId))
+	v, err := metaR.ReadValue(r.mkWriterId)
 	panic.OnErr(err)
 	err = r.wInfo.Id.Unmarshal(v)
 	panic.OnErr(err)
-	v, err = metaR.ReadValue([]byte(streamURI + sfxWriterAddr))
+	v, err = metaR.ReadValue(r.mkWriterAddr)
 	panic.OnErr(err)
 	r.wInfo.Addr = string(v)
-	v, err = metaR.ReadValue([]byte(streamURI + sfxWriterLeaseNs))
+	v, err = metaR.ReadValue(r.mkWriterLeaseNs)
 	panic.OnErr(err)
 	r.wInfo.Lease = time.Duration(binary.BigEndian.Uint64(v))
 	r.wInfoRO.Store(r.wInfo)
 	r.renewedLease.Store(time.Time{})
 
-	v, err = metaR.ReadValue([]byte(streamURI + sfxCommittedId))
+	v, err = metaR.ReadValue(r.mkCommittedId)
 	panic.OnErr(err)
 	committed := int64(binary.BigEndian.Uint64(v))
 	r.committed.Store(committed)
 	r.committedIdG.Set(float64(committed))
 	r.commitNotify.Store(make(chan struct{}))
-	v, err = metaR.ReadValue([]byte(streamURI + sfxGapStartId))
+	v, err = metaR.ReadValue(r.mkGapStartId)
 	panic.OnErr(err)
 	gapStartId := int64(binary.BigEndian.Uint64(v))
 	r.gapStartId.Store(gapStartId)
 	r.gapStartIdG.Set(float64(gapStartId))
-	v, err = metaR.ReadValue([]byte(streamURI + sfxGapEndId))
+	v, err = metaR.ReadValue(r.mkGapEndId)
 	panic.OnErr(err)
 	gapEndId := int64(binary.BigEndian.Uint64(v))
 	r.gapEndId.Store(gapEndId)
@@ -298,10 +315,10 @@ func (m *streamStorage) UpdateWriter(
 	writerIdB, err := m.wInfo.Id.Marshal()
 	panic.OnErr(err)
 	panic.OnErr(m.sess.TxBegin(wt.TxCfg{Sync: wt.True}))
-	panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxWriterId), writerIdB))
-	panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxWriterAddr), []byte(m.wInfo.Addr)))
+	panic.OnErr(m.metaW.Insert(m.mkWriterId, writerIdB))
+	panic.OnErr(m.metaW.Insert(m.mkWriterAddr, []byte(m.wInfo.Addr)))
 	binary.BigEndian.PutUint64(m.buf8, uint64(m.wInfo.Lease.Nanoseconds()))
-	panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxWriterLeaseNs), []byte(m.buf8)))
+	panic.OnErr(m.metaW.Insert(m.mkWriterLeaseNs, []byte(m.buf8)))
 	panic.OnErr(m.sess.TxCommit())
 	return remainingLease, nil
 }
@@ -376,14 +393,14 @@ func (m *streamStorage) UpdateGapStart(entryId int64) {
 		m.gapStartIdG.Set(0)
 		m.gapEndIdG.Set(0)
 		panic.OnErr(m.sess.TxBegin())
-		panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxGapStartId), make([]byte, 8)))
-		panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxGapEndId), make([]byte, 8)))
+		panic.OnErr(m.metaW.Insert(m.mkGapStartId, make([]byte, 8)))
+		panic.OnErr(m.metaW.Insert(m.mkGapEndId, make([]byte, 8)))
 		panic.OnErr(m.sess.TxCommit())
 	} else {
 		m.gapStartId.Store(entryId)
 		m.gapStartIdG.Set(float64(entryId))
 		binary.BigEndian.PutUint64(m.buf8, uint64(entryId))
-		panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxGapStartId), m.buf8))
+		panic.OnErr(m.metaW.Insert(m.mkGapStartId, m.buf8))
 	}
 }
 
@@ -424,13 +441,13 @@ func (m *streamStorage) commitEntry(entryId int64, entryXX uint64, newGap bool) 
 			m.gapStartId.Store(gapStartId)
 			m.gapStartIdG.Set(float64(gapStartId))
 			binary.BigEndian.PutUint64(m.buf8, uint64(gapStartId))
-			panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxGapStartId), m.buf8))
+			panic.OnErr(m.metaW.Insert(m.mkGapStartId, m.buf8))
 		}
 
 		m.gapEndId.Store(entryId)
 		m.gapEndIdG.Set(float64(entryId))
 		binary.BigEndian.PutUint64(m.buf8, uint64(entryId))
-		panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxGapEndId), m.buf8))
+		panic.OnErr(m.metaW.Insert(m.mkGapEndId, m.buf8))
 	}
 
 	m.committed.Store(entryId)
@@ -438,7 +455,7 @@ func (m *streamStorage) commitEntry(entryId int64, entryXX uint64, newGap bool) 
 	close(m.commitNotify.Load().(chan struct{}))
 	m.commitNotify.Store(make(chan struct{})) // commitNotify must be updated after committedId.
 	binary.BigEndian.PutUint64(m.buf8, uint64(entryId))
-	panic.OnErr(m.metaW.Insert([]byte(m.streamURI+sfxCommittedId), m.buf8))
+	panic.OnErr(m.metaW.Insert(m.mkCommittedId, m.buf8))
 	return nil
 }
 
