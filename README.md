@@ -1,4 +1,5 @@
 # WALLE - Write-ahead Log & Leader Election
+[![Build Status](https://travis-ci.com/zviadm/walle.svg?branch=master)](https://travis-ci.com/zviadm/walle)
 
 WALLE is an experimental system that aims to provide different kind of reusable piece for building other persistent
 and replicated systems like databases. At high level, WALLE provides integrated leader election and durable write-ahead
