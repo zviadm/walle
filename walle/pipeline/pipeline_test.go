@@ -23,13 +23,13 @@ func fakeFetch(
 
 func fakeNotify(streamURI string) {}
 
-// BenchmarkFullPipeline_1-4 - 1.00 cgocalls/op - 214 B/op - 3 allocs/op
-func BenchmarkFullPipeline_1(b *testing.B) {
+// BenchmarkFullPipeline_001-4 - 1.00 cgocalls/op - 214 B/op - 3 allocs/op
+func BenchmarkFullPipeline_001(b *testing.B) {
 	benchmarkFullPipeline(b, 1)
 }
 
-// BenchmarkFullPipeline_10-4 - 1.00 cgocalls/op - 224 B/op - 3 allocs/op
-func BenchmarkFullPipeline_10(b *testing.B) {
+// BenchmarkFullPipeline_010-4 - 1.00 cgocalls/op - 224 B/op - 3 allocs/op
+func BenchmarkFullPipeline_010(b *testing.B) {
 	benchmarkFullPipeline(b, 100)
 }
 
@@ -79,7 +79,7 @@ func benchmarkFullPipeline(b *testing.B, nStreams int) {
 		eIdx := (i / nStreams)
 		eIdxStart := eIdx / reverseN * reverseN
 		eIdxOffset := eIdx - eIdxStart
-		if eIdxStart+reverseN <= len(entries) {
+		if eIdxStart+reverseN < len(entries) {
 			eIdxOffset = reverseN - 1 - eIdxOffset
 		}
 		eIdx = eIdxStart + eIdxOffset
