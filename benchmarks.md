@@ -46,7 +46,7 @@ Node restarts and gap backfilling due to restarts didn't have any noticeable con
 
 In this experiment, after nodes were filled up to ~100GB of data, one of the nodes was
 fully wiped and replaced with a clean node.
-* p999 latencies went from ~50ms > ~100-150ms.
+* p999 latencies went from ~50ms to ~100ms. Still very stable.
 * Full backfill finished in <45 minutes. Backfilled at a rate of 65-70 MB/s.
 
 # Performance considerations
