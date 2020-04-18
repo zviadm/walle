@@ -23,9 +23,9 @@ type queue struct {
 
 	maxReadyCommittedId int64
 	maxCommittedId      int64
+	size                *atomic.Int64
 
 	streamURI  string
-	size       *atomic.Int64
 	sizeG      metrics.Gauge
 	sizeBytesG metrics.Gauge
 }
@@ -45,8 +45,9 @@ func newQueue(streamURI string, size *atomic.Int64) *queue {
 		minId:   maxEntryId,
 		v:       make(map[int64]queueItem),
 		notifyC: make(chan struct{}),
+		size:    size,
 
-		size:       size,
+		streamURI:  streamURI,
 		sizeG:      queueSizeGauge.V(metrics.KV{"stream_uri": streamURI}),
 		sizeBytesG: queueBytesGauge.V(metrics.KV{"stream_uri": streamURI}),
 	}

@@ -23,17 +23,17 @@ func fakeFetch(
 
 func fakeNotify(streamURI string) {}
 
-// BenchmarkFullPipeline_1-4 - 1.00 cgocalls/op	- 4 allocs/op
+// BenchmarkFullPipeline_1-4 - 1.00 cgocalls/op - 214 B/op - 3 allocs/op
 func BenchmarkFullPipeline_1(b *testing.B) {
 	benchmarkFullPipeline(b, 1)
 }
 
-// BenchmarkFullPipeline_10-4 - 1.00 cgocalls/op - 4 allocs/op
+// BenchmarkFullPipeline_10-4 - 1.00 cgocalls/op - 224 B/op - 3 allocs/op
 func BenchmarkFullPipeline_10(b *testing.B) {
 	benchmarkFullPipeline(b, 100)
 }
 
-// BenchmarkFullPipeline_100-4 - 1.00 cgocalls/op - 4 allocs/op
+// BenchmarkFullPipeline_100-4 - 1.00 cgocalls/op - 219 B/op - 3 allocs/op
 func BenchmarkFullPipeline_100(b *testing.B) {
 	benchmarkFullPipeline(b, 100)
 }
@@ -73,6 +73,7 @@ func benchmarkFullPipeline(b *testing.B, nStreams int) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	reverseN := 10
+	rIdx := 0
 	for i := 0; i < b.N; i++ {
 		sIdx := i % nStreams
 		eIdx := (i / nStreams)
@@ -84,7 +85,15 @@ func benchmarkFullPipeline(b *testing.B, nStreams int) {
 		eIdx = eIdxStart + eIdxOffset
 
 		r := p.ForStream(streams[sIdx]).QueuePut(entries[eIdx], eIdx%1000 == 0)
+		if r.Err() != nil {
+			b.Fatalf("err: %d %d -- %s", i, b.N, r.Err())
+		}
 		rs = append(rs, r)
+		// make sure backlog doesn't grow too large.
+		if len(rs)-rIdx > 10000 {
+			<-rs[rIdx].Done()
+			rIdx += 1
+		}
 	}
 	for idx, r := range rs {
 		<-r.Done()
