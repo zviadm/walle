@@ -1,3 +1,19 @@
+# 2020/04/17
+# NOTES: Perf further improved with few minor WT config tweaks. At this point
+# perf in steady state and in backfill is fully stable and meets goals.
+#
+# Variants tested (10k QPS, 10MB/s):
+GOGC=400 ./wctl bench -prefix /bench -qps 10000 -kbs 10000 -streams 1
+GOGC=400 ./wctl bench -prefix /bench -qps 10000 -kbs 10000 -streams 10
+GOGC=400 ./wctl bench -prefix /bench -qps 10000 -kbs 10000 -streams 30
+# p99, p999 <50ms
+
+# High BW test (100MB/s):
+./wctl bench -prefix /bench -qps 10000 -kbs 100000 -streams 10
+# p50 <100ms. p99, p999 ~300-400ms.
+# Even in this type of crazy high throughput, tail latencies stay in range.
+
+
 # 2020/04/16
 # NOTES: Performance and stability goals are now met. Including performance when large gaps are created and backfilled.
 # Setup:
