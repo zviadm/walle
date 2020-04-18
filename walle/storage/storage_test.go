@@ -69,12 +69,12 @@ func TestStreamOpenClose(t *testing.T) {
 	require.False(t, ss2.IsClosed())
 }
 
-// BenchmarkPutEntryNoCommit-4 - 1.00 cgocalls/op - 256 B/op - 4 allocs/op
+// BenchmarkPutEntryNoCommit-4 - 1.00 cgocalls/op - 0 B/op - 0 allocs/op
 func BenchmarkPutEntryNoCommit(b *testing.B) {
 	benchmarkPutEntry(b, false)
 }
 
-// BenchmarkPutEntryCommitted-4 - 2.00 cgocalls/op - 384 B/op - 6 allocs/op
+// BenchmarkPutEntryCommitted-4 - 2.00 cgocalls/op - 128 B/op - 2 allocs/op
 func BenchmarkPutEntryCommitted(b *testing.B) {
 	benchmarkPutEntry(b, true)
 }
@@ -106,7 +106,8 @@ func benchmarkPutEntry(b *testing.B, committed bool) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_, err = ss.PutEntry(entries[i], committed)
+		forceCommit := i%(maxUncommittedEntries/2) == 0
+		_, err = ss.PutEntry(entries[i], committed || forceCommit)
 		if err != nil {
 			b.Fatal(err)
 		}
