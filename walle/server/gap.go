@@ -38,9 +38,7 @@ func (s *Server) consumeGapNotifies() map[string]struct{} {
 	s.mxGap.Lock()
 	defer s.mxGap.Unlock()
 	r := s.streamsWithGap
-	if len(r) > 0 {
-		s.streamsWithGap = make(map[string]struct{}, len(r))
-	}
+	s.streamsWithGap = make(map[string]struct{}, len(r))
 	return r
 }
 
