@@ -57,7 +57,10 @@ func (s *Server) backfillGapsLoop(ctx context.Context) {
 			errAll := true
 			for streamURI := range streamsWithGap {
 				err := s.checkAndBackfillGap(ctx, streamURI)
-				errAll = errAll && (err != nil)
+				if err == nil {
+					errAll = false
+					delete(streamsWithGap, streamURI)
+				}
 			}
 			streamsWithGapNew := s.consumeGapNotifies()
 			for streamURI := range streamsWithGapNew {
@@ -68,6 +71,7 @@ func (s *Server) backfillGapsLoop(ctx context.Context) {
 				// break before retrying again.
 				select {
 				case <-ctx.Done():
+					return
 				case <-time.After(time.Second):
 				}
 			}
