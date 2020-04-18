@@ -82,7 +82,7 @@ func BenchmarkPutEntryCommitted(b *testing.B) {
 func benchmarkPutEntry(b *testing.B, committed bool) {
 	s, err := Init(TestTmpDir(), InitOpts{Create: true, MaxLocalStreams: 1})
 	require.NoError(b, err)
-	defer s.Close()
+	b.Cleanup(s.Close)
 
 	streamURI := "/test1"
 	err = s.CrUpdateStream(streamURI, &walleapi.StreamTopology{Version: 1, ServerIds: []string{s.ServerId()}})

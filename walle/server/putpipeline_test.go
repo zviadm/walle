@@ -31,12 +31,12 @@ var (
 // BenchmarkPutEntrySerial-4 - 3.00 cgocalls/op - 2061 B/op - 33 allocs/op
 func BenchmarkPutEntrySerial(b *testing.B) {
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	b.Cleanup(cancel)
 	_, c := newMockSystem(ctx, topo1Node, storage.TestTmpDir())
 
 	w, err := wallelib.WaitAndClaim(ctx, c, "/mock/1", "testhost:1001", time.Second)
 	require.NoError(b, err)
-	defer w.Close()
+	b.Cleanup(w.Close)
 
 	cgoCalls0 := runtime.NumCgoCall()
 	b.ResetTimer()

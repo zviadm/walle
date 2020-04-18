@@ -103,6 +103,7 @@ func TestProcessorCancel(t *testing.T) {
 // BenchmarkProcessor-4 - 334024 - 3722 ns/op - 267 B/op - 3 allocs/op
 func BenchmarkProcessor(b *testing.B) {
 	ctx, cancel := context.WithCancel(context.Background())
+	b.Cleanup(cancel)
 	cancelCtx := func(err error) {
 		cancel()
 	}
