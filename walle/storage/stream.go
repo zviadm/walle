@@ -74,7 +74,7 @@ type streamStorage struct {
 	gapStartId   atomic.Int64
 	gapEndId     atomic.Int64
 	committed    atomic.Int64
-	commitNotify atomic.Value // chan struct{}
+	commitNotify chan struct{}
 
 	tailEntry   *walleapi.Entry
 	tailEntryId atomic.Int64
@@ -211,7 +211,6 @@ func openStreamStorage(
 	committed := int64(binary.BigEndian.Uint64(v))
 	r.committed.Store(committed)
 	r.committedIdG.Set(float64(committed))
-	r.commitNotify.Store(make(chan struct{}))
 	v, err = r.metaC.ReadValue(r.mkGapStartId)
 	panic.OnErr(err)
 	gapStartId := int64(binary.BigEndian.Uint64(v))
@@ -260,7 +259,9 @@ func (m *streamStorage) close() {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	panic.OnErr(m.sess.Close())
-	close(m.commitNotify.Load().(chan struct{}))
+	if m.commitNotify != nil {
+		close(m.commitNotify)
+	}
 	m.committedIdG.Set(0)
 	m.gapStartIdG.Set(0)
 	m.gapEndIdG.Set(0)
@@ -364,7 +365,12 @@ func (m *streamStorage) TailEntries(n int) ([]*walleapi.Entry, error) {
 }
 
 func (m *streamStorage) CommitNotify() <-chan struct{} {
-	return m.commitNotify.Load().(chan struct{})
+	m.mx.Lock()
+	defer m.mx.Unlock()
+	if m.commitNotify == nil {
+		m.commitNotify = make(chan struct{})
+	}
+	return m.commitNotify
 }
 func (m *streamStorage) CommittedId() int64 {
 	return m.committed.Load()
@@ -448,8 +454,11 @@ func (m *streamStorage) commitEntry(entryId int64, entryXX uint64, newGap bool) 
 
 	m.committed.Store(entryId)
 	m.committedIdG.Set(float64(entryId))
-	close(m.commitNotify.Load().(chan struct{}))
-	m.commitNotify.Store(make(chan struct{})) // commitNotify must be updated after committedId.
+	if m.commitNotify != nil {
+		// commitNotify must be updated after committedId.
+		close(m.commitNotify)
+		m.commitNotify = nil
+	}
 	binary.BigEndian.PutUint64(m.buf8, uint64(entryId))
 	panic.OnErr(m.metaC.Insert(m.mkCommittedId, m.buf8))
 	return nil

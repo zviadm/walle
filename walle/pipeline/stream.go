@@ -115,7 +115,7 @@ func (p *stream) process(ctx context.Context) {
 		reqs, qNotify = p.q.PopReady(p.ss.TailEntryId(), forceSkip, reqs)
 		if len(reqs) == 0 {
 			if skipTimeout == nil {
-				readyId, _ := p.q.MaxReadyCommittedId()
+				readyId := p.q.MaxReadyCommittedId()
 				if readyId > p.ss.TailEntryId() {
 					skipTimeout = time.After(p.skipTimeoutAdjusted())
 				}

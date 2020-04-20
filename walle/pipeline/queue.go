@@ -19,7 +19,7 @@ type queue struct {
 	minIdToNotify int64 // If item with EntryId <= minIdToNotify shows up, send notify.
 	// Notifications are sent if either minIdToNotify triggers or if any of max
 	// committedId-s change.
-	notifyC chan struct{}
+	notifyChan chan struct{}
 
 	maxReadyCommittedId int64
 	maxCommittedId      int64
@@ -42,10 +42,9 @@ const (
 
 func newQueue(streamURI string, size *atomic.Int64) *queue {
 	return &queue{
-		minId:   maxEntryId,
-		v:       make(map[int64]queueItem),
-		notifyC: make(chan struct{}),
-		size:    size,
+		minId: maxEntryId,
+		v:     make(map[int64]queueItem),
+		size:  size,
 
 		streamURI:  streamURI,
 		sizeG:      queueSizeGauge.V(metrics.KV{"stream_uri": streamURI}),
@@ -65,8 +64,16 @@ func (q *queue) Close() {
 }
 
 func (q *queue) notify() {
-	close(q.notifyC)
-	q.notifyC = make(chan struct{})
+	if q.notifyChan != nil {
+		close(q.notifyChan)
+		q.notifyChan = nil
+	}
+}
+func (q *queue) notifyC() <-chan struct{} {
+	if q.notifyChan == nil {
+		q.notifyChan = make(chan struct{})
+	}
+	return q.notifyChan
 }
 
 func (q *queue) IsEmpty() bool {
@@ -79,14 +86,14 @@ func (q *queue) MaxCommittedId() (int64, <-chan struct{}) {
 	q.mx.Lock()
 	defer q.mx.Unlock()
 	if q.maxCommittedId <= q.maxReadyCommittedId {
-		return 0, q.notifyC
+		return 0, q.notifyC()
 	}
-	return q.maxCommittedId, q.notifyC
+	return q.maxCommittedId, q.notifyC()
 }
-func (q *queue) MaxReadyCommittedId() (int64, <-chan struct{}) {
+func (q *queue) MaxReadyCommittedId() int64 {
 	q.mx.Lock()
 	defer q.mx.Unlock()
-	return q.maxReadyCommittedId, q.notifyC
+	return q.maxReadyCommittedId
 }
 func (q *queue) EntryXX(entryId int64) (uint64, bool) {
 	q.mx.Lock()
@@ -98,7 +105,8 @@ func (q *queue) EntryXX(entryId int64) (uint64, bool) {
 	return item.R.EntryXX, true
 }
 
-func (q *queue) PopReady(tailId int64, forceSkip bool, r []queueItem) ([]queueItem, <-chan struct{}) {
+func (q *queue) PopReady(
+	tailId int64, forceSkip bool, r []queueItem) ([]queueItem, <-chan struct{}) {
 	q.mx.Lock()
 	defer q.mx.Unlock()
 	q.minIdToNotify = tailId + 1
@@ -106,7 +114,7 @@ func (q *queue) PopReady(tailId int64, forceSkip bool, r []queueItem) ([]queueIt
 		r = r[:0]
 	}
 	if len(q.v) == 0 {
-		return r, q.notifyC
+		return r, q.notifyC()
 	}
 	popTillId := tailId
 	for {
@@ -127,7 +135,7 @@ func (q *queue) PopReady(tailId int64, forceSkip bool, r []queueItem) ([]queueIt
 		}
 		r = q.popEntriesTill(r, popTillId)
 	}
-	return r, q.notifyC
+	return r, q.notifyC()
 }
 func (q *queue) popEntriesTill(r []queueItem, endId int64) []queueItem {
 	if endId < q.minId {
