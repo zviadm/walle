@@ -384,16 +384,20 @@ func (m *streamStorage) GapRange() (startId int64, endId int64) {
 func (m *streamStorage) UpdateGapStart(entryId int64) {
 	m.mx.Lock()
 	defer m.mx.Unlock()
-	if m.sess.Closed() || entryId <= m.gapStartId.Load() {
+	if m.sess.Closed() {
+		return
+	}
+	gapStartId := m.gapStartId.Load()
+	if gapStartId == 0 || entryId <= gapStartId {
 		return
 	}
 	if entryId >= m.gapEndId.Load() {
-		// Caught up with committed. It is important to update gapEndId first
+		// Gap has been filled. It is important to update gapEndId first
 		// to make sure we don't create artifical Gap of [0..gapEnd] for a time.
 		m.gapEndId.Store(0)
 		m.gapStartId.Store(0)
-		m.gapStartIdG.Set(0)
 		m.gapEndIdG.Set(0)
+		m.gapStartIdG.Set(0)
 		panic.OnErr(m.sess.TxBegin())
 		panic.OnErr(m.metaC.Insert(m.mkGapStartId, make([]byte, 8)))
 		panic.OnErr(m.metaC.Insert(m.mkGapEndId, make([]byte, 8)))
