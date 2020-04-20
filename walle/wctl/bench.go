@@ -136,24 +136,6 @@ func (d *uniformDist) RandSize() int {
 	return boundSize(d.min + mrand.Intn(d.max-d.min))
 }
 
-func newBufferredTicker(ctx context.Context, d time.Duration, buffer int) <-chan struct{} {
-	c := make(chan struct{}, buffer)
-	go func() {
-		ticker := time.NewTicker(d)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				close(c)
-				return
-			case <-ticker.C:
-				c <- struct{}{}
-			}
-		}
-	}()
-	return c
-}
-
 func putBatch(
 	ctx context.Context,
 	wIdx int,
@@ -161,30 +143,66 @@ func putBatch(
 	qps int,
 	sDist sizeDist) {
 
-	metricsKV := metrics.KV{"stream_uri": w.StreamURI()}
+	progressN := 5 * qps
+	maxInFlight := 10 * progressN
+	puts := make(chan *wallelib.PutCtx, maxInFlight)
+	putT0 := make(chan time.Time, maxInFlight)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		resolvePuts(w.StreamURI(), wIdx, qps, puts, putT0)
+		wg.Done()
+	}()
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	putN := 0
+PutLoop:
+	for i := 0; ; i++ {
+		select {
+		case <-ticker.C:
+			targetN := (i + 1) * qps / 100
+			for ; putN < targetN; putN += 1 {
+				size := sDist.RandSize()
+				dataIdx := putN % (wallelib.MaxEntrySize - size + 1)
+				putT0 <- time.Now()
+				putCtx := w.PutEntry(benchData[dataIdx : dataIdx+size])
+				puts <- putCtx
+			}
+		case <-ctx.Done():
+			break PutLoop
+		}
+	}
+	close(puts)
+	wg.Wait()
+	return
+}
+
+func resolvePuts(
+	streamURI string, wIdx int, qps int,
+	puts <-chan *wallelib.PutCtx,
+	putT0 <-chan time.Time) {
+	metricsKV := metrics.KV{"stream_uri": streamURI}
 	totalPutsC := totalPutsCounter.V(metricsKV)
 	putLatency99G := putLatency99Gauge.V(metricsKV)
 	putLatency999G := putLatency999Gauge.V(metricsKV)
 
 	progressN := 5 * qps
-	maxInFlight := 10 * progressN
-
-	puts := make([]*wallelib.PutCtx, 0, maxInFlight)
-	putT0 := make([]time.Time, 0, maxInFlight)
-	latencies := make([]time.Duration, 0, maxInFlight)
+	latencies := make([]time.Duration, 0, progressN)
 	putIdx := 0
 	putTotalSize := 0
-
 	t0 := time.Now()
-	printProgress := func() {
+	printProgress := func(pCtx *wallelib.PutCtx) {
 		tDelta := time.Now().Sub(t0)
 		sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
-		sort.Slice(puts[:putIdx], func(i, j int) bool { return puts[i].Entry.Size() < puts[j].Entry.Size() })
 		p99 := latencies[len(latencies)*99/100]
 		p999 := latencies[len(latencies)*999/1000]
+		var entryId int64
+		if pCtx != nil {
+			entryId = pCtx.Entry.EntryId
+		}
 		zlog.Infof(
 			"Bench[%d]: processed: %d, (entryId: %d) p50: %s p95: %s p99: %s p999: %s, QPS: %.2f (Target: %d), KB/s: %.1f",
-			wIdx, putIdx, puts[putIdx-1].Entry.EntryId,
+			wIdx, putIdx, entryId,
 			latencies[len(latencies)*50/100],
 			latencies[len(latencies)*95/100],
 			p99, p999,
@@ -195,78 +213,21 @@ func putBatch(
 		putLatency99G.Set(p99.Seconds() * 1000.0)
 		putLatency999G.Set(p999.Seconds() * 1000.0)
 	}
-
-	tickerC := newBufferredTicker(ctx, time.Second/time.Duration(qps), maxInFlight)
-	for i := 0; ctx.Err() == nil; i++ {
-		var putDone <-chan struct{}
-		if putIdx < len(puts) {
-			putDone = puts[putIdx].Done()
-		}
-		resolveCtx := false
-		select {
-		case <-tickerC:
-			tickerN := 1
-		DrainTicker:
-			for {
-				select {
-				case <-tickerC:
-					tickerN += 1
-				default:
-					break DrainTicker
-				}
-			}
-			for i := 0; i < tickerN; i++ {
-				size := sDist.RandSize()
-				dataIdx := i % (wallelib.MaxEntrySize - size + 1)
-				putCtx := w.PutEntry(benchData[dataIdx : dataIdx+size])
-				puts = append(puts, putCtx)
-				putT0 = append(putT0, time.Now())
-			}
-		case <-putDone:
-			resolveCtx = true
-		}
-		resolveCtx = resolveCtx || len(puts) >= maxInFlight
-		if resolveCtx {
-			_, l := resolvePutCtx(puts[putIdx], putT0[putIdx], true)
-			latencies = append(latencies, l)
-			putTotalSize += len(puts[putIdx].Entry.Data)
-			putIdx += 1
-		}
-		if putIdx == progressN {
-			printProgress()
-			copy(puts, puts[putIdx:])
-			puts = puts[:len(puts)-putIdx]
-			copy(putT0, putT0[putIdx:])
-			putT0 = putT0[:len(putT0)-putIdx]
+	for putCtx := range puts {
+		pt0 := <-putT0
+		<-putCtx.Done()
+		l := time.Now().Sub(pt0)
+		exitOnErr(putCtx.Err())
+		latencies = append(latencies, l)
+		putTotalSize += len(putCtx.Entry.Data)
+		putIdx += 1
+		if putIdx >= progressN {
+			printProgress(putCtx)
 			latencies = latencies[:0]
 			putIdx = 0
 			putTotalSize = 0
 			t0 = time.Now()
 		}
 	}
-	for ; putIdx < len(puts); putIdx++ {
-		_, l := resolvePutCtx(puts[putIdx], putT0[putIdx], true)
-		latencies = append(latencies, l)
-		putTotalSize += len(puts[putIdx].Entry.Data)
-	}
-	printProgress()
-	return
-}
-
-func resolvePutCtx(
-	putCtx *wallelib.PutCtx,
-	putT0 time.Time,
-	block bool) (bool, time.Duration) {
-	if !block {
-		select {
-		case <-putCtx.Done():
-		default:
-			return false, 0
-		}
-	} else {
-		<-putCtx.Done()
-	}
-	latency := time.Now().Sub(putT0)
-	exitOnErr(putCtx.Err())
-	return true, latency
+	printProgress(nil)
 }

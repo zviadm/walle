@@ -23,7 +23,7 @@ Steady state, with occasional node restarts:
 * Push 10k QPS, 10MB/s with 1 stream.
 * Push 10k QPS, 10MB/s with 10 stream.
 * Push 10k QPS, 10MB/s with 30 stream.
-* Push 8k QPS, 50MB/s with 1 stream. (high BW)
+* Push 10k QPS, 50MB/s with 1 stream. (high BW)
 
 Full node replacement:
 * Push 10k QPS, 10MB/s with 30 streams, while backfilling 100GB of data on one node.
@@ -37,14 +37,14 @@ Steady state, with active data trimming (TODO(zviadm)):
 
 * For 10k QPS, 10MB/s scenarios:
 	* Latencies stayed stable, tail latencies highest with 30 streams: `p.95 ~20ms`, `p.999 ~50ms`
-	* Run with `1 stream` only pushed ~9k QPS, which is limited mostly by client, since entries need to
-	written in order.
 	* Node restarts and gap backfilling due to restarts didn't have any noticeable consequences.
 
-* For 8k QPS, 50MB/s scenario:
-	* Latencies were very stable: `.p999 <100ms`.
-	* Demonstrates that even a single stream can push very high bandwidth even if QPS
-	has limitations for single stream.
+* For 10k QPS, 50MB/s scenario:
+	* Latencies still stable: `.p999 ~200-300ms`.
+	* Demonstrates that even a single stream can push very high bandwidth if slightly larger
+	entries are used.
+	* With such high BW scenarios, tail latencies can be bottlenecked by client itself, not
+	by server performance.
 
 ### Node replacement
 
