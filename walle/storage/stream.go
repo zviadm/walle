@@ -278,6 +278,7 @@ func (m *streamStorage) Topology() *walleapi.StreamTopology {
 }
 func (m *streamStorage) setTopology(t *walleapi.StreamTopology) {
 	m.topology.Store(t)
+	m.UpdateGapStart(t.FirstEntryId)
 }
 
 func (m *streamStorage) WriterInfo() (walleapi.WriterId, string, time.Duration, time.Duration) {
@@ -444,6 +445,9 @@ func (m *streamStorage) commitEntry(entryId int64, entryXX uint64, newGap bool) 
 		if m.gapStartId.Load() == 0 {
 			// gapStartId must be updated before gapEndId.
 			gapStartId := committed + 1
+			if firstId := m.Topology().FirstEntryId; firstId > gapStartId {
+				gapStartId = firstId
+			}
 			m.gapStartId.Store(gapStartId)
 			m.gapStartIdG.Set(float64(gapStartId))
 			binary.BigEndian.PutUint64(m.buf8, uint64(gapStartId))

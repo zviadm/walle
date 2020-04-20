@@ -23,10 +23,14 @@ type storage struct {
 	metaS     *wt.Session
 	metaC     *wt.Cursor
 
-	flushMX     sync.Mutex
-	flushQ      chan struct{}
-	flushDone   chan struct{}
-	flusherExit chan struct{}
+	backgroundWG sync.WaitGroup
+	cancelBG     context.CancelFunc
+
+	flushMX   sync.Mutex
+	flushQ    chan struct{}
+	flushDone chan struct{}
+
+	trimQ chan struct{}
 
 	maxLocalStreams int
 	// streams contains only locally served streams.
@@ -63,7 +67,7 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 		Log:             "enabled,compressor=snappy",
 		SessionMax:      opts.MaxLocalStreams*3 + 30, // +30 is as a buffer since WT internal threads also use sessions.
 		CacheSize:       opts.CacheSizeMB * 1024 * 1024,
-		TransactionSync: "enabled=false", // Flushes happen manually by `flusher` go routine.
+		TransactionSync: "enabled=false", // Flushes happen manually by `flushLoop` go routine.
 
 		// Statistics:    []wt.Statistics{wt.StatsFast},
 		// StatisticsLog: "wait=30,source=table:",
@@ -119,9 +123,10 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 		metaC:           metaC,
 		maxLocalStreams: opts.MaxLocalStreams,
 
-		flushQ:      make(chan struct{}, 1),
-		flushDone:   make(chan struct{}),
-		flusherExit: make(chan struct{}),
+		flushQ:    make(chan struct{}, 1),
+		flushDone: make(chan struct{}),
+
+		trimQ: make(chan struct{}, 1),
 	}
 	if opts.ServerId != "" && opts.ServerId != r.serverId {
 		return nil, errors.Errorf(
@@ -168,9 +173,11 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 		zlog.Infof("stream (local): %s %s (v: %d)", streamURI, topology.ServerIds, topology.Version)
 	}
 
-	flushS, err := c.OpenSession()
-	panic.OnErr(err)
-	go r.flusher(flushS)
+	ctx, cancel := context.WithCancel(context.Background())
+	r.cancelBG = cancel
+	r.backgroundWG.Add(2)
+	go r.flushLoop(ctx)
+	go r.trimLoop(ctx)
 	return r, nil
 }
 
@@ -178,12 +185,14 @@ func (m *storage) ServerId() string {
 	return m.serverId
 }
 
-func (m *storage) flusher(s *wt.Session) {
+func (m *storage) flushLoop(ctx context.Context) {
+	defer m.backgroundWG.Done()
+	s, err := m.c.OpenSession()
+	panic.OnErr(err)
 	for {
 		select {
-		case <-m.flusherExit:
+		case <-ctx.Done():
 			panic.OnErr(s.LogFlush(wt.SyncOn))
-			close(m.flusherExit)
 			return
 		case <-m.flushQ:
 		}
@@ -258,9 +267,16 @@ func (m *storage) CrUpdateStream(
 	panic.OnErr(m.metaS.TxBegin(wt.TxCfg{Sync: wt.True}))
 	panic.OnErr(m.metaC.Insert([]byte(streamURI+sfxTopology), topologyB))
 	panic.OnErr(m.metaS.TxCommit())
+	notifyTrimLoop := m.streamT[streamURI].GetFirstEntryId() < topology.FirstEntryId
 	m.streamT[streamURI] = topology
 	if ss != nil {
 		ss.setTopology(topology)
+		if notifyTrimLoop {
+			select {
+			case m.trimQ <- struct{}{}:
+			default:
+			}
+		}
 	}
 	if ok && !isLocal {
 		m.nLocalStreams -= 1
@@ -289,8 +305,8 @@ func (m *storage) Close() {
 		v.(Stream).close()
 		return true
 	})
-	m.flusherExit <- struct{}{}
-	<-m.flusherExit
+	m.cancelBG()
+	m.backgroundWG.Wait()
 	panic.OnErr(m.c.Close(wt.ConnCloseCfg{LeakMemory: wt.Bool(m.fastClose)}))
 	close(m.closeC)
 }
