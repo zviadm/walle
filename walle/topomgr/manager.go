@@ -28,7 +28,7 @@ const (
 // Manage, StopManaging & Close calls aren't thread-safe, and
 // must be called from a single thread only.
 type Manager struct {
-	c    wallelib.Client
+	root wallelib.Client
 	addr string
 
 	mx       sync.Mutex
@@ -44,9 +44,9 @@ type clusterData struct {
 }
 
 // NewManager creates new Manager object.
-func NewManager(c wallelib.Client, addr string) *Manager {
+func NewManager(root wallelib.Client, addr string) *Manager {
 	return &Manager{
-		c:        c,
+		root:     root,
 		addr:     addr,
 		clusters: make(map[string]*clusterData),
 	}
@@ -81,7 +81,7 @@ func (m *Manager) manageLoop(
 	clusterURI string) {
 	defer close(notifyDone)
 	for {
-		w, err := wallelib.WaitAndClaim(ctx, m.c, clusterURI, m.addr, *flagManagerLease)
+		w, err := wallelib.WaitAndClaim(ctx, m.root, clusterURI, m.addr, *flagManagerLease)
 		if err != nil {
 			return // context has expired.
 		}

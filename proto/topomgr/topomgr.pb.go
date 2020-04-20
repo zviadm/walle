@@ -191,38 +191,111 @@ func (m *CrUpdateStreamRequest) GetServerIds() []string {
 	return nil
 }
 
+type TrimStreamRequest struct {
+	ClusterUri string `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
+	StreamUri  string `protobuf:"bytes,2,opt,name=stream_uri,json=streamUri,proto3" json:"stream_uri,omitempty"`
+	EntryId    int64  `protobuf:"varint,3,opt,name=entry_id,json=entryId,proto3" json:"entry_id,omitempty"`
+	EntryXX    uint64 `protobuf:"varint,4,opt,name=entry_x_x,json=entryXX,proto3" json:"entry_x_x,omitempty"`
+}
+
+func (m *TrimStreamRequest) Reset()         { *m = TrimStreamRequest{} }
+func (m *TrimStreamRequest) String() string { return proto.CompactTextString(m) }
+func (*TrimStreamRequest) ProtoMessage()    {}
+func (*TrimStreamRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_4b9802c6f2bebbad, []int{3}
+}
+func (m *TrimStreamRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *TrimStreamRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_TrimStreamRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *TrimStreamRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TrimStreamRequest.Merge(m, src)
+}
+func (m *TrimStreamRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *TrimStreamRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_TrimStreamRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_TrimStreamRequest proto.InternalMessageInfo
+
+func (m *TrimStreamRequest) GetClusterUri() string {
+	if m != nil {
+		return m.ClusterUri
+	}
+	return ""
+}
+
+func (m *TrimStreamRequest) GetStreamUri() string {
+	if m != nil {
+		return m.StreamUri
+	}
+	return ""
+}
+
+func (m *TrimStreamRequest) GetEntryId() int64 {
+	if m != nil {
+		return m.EntryId
+	}
+	return 0
+}
+
+func (m *TrimStreamRequest) GetEntryXX() uint64 {
+	if m != nil {
+		return m.EntryXX
+	}
+	return 0
+}
+
 func init() {
 	proto.RegisterType((*FetchTopologyRequest)(nil), "FetchTopologyRequest")
 	proto.RegisterType((*RegisterServerRequest)(nil), "RegisterServerRequest")
 	proto.RegisterType((*CrUpdateStreamRequest)(nil), "CrUpdateStreamRequest")
+	proto.RegisterType((*TrimStreamRequest)(nil), "TrimStreamRequest")
 }
 
 func init() { proto.RegisterFile("topomgr/topomgr.proto", fileDescriptor_4b9802c6f2bebbad) }
 
 var fileDescriptor_4b9802c6f2bebbad = []byte{
-	// 347 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x92, 0xc1, 0x4a, 0xeb, 0x40,
-	0x14, 0x86, 0x33, 0xb7, 0x50, 0x6e, 0x4e, 0xb8, 0x77, 0x31, 0xdc, 0xf4, 0x86, 0x8a, 0xb1, 0x04,
-	0x84, 0x2e, 0x64, 0x02, 0xed, 0xc2, 0xa5, 0xa0, 0x28, 0x74, 0xe1, 0x26, 0xb5, 0x1b, 0x37, 0x65,
-	0xda, 0x4c, 0xd3, 0x81, 0xa4, 0x13, 0x67, 0x26, 0x15, 0xdd, 0xfa, 0x02, 0x3e, 0x87, 0x4f, 0xe2,
-	0xb2, 0x4b, 0x97, 0xd2, 0xbe, 0x88, 0x74, 0x92, 0x28, 0x85, 0x2e, 0xba, 0xca, 0x39, 0xff, 0xcf,
-	0x4f, 0xfe, 0xf9, 0x38, 0xe0, 0x6a, 0x91, 0x8b, 0x2c, 0x91, 0x61, 0xf5, 0x25, 0xb9, 0x14, 0x5a,
-	0xb4, 0xff, 0x3f, 0xd2, 0x34, 0x65, 0x34, 0xe7, 0x61, 0x3d, 0x94, 0x46, 0x70, 0x0e, 0xff, 0x6e,
-	0x98, 0x9e, 0xce, 0xef, 0x44, 0x2e, 0x52, 0x91, 0x3c, 0x45, 0xec, 0xa1, 0x60, 0x4a, 0xe3, 0x13,
-	0x70, 0xa6, 0x69, 0xa1, 0x34, 0x93, 0xe3, 0x42, 0x72, 0x0f, 0x75, 0x50, 0xd7, 0x8e, 0xa0, 0x92,
-	0x46, 0x92, 0x07, 0x2f, 0x08, 0xdc, 0x88, 0x25, 0x7c, 0xbb, 0x0f, 0x99, 0x5c, 0x32, 0x79, 0x68,
-	0x14, 0x1f, 0x81, 0xad, 0x4c, 0x62, 0xcc, 0x63, 0xef, 0x97, 0xb1, 0x7f, 0x97, 0xc2, 0x20, 0xc6,
-	0x67, 0xe0, 0xd4, 0xe6, 0x62, 0x26, 0xbc, 0x46, 0x07, 0x75, 0x9d, 0x9e, 0x43, 0xca, 0x5f, 0x0c,
-	0x16, 0x33, 0x11, 0x81, 0xfa, 0x9e, 0x83, 0x25, 0xb8, 0x57, 0x72, 0x94, 0xc7, 0x54, 0xb3, 0xa1,
-	0x96, 0x8c, 0x66, 0x07, 0x97, 0x38, 0x06, 0x50, 0x26, 0x61, 0xfc, 0xb2, 0x85, 0x5d, 0x2a, 0xb5,
-	0x5d, 0x77, 0x54, 0x5e, 0xa3, 0xd3, 0x30, 0x76, 0x55, 0x52, 0xf5, 0xde, 0x10, 0x38, 0x5b, 0x64,
-	0xb7, 0x74, 0x41, 0x13, 0x26, 0x71, 0x1f, 0xfe, 0xec, 0x60, 0xc4, 0x2e, 0xd9, 0x87, 0xb5, 0x6d,
-	0x93, 0x5a, 0x09, 0x2c, 0xdc, 0x83, 0xbf, 0xbb, 0x04, 0x71, 0x8b, 0xec, 0x45, 0xda, 0x6e, 0x92,
-	0xeb, 0x2c, 0xd7, 0x55, 0x66, 0xf7, 0xc1, 0xb8, 0x45, 0xf6, 0x12, 0xf8, 0xc9, 0x5c, 0x5e, 0xbc,
-	0xaf, 0x7d, 0xb4, 0x5a, 0xfb, 0xe8, 0x73, 0xed, 0xa3, 0xd7, 0x8d, 0x6f, 0xad, 0x36, 0xbe, 0xf5,
-	0xb1, 0xf1, 0xad, 0xfb, 0xd3, 0x84, 0xeb, 0x79, 0x31, 0x21, 0x53, 0x91, 0x85, 0xcf, 0x4b, 0x4e,
-	0xe3, 0xac, 0xbc, 0x8f, 0xd0, 0x1c, 0x47, 0x7d, 0x43, 0x93, 0xa6, 0x59, 0xfb, 0x5f, 0x01, 0x00,
-	0x00, 0xff, 0xff, 0x95, 0x3b, 0xed, 0x13, 0x5d, 0x02, 0x00, 0x00,
+	// 403 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x92, 0xc1, 0x8b, 0xd3, 0x40,
+	0x14, 0xc6, 0x33, 0x66, 0x59, 0x37, 0x2f, 0x28, 0x38, 0x98, 0x35, 0x46, 0x8c, 0x21, 0x20, 0x14,
+	0x91, 0x09, 0x74, 0x0f, 0x1e, 0x05, 0x45, 0xa1, 0x07, 0x2f, 0x69, 0x0b, 0xc5, 0x4b, 0x49, 0x9b,
+	0x69, 0x3a, 0x90, 0x64, 0xe2, 0x64, 0x52, 0x5b, 0xaf, 0xde, 0x3c, 0xf9, 0x67, 0x79, 0xec, 0x49,
+	0x3c, 0x4a, 0xfb, 0x8f, 0x48, 0x26, 0x89, 0xb5, 0xd8, 0x43, 0x0f, 0x7b, 0xca, 0xbc, 0xf7, 0xcb,
+	0xc7, 0xbc, 0xf9, 0xbe, 0x07, 0x96, 0xe4, 0x05, 0xcf, 0x12, 0x11, 0xb4, 0x5f, 0x52, 0x08, 0x2e,
+	0xb9, 0xf3, 0xe8, 0x73, 0x94, 0xa6, 0x34, 0x2a, 0x58, 0xd0, 0x1d, 0x1a, 0xe0, 0xbf, 0x82, 0x87,
+	0xef, 0xa9, 0x9c, 0x2f, 0x47, 0xbc, 0xe0, 0x29, 0x4f, 0x36, 0x21, 0xfd, 0x54, 0xd1, 0x52, 0xe2,
+	0x67, 0x60, 0xce, 0xd3, 0xaa, 0x94, 0x54, 0x4c, 0x2b, 0xc1, 0x6c, 0xe4, 0xa1, 0x9e, 0x11, 0x42,
+	0xdb, 0x1a, 0x0b, 0xe6, 0x7f, 0x45, 0x60, 0x85, 0x34, 0x61, 0x75, 0x3d, 0xa4, 0x62, 0x45, 0xc5,
+	0xb9, 0x52, 0xfc, 0x04, 0x8c, 0x52, 0x29, 0xa6, 0x2c, 0xb6, 0xef, 0x28, 0x7c, 0xd5, 0x34, 0x06,
+	0x31, 0x7e, 0x09, 0x66, 0x07, 0xf3, 0x05, 0xb7, 0x75, 0x0f, 0xf5, 0xcc, 0xbe, 0x49, 0x9a, 0x2b,
+	0x06, 0xf9, 0x82, 0x87, 0x50, 0xfe, 0x3d, 0xfb, 0x2b, 0xb0, 0xde, 0x8a, 0x71, 0x11, 0x47, 0x92,
+	0x0e, 0xa5, 0xa0, 0x51, 0x76, 0xf6, 0x10, 0x4f, 0x01, 0x4a, 0xa5, 0x50, 0xbc, 0x99, 0xc2, 0x68,
+	0x3a, 0x1d, 0xee, 0x66, 0x2c, 0x6d, 0xdd, 0xd3, 0x15, 0x6e, 0x87, 0x2c, 0xfd, 0x6f, 0x08, 0x1e,
+	0x8c, 0x04, 0xcb, 0x6e, 0xf7, 0xd2, 0xc7, 0x70, 0x45, 0x73, 0x29, 0x36, 0xb5, 0x2f, 0xf5, 0xc3,
+	0xf5, 0xf0, 0xae, 0xaa, 0x07, 0x31, 0x76, 0xc0, 0x68, 0xd0, 0x7a, 0xba, 0xb6, 0x2f, 0x3c, 0xd4,
+	0xbb, 0x68, 0xd9, 0x64, 0xd2, 0xff, 0x89, 0xc0, 0xac, 0xf3, 0xfb, 0x10, 0xe5, 0x51, 0x42, 0x05,
+	0xbe, 0x81, 0x7b, 0x47, 0x99, 0x62, 0x8b, 0x9c, 0xca, 0xd8, 0x31, 0x48, 0xd7, 0xf1, 0x35, 0xdc,
+	0x87, 0xfb, 0xc7, 0x71, 0xe2, 0x6b, 0x72, 0x32, 0x5f, 0xe7, 0x92, 0xbc, 0xcb, 0x0a, 0xd9, 0x6a,
+	0x8e, 0xdd, 0xc7, 0xd7, 0xe4, 0x64, 0x1c, 0xff, 0x68, 0x5e, 0x00, 0x1c, 0x8c, 0xc3, 0x98, 0xfc,
+	0xe7, 0xe2, 0xe1, 0xdf, 0x37, 0xaf, 0x7f, 0xec, 0x5c, 0xb4, 0xdd, 0xb9, 0xe8, 0xf7, 0xce, 0x45,
+	0xdf, 0xf7, 0xae, 0xb6, 0xdd, 0xbb, 0xda, 0xaf, 0xbd, 0xab, 0x7d, 0x7c, 0x9e, 0x30, 0xb9, 0xac,
+	0x66, 0x64, 0xce, 0xb3, 0xe0, 0xcb, 0x8a, 0x45, 0x71, 0xd6, 0x2c, 0x76, 0xa0, 0xb6, 0xba, 0x5b,
+	0xfe, 0xd9, 0xa5, 0x2a, 0x6f, 0xfe, 0x04, 0x00, 0x00, 0xff, 0xff, 0x3a, 0xdc, 0x23, 0xc4, 0x16,
+	0x03, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -244,6 +317,9 @@ type TopoManagerClient interface {
 	RegisterServer(ctx context.Context, in *RegisterServerRequest, opts ...grpc.CallOption) (*walleapi.Empty, error)
 	// CrUpdateStream creates new stream or updates members of an existing stream to new members.
 	CrUpdateStream(ctx context.Context, in *CrUpdateStreamRequest, opts ...grpc.CallOption) (*walleapi.Empty, error)
+	// TrimStream schedules stream to be truncated up to given EntryId. Trimming is
+	// an asynchronous operation.
+	TrimStream(ctx context.Context, in *TrimStreamRequest, opts ...grpc.CallOption) (*walleapi.Empty, error)
 }
 
 type topoManagerClient struct {
@@ -281,6 +357,15 @@ func (c *topoManagerClient) CrUpdateStream(ctx context.Context, in *CrUpdateStre
 	return out, nil
 }
 
+func (c *topoManagerClient) TrimStream(ctx context.Context, in *TrimStreamRequest, opts ...grpc.CallOption) (*walleapi.Empty, error) {
+	out := new(walleapi.Empty)
+	err := c.cc.Invoke(ctx, "/TopoManager/TrimStream", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TopoManagerServer is the server API for TopoManager service.
 type TopoManagerServer interface {
 	// FetchTopology returns full topology for a given cluster_uri.
@@ -290,6 +375,9 @@ type TopoManagerServer interface {
 	RegisterServer(context.Context, *RegisterServerRequest) (*walleapi.Empty, error)
 	// CrUpdateStream creates new stream or updates members of an existing stream to new members.
 	CrUpdateStream(context.Context, *CrUpdateStreamRequest) (*walleapi.Empty, error)
+	// TrimStream schedules stream to be truncated up to given EntryId. Trimming is
+	// an asynchronous operation.
+	TrimStream(context.Context, *TrimStreamRequest) (*walleapi.Empty, error)
 }
 
 // UnimplementedTopoManagerServer can be embedded to have forward compatible implementations.
@@ -304,6 +392,9 @@ func (*UnimplementedTopoManagerServer) RegisterServer(ctx context.Context, req *
 }
 func (*UnimplementedTopoManagerServer) CrUpdateStream(ctx context.Context, req *CrUpdateStreamRequest) (*walleapi.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CrUpdateStream not implemented")
+}
+func (*UnimplementedTopoManagerServer) TrimStream(ctx context.Context, req *TrimStreamRequest) (*walleapi.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method TrimStream not implemented")
 }
 
 func RegisterTopoManagerServer(s *grpc.Server, srv TopoManagerServer) {
@@ -364,6 +455,24 @@ func _TopoManager_CrUpdateStream_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TopoManager_TrimStream_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TrimStreamRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TopoManagerServer).TrimStream(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/TopoManager/TrimStream",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TopoManagerServer).TrimStream(ctx, req.(*TrimStreamRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _TopoManager_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "TopoManager",
 	HandlerType: (*TopoManagerServer)(nil),
@@ -379,6 +488,10 @@ var _TopoManager_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CrUpdateStream",
 			Handler:    _TopoManager_CrUpdateStream_Handler,
+		},
+		{
+			MethodName: "TrimStream",
+			Handler:    _TopoManager_TrimStream_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -510,6 +623,53 @@ func (m *CrUpdateStreamRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
+func (m *TrimStreamRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *TrimStreamRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *TrimStreamRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.EntryXX != 0 {
+		i = encodeVarintTopomgr(dAtA, i, uint64(m.EntryXX))
+		i--
+		dAtA[i] = 0x20
+	}
+	if m.EntryId != 0 {
+		i = encodeVarintTopomgr(dAtA, i, uint64(m.EntryId))
+		i--
+		dAtA[i] = 0x18
+	}
+	if len(m.StreamUri) > 0 {
+		i -= len(m.StreamUri)
+		copy(dAtA[i:], m.StreamUri)
+		i = encodeVarintTopomgr(dAtA, i, uint64(len(m.StreamUri)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.ClusterUri) > 0 {
+		i -= len(m.ClusterUri)
+		copy(dAtA[i:], m.ClusterUri)
+		i = encodeVarintTopomgr(dAtA, i, uint64(len(m.ClusterUri)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
 func encodeVarintTopomgr(dAtA []byte, offset int, v uint64) int {
 	offset -= sovTopomgr(v)
 	base := offset
@@ -574,6 +734,29 @@ func (m *CrUpdateStreamRequest) Size() (n int) {
 			l = len(s)
 			n += 1 + l + sovTopomgr(uint64(l))
 		}
+	}
+	return n
+}
+
+func (m *TrimStreamRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.ClusterUri)
+	if l > 0 {
+		n += 1 + l + sovTopomgr(uint64(l))
+	}
+	l = len(m.StreamUri)
+	if l > 0 {
+		n += 1 + l + sovTopomgr(uint64(l))
+	}
+	if m.EntryId != 0 {
+		n += 1 + sovTopomgr(uint64(m.EntryId))
+	}
+	if m.EntryXX != 0 {
+		n += 1 + sovTopomgr(uint64(m.EntryXX))
 	}
 	return n
 }
@@ -947,6 +1130,161 @@ func (m *CrUpdateStreamRequest) Unmarshal(dAtA []byte) error {
 			}
 			m.ServerIds = append(m.ServerIds, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTopomgr(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthTopomgr
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthTopomgr
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *TrimStreamRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTopomgr
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: TrimStreamRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: TrimStreamRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ClusterUri", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTopomgr
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTopomgr
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthTopomgr
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ClusterUri = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StreamUri", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTopomgr
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTopomgr
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthTopomgr
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.StreamUri = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field EntryId", wireType)
+			}
+			m.EntryId = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTopomgr
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.EntryId |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field EntryXX", wireType)
+			}
+			m.EntryXX = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTopomgr
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.EntryXX |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skipTopomgr(dAtA[iNdEx:])

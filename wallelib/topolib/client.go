@@ -85,3 +85,12 @@ func (t *client) CrUpdateStream(
 		})
 	return r, err
 }
+func (t *client) TrimStream(
+	ctx context.Context, in *topomgr.TrimStreamRequest, opts ...grpc.CallOption) (r *walleapi.Empty, err error) {
+	err = t.connectAndDo(ctx, in.ClusterUri,
+		func(ctx context.Context, c topomgr.TopoManagerClient) error {
+			r, err = c.TrimStream(ctx, in, opts...)
+			return err
+		})
+	return r, err
+}

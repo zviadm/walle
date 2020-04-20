@@ -102,6 +102,11 @@ message StreamTopology {
 	int64 version = 1;
 	// Current serverIds for the stream.
 	repeated string server_ids = 2;
+
+	// FirstEntryId/XX represents start of the stream. Streams start at EntryId: 0,
+	// however overtime they can be trimmed to new starting points.
+	int64 first_entry_id = 3;
+	uint64 first_entry_x_x = 4;
 }
 
 message ServerInfo {

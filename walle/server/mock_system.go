@@ -20,10 +20,35 @@ import (
 
 type mockSystem struct {
 	storagePath string
+	d           *mockDiscovery
 
 	servers    map[string]*Server
 	mx         sync.Mutex
 	isDisabled map[string]bool
+}
+
+type mockDiscovery struct {
+	mx sync.Mutex
+	t  *walleapi.Topology
+	n  chan struct{}
+}
+
+func (t *mockDiscovery) Topology() (*walleapi.Topology, <-chan struct{}) {
+	t.mx.Lock()
+	defer t.mx.Unlock()
+	if t.n == nil {
+		t.n = make(chan struct{})
+	}
+	return t.t, t.n
+}
+func (t *mockDiscovery) update(topo *walleapi.Topology) {
+	t.mx.Lock()
+	defer t.mx.Unlock()
+	t.t = topo
+	if t.n != nil {
+		close(t.n)
+		t.n = nil
+	}
 }
 
 func newMockSystem(
@@ -37,7 +62,7 @@ func newMockSystem(
 	}
 	apiClient := &mockApiClient{m}
 	client := &mockClient{apiClient, m}
-	d := &wallelib.StaticDiscovery{T: topology}
+	m.d = &mockDiscovery{t: topology}
 
 	// Perform expensive part without lock.
 	storages := make(map[string]storage.Storage, len(topology.Servers))
@@ -52,7 +77,7 @@ func newMockSystem(
 	defer m.mx.Unlock()
 	for serverId := range topology.Servers {
 		m.servers[serverId] = New(
-			ctx, storages[serverId], client, d, nil)
+			ctx, storages[serverId], client, m.d, nil)
 	}
 	go func() {
 		<-ctx.Done()

@@ -175,3 +175,67 @@ func (m *Manager) crUpdateStream(
 	putCtx, err := c.commitTopology(topologyNew)
 	return putCtx, err
 }
+
+// TrimStream implements topomgr.TopoManagerServer interface.
+func (m *Manager) TrimStream(
+	ctx context.Context,
+	req *topomgr.TrimStreamRequest) (*walleapi.Empty, error) {
+	c, unlock, err := m.clusterMX(req.ClusterUri)
+	if err != nil {
+		return nil, err
+	}
+	topology := c.topology
+	unlock()
+	cc, err := wallelib.NewClient(
+		ctx, &wallelib.StaticDiscovery{T: topology}).ForStream(req.StreamUri)
+	if err != nil {
+		return nil, err
+	}
+	stream, err := cc.StreamEntries(ctx, &walleapi.StreamEntriesRequest{
+		StreamUri:    req.StreamUri,
+		StartEntryId: req.EntryId,
+		EndEntryId:   req.EntryId + 1,
+	})
+	if err != nil {
+		return nil, err
+	}
+	entry, err := stream.Recv()
+	if err != nil {
+		return nil, err
+	}
+	if entry.ChecksumXX != req.EntryXX {
+		return nil, status.Errorf(
+			codes.FailedPrecondition, "stream: %s:%d entryXX mismatch: %d != %d",
+			req.StreamUri, req.EntryId, entry.ChecksumXX, req.EntryXX)
+	}
+	putCtx, err := m.trimStream(ctx, req)
+	if err := resolvePutCtx(ctx, putCtx, err); err != nil {
+		return nil, err
+	}
+	return &walleapi.Empty{}, nil
+}
+
+func (m *Manager) trimStream(
+	ctx context.Context,
+	req *topomgr.TrimStreamRequest) (*wallelib.PutCtx, error) {
+	c, unlock, err := m.clusterMX(req.ClusterUri)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+	streamT := c.topology.Streams[req.StreamUri]
+	if streamT.FirstEntryId == req.EntryId {
+		return nil, nil
+	}
+	if streamT.FirstEntryId > req.EntryId {
+		return nil, status.Errorf(
+			codes.FailedPrecondition, "stream: %s is already trimmed to: %d > %d",
+			req.StreamUri, streamT.FirstEntryId, req.EntryId)
+	}
+	topology := proto.Clone(c.topology).(*walleapi.Topology)
+	topology.Streams[req.StreamUri].Version += 1
+	topology.Streams[req.StreamUri].FirstEntryId = req.EntryId
+	topology.Streams[req.StreamUri].FirstEntryXX = req.EntryXX
+	putCtx, err := c.commitTopology(topology)
+	return putCtx, err
+}

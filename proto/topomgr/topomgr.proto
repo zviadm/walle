@@ -16,6 +16,10 @@ service TopoManager {
 
 	// CrUpdateStream creates new stream or updates members of an existing stream to new members.
 	rpc CrUpdateStream(CrUpdateStreamRequest) returns (Empty) {}
+
+	// TrimStream schedules stream to be truncated up to given EntryId. Trimming is
+	// an asynchronous operation.
+	rpc TrimStream(TrimStreamRequest) returns (Empty) {}
 }
 
 message FetchTopologyRequest {
@@ -32,4 +36,11 @@ message CrUpdateStreamRequest {
 	string cluster_uri = 1;
 	string stream_uri = 2;
 	repeated string server_ids = 3;
+}
+
+message TrimStreamRequest {
+	string cluster_uri = 1;
+	string stream_uri = 2;
+	int64 entry_id = 3;
+	uint64 entry_x_x = 4;
 }
