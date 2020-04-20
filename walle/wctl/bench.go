@@ -136,6 +136,24 @@ func (d *uniformDist) RandSize() int {
 	return boundSize(d.min + mrand.Intn(d.max-d.min))
 }
 
+func newBufferredTicker(ctx context.Context, d time.Duration, buffer int) <-chan struct{} {
+	c := make(chan struct{}, buffer)
+	go func() {
+		ticker := time.NewTicker(d)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				close(c)
+				return
+			case <-ticker.C:
+				c <- struct{}{}
+			}
+		}
+	}()
+	return c
+}
+
 func putBatch(
 	ctx context.Context,
 	wIdx int,
@@ -157,9 +175,6 @@ func putBatch(
 	putIdx := 0
 	putTotalSize := 0
 
-	ticker := time.NewTicker(time.Second / time.Duration(qps))
-	defer ticker.Stop()
-
 	t0 := time.Now()
 	printProgress := func() {
 		tDelta := time.Now().Sub(t0)
@@ -180,27 +195,43 @@ func putBatch(
 		putLatency99G.Set(p99.Seconds() * 1000.0)
 		putLatency999G.Set(p999.Seconds() * 1000.0)
 	}
+
+	tickerC := newBufferredTicker(ctx, time.Second/time.Duration(qps), maxInFlight)
 	for i := 0; ctx.Err() == nil; i++ {
 		var putDone <-chan struct{}
 		if putIdx < len(puts) {
 			putDone = puts[putIdx].Done()
 		}
+		resolveCtx := false
 		select {
-		case <-ticker.C:
-			size := sDist.RandSize()
-			dataIdx := i % (wallelib.MaxEntrySize - size + 1)
-			putCtx := w.PutEntry(benchData[dataIdx : dataIdx+size])
-			puts = append(puts, putCtx)
-			putT0 = append(putT0, time.Now())
+		case <-tickerC:
+			tickerN := 1
+		DrainTicker:
+			for {
+				select {
+				case <-tickerC:
+					tickerN += 1
+				default:
+					break DrainTicker
+				}
+			}
+			for i := 0; i < tickerN; i++ {
+				size := sDist.RandSize()
+				dataIdx := i % (wallelib.MaxEntrySize - size + 1)
+				putCtx := w.PutEntry(benchData[dataIdx : dataIdx+size])
+				puts = append(puts, putCtx)
+				putT0 = append(putT0, time.Now())
+			}
 		case <-putDone:
+			resolveCtx = true
 		}
-		ok, l := resolvePutCtx(puts[putIdx], putT0[putIdx], len(puts) >= maxInFlight)
-		if ok {
+		resolveCtx = resolveCtx || len(puts) >= maxInFlight
+		if resolveCtx {
+			_, l := resolvePutCtx(puts[putIdx], putT0[putIdx], true)
 			latencies = append(latencies, l)
 			putTotalSize += len(puts[putIdx].Entry.Data)
 			putIdx += 1
 		}
-
 		if putIdx == progressN {
 			printProgress()
 			copy(puts, puts[putIdx:])
