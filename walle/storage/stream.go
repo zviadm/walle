@@ -629,6 +629,7 @@ func (m *streamStorage) removeAllEntriesFrom(entryId int64, tailEntry *walleapi.
 		}
 		panic.OnErr(err)
 	}
+	panic.OnErr(m.streamC.Reset())
 	m.updateTailEntry(tailEntry)
 }
 
