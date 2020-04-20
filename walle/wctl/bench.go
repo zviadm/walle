@@ -148,8 +148,8 @@ func putBatch(
 	putLatency99G := putLatency99Gauge.V(metricsKV)
 	putLatency999G := putLatency999Gauge.V(metricsKV)
 
-	maxInFlight := 10000
-	progressN := 1000
+	progressN := 5 * qps
+	maxInFlight := 10 * progressN
 
 	puts := make([]*wallelib.PutCtx, 0, maxInFlight)
 	putT0 := make([]time.Time, 0, maxInFlight)
