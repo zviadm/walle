@@ -20,7 +20,7 @@ func (m *streamStorage) PutGapEntry(entry *walleapi.Entry) error {
 	binary.BigEndian.PutUint64(m.backfillBuf8, uint64(entry.EntryId))
 	n, err := entry.MarshalTo(m.backfillEntryBuf)
 	panic.OnErr(err)
-	panic.OnErr(m.streamFillW.Insert(m.backfillBuf8, m.backfillEntryBuf[:n]))
+	panic.OnErr(m.streamFillC.Insert(m.backfillBuf8, m.backfillEntryBuf[:n]))
 	m.backfillsC.Count(1)
 	m.backfillBytesC.Count(float64(n))
 	m.backfillTotalMsC.Count(time.Now().Sub(t0).Seconds() * 1000.0)

@@ -21,7 +21,7 @@ type storage struct {
 	fastClose bool
 	c         *wt.Connection
 	metaS     *wt.Session
-	metaW     *wt.Mutator
+	metaC     *wt.Cursor
 
 	flushMX     sync.Mutex
 	flushQ      chan struct{}
@@ -78,14 +78,12 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 	// thus there is no need for compression or any other options on it.
 	metadataCfg := wt.DataSourceCfg{}
 	panic.OnErr(metaS.Create(metadataDS, metadataCfg))
-	metaR, err := metaS.Scan(metadataDS)
+	metaC, err := metaS.OpenCursor(metadataDS)
 	panic.OnErr(err)
-	defer metaR.Close()
-	metaW, err := metaS.Mutate(metadataDS)
-	panic.OnErr(err)
+	defer func() { panic.OnErr(metaC.Reset()) }()
 
 	var serverId string
-	serverIdB, err := metaR.ReadValue([]byte(glbServerId))
+	serverIdB, err := metaC.ReadValue([]byte(glbServerId))
 	if err != nil {
 		if wt.ErrCode(err) != wt.ErrNotFound {
 			panic.OnErr(err)
@@ -103,7 +101,7 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 			}
 			serverId = hex.EncodeToString(serverIdB)
 		}
-		panic.OnErr(metaW.Insert([]byte(glbServerId), []byte(serverId)))
+		panic.OnErr(metaC.Insert([]byte(glbServerId), []byte(serverId)))
 	} else {
 		serverId = string(serverIdB)
 	}
@@ -118,7 +116,7 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 		fastClose:       opts.LeakMemoryOnClose,
 		c:               c,
 		metaS:           metaS,
-		metaW:           metaW,
+		metaC:           metaC,
 		maxLocalStreams: opts.MaxLocalStreams,
 
 		flushQ:      make(chan struct{}, 1),
@@ -131,21 +129,21 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 	}
 
 	r.streamT = make(map[string]*walleapi.StreamTopology)
-	panic.OnErr(metaR.Reset())
+	panic.OnErr(metaC.Reset())
 	for {
-		if err := metaR.Next(); err != nil {
+		if err := metaC.Next(); err != nil {
 			if wt.ErrCode(err) != wt.ErrNotFound {
 				panic.OnErr(err)
 			}
 			break
 		}
-		metaKeyB, err := metaR.Key()
+		metaKeyB, err := metaC.Key()
 		panic.OnErr(err)
 		metaKey := string(metaKeyB)
 		if !strings.HasSuffix(metaKey, sfxTopology) {
 			continue
 		}
-		v, err := metaR.Value()
+		v, err := metaC.Value()
 		panic.OnErr(err)
 		topology := &walleapi.StreamTopology{}
 		panic.OnErr(topology.Unmarshal(v))
@@ -258,7 +256,7 @@ func (m *storage) CrUpdateStream(
 	// before in m.streams map, to make sure server doesn't ACK that it has received particular
 	// version of topology that it might lose in a crash.
 	panic.OnErr(m.metaS.TxBegin(wt.TxCfg{Sync: wt.True}))
-	panic.OnErr(m.metaW.Insert([]byte(streamURI+sfxTopology), topologyB))
+	panic.OnErr(m.metaC.Insert([]byte(streamURI+sfxTopology), topologyB))
 	panic.OnErr(m.metaS.TxCommit())
 	m.streamT[streamURI] = topology
 	if ss != nil {

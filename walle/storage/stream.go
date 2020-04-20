@@ -54,7 +54,7 @@ type streamStorage struct {
 	// Separate session for writing Gap entries.
 	backfillMX       sync.Mutex
 	sessFill         *wt.Session
-	streamFillW      *wt.Mutator
+	streamFillC      *wt.Cursor
 	backfillBuf8     []byte
 	backfillEntryBuf []byte
 
@@ -62,9 +62,8 @@ type streamStorage struct {
 	// WT sess and all its cursors.
 	mx       sync.Mutex
 	sess     *wt.Session
-	metaW    *wt.Mutator
-	streamR  *wt.Scanner
-	streamW  *wt.Mutator
+	metaC    *wt.Cursor
+	streamC  *wt.Cursor
 	buf8     []byte
 	entryBuf []byte
 	topology atomic.Value // Type is: *walleapi.StreamTopology
@@ -122,23 +121,23 @@ func createStreamStorage(
 	panic.OnErr(sess.Create(streamBackfillDS(streamURI), streamCfg))
 
 	panic.OnErr(sess.TxBegin(wt.TxCfg{Sync: wt.True}))
-	metaW, err := sess.Mutate(metadataDS)
+	metaC, err := sess.OpenCursor(metadataDS)
 	panic.OnErr(err)
-	streamW, err := sess.Mutate(streamDS(streamURI))
+	streamC, err := sess.OpenCursor(streamDS(streamURI))
 	panic.OnErr(err)
 
 	writerId0, err := Entry0.WriterId.Marshal()
 	panic.OnErr(err)
-	panic.OnErr(metaW.Insert([]byte(streamURI+sfxWriterId), writerId0))
-	panic.OnErr(metaW.Insert([]byte(streamURI+sfxWriterAddr), []byte{}))
-	panic.OnErr(metaW.Insert([]byte(streamURI+sfxWriterLeaseNs), make([]byte, 8)))
-	panic.OnErr(metaW.Insert([]byte(streamURI+sfxCommittedId), make([]byte, 8)))
-	panic.OnErr(metaW.Insert([]byte(streamURI+sfxGapStartId), make([]byte, 8)))
-	panic.OnErr(metaW.Insert([]byte(streamURI+sfxGapEndId), make([]byte, 8)))
-	panic.OnErr(streamW.Insert(make([]byte, 8), entry0B))
+	panic.OnErr(metaC.Insert([]byte(streamURI+sfxWriterId), writerId0))
+	panic.OnErr(metaC.Insert([]byte(streamURI+sfxWriterAddr), []byte{}))
+	panic.OnErr(metaC.Insert([]byte(streamURI+sfxWriterLeaseNs), make([]byte, 8)))
+	panic.OnErr(metaC.Insert([]byte(streamURI+sfxCommittedId), make([]byte, 8)))
+	panic.OnErr(metaC.Insert([]byte(streamURI+sfxGapStartId), make([]byte, 8)))
+	panic.OnErr(metaC.Insert([]byte(streamURI+sfxGapEndId), make([]byte, 8)))
+	panic.OnErr(streamC.Insert(make([]byte, 8), entry0B))
 	panic.OnErr(sess.TxCommit())
-	panic.OnErr(metaW.Close())
-	panic.OnErr(streamW.Close())
+	panic.OnErr(metaC.Close())
+	panic.OnErr(streamC.Close())
 	return openStreamStorage(serverId, streamURI, sess, sessRO, sessFill)
 }
 
@@ -148,9 +147,6 @@ func openStreamStorage(
 	sess *wt.Session,
 	sessRO *wt.Session,
 	sessFill *wt.Session) Stream {
-	metaR, err := sess.Scan(metadataDS)
-	panic.OnErr(err)
-	defer func() { panic.OnErr(metaR.Close()) }()
 	metricsKV := metrics.KV{"stream_uri": streamURI}
 	r := &streamStorage{
 		serverId:  serverId,
@@ -188,62 +184,62 @@ func openStreamStorage(
 		cursorsG:     streamCursorsGauge.V(metricsKV),
 		cursorNextsC: cursorNextsCounter.V(metricsKV),
 	}
-	r.metaW, err = sess.Mutate(metadataDS)
+	var err error
+	r.metaC, err = sess.OpenCursor(metadataDS)
 	panic.OnErr(err)
-	r.streamW, err = sess.Mutate(streamDS(streamURI))
+	r.streamC, err = sess.OpenCursor(streamDS(streamURI))
 	panic.OnErr(err)
-	r.streamFillW, err = sessFill.Mutate(streamBackfillDS(streamURI))
+	r.streamFillC, err = sessFill.OpenCursor(streamBackfillDS(streamURI))
 	panic.OnErr(err)
 
 	r.wInfo = &writerInfo{}
-	v, err := metaR.ReadValue(r.mkWriterId)
+	v, err := r.metaC.ReadValue(r.mkWriterId)
 	panic.OnErr(err)
 	err = r.wInfo.Id.Unmarshal(v)
 	panic.OnErr(err)
-	v, err = metaR.ReadValue(r.mkWriterAddr)
+	v, err = r.metaC.ReadValue(r.mkWriterAddr)
 	panic.OnErr(err)
 	r.wInfo.Addr = string(v)
-	v, err = metaR.ReadValue(r.mkWriterLeaseNs)
+	v, err = r.metaC.ReadValue(r.mkWriterLeaseNs)
 	panic.OnErr(err)
 	r.wInfo.Lease = time.Duration(binary.BigEndian.Uint64(v))
 	r.wInfoRO.Store(r.wInfo)
 	r.renewedLease.Store(time.Time{})
 
-	v, err = metaR.ReadValue(r.mkCommittedId)
+	v, err = r.metaC.ReadValue(r.mkCommittedId)
 	panic.OnErr(err)
 	committed := int64(binary.BigEndian.Uint64(v))
 	r.committed.Store(committed)
 	r.committedIdG.Set(float64(committed))
 	r.commitNotify.Store(make(chan struct{}))
-	v, err = metaR.ReadValue(r.mkGapStartId)
+	v, err = r.metaC.ReadValue(r.mkGapStartId)
 	panic.OnErr(err)
 	gapStartId := int64(binary.BigEndian.Uint64(v))
 	r.gapStartId.Store(gapStartId)
 	r.gapStartIdG.Set(float64(gapStartId))
-	v, err = metaR.ReadValue(r.mkGapEndId)
+	v, err = r.metaC.ReadValue(r.mkGapEndId)
 	panic.OnErr(err)
 	gapEndId := int64(binary.BigEndian.Uint64(v))
 	r.gapEndId.Store(gapEndId)
 	r.gapEndIdG.Set(float64(gapEndId))
 
 	// Read all tail entries from storage to populate: r.tailEntryXX array.
-	r.streamR, err = sess.Scan(streamDS(streamURI))
-	panic.OnErr(err)
-	defer func() { panic.OnErr(r.streamR.Reset()) }()
 	binary.BigEndian.PutUint64(r.buf8, uint64(committed))
-	err = r.streamR.Search(r.buf8)
+	err = r.streamC.Search(r.buf8)
 	panic.OnErr(err)
 	var tailEntry *walleapi.Entry
 	for {
-		tailEntry = unmarshalValue(r.streamURI, committed, r.streamR)
+		tailEntry = unmarshalValue(r.streamURI, committed, r.streamC)
 		r.tailEntryXX[tailEntry.EntryId%int64(len(r.tailEntryXX))] = tailEntry.ChecksumXX
-		err := r.streamR.Next()
+		err := r.streamC.Next()
 		if err != nil && wt.ErrCode(err) == wt.ErrNotFound {
 			break
 		}
 		panic.OnErr(err)
 	}
 	r.updateTailEntry(tailEntry)
+	panic.OnErr(r.metaC.Reset())
+	panic.OnErr(r.streamC.Reset())
 	return r
 }
 
@@ -315,10 +311,10 @@ func (m *streamStorage) UpdateWriter(
 	writerIdB, err := m.wInfo.Id.Marshal()
 	panic.OnErr(err)
 	panic.OnErr(m.sess.TxBegin(wt.TxCfg{Sync: wt.True}))
-	panic.OnErr(m.metaW.Insert(m.mkWriterId, writerIdB))
-	panic.OnErr(m.metaW.Insert(m.mkWriterAddr, []byte(m.wInfo.Addr)))
+	panic.OnErr(m.metaC.Insert(m.mkWriterId, writerIdB))
+	panic.OnErr(m.metaC.Insert(m.mkWriterAddr, []byte(m.wInfo.Addr)))
 	binary.BigEndian.PutUint64(m.buf8, uint64(m.wInfo.Lease.Nanoseconds()))
-	panic.OnErr(m.metaW.Insert(m.mkWriterLeaseNs, []byte(m.buf8)))
+	panic.OnErr(m.metaC.Insert(m.mkWriterLeaseNs, []byte(m.buf8)))
 	panic.OnErr(m.sess.TxCommit())
 	return remainingLease, nil
 }
@@ -343,7 +339,7 @@ func (m *streamStorage) TailEntries(n int) ([]*walleapi.Entry, error) {
 	}
 	committed := m.committed.Load()
 	binary.BigEndian.PutUint64(m.buf8, uint64(committed))
-	mType, err := m.streamR.SearchNear(m.buf8)
+	mType, err := m.streamC.SearchNear(m.buf8)
 	panic.OnErr(err)
 	panic.OnNotOk(mType == wt.MatchedExact, "committed entries mustn't have any gaps")
 
@@ -353,15 +349,15 @@ func (m *streamStorage) TailEntries(n int) ([]*walleapi.Entry, error) {
 	}
 	r := make([]*walleapi.Entry, tailN)
 	for idx := range r {
-		r[idx] = unmarshalValue(m.streamURI, committed, m.streamR)
+		r[idx] = unmarshalValue(m.streamURI, committed, m.streamC)
 		panic.OnNotOk(
 			r[idx].EntryId == committed+int64(idx),
 			"tail entry missing: %s [%d..%d] %d",
 			m.streamURI, m.committed, m.tailEntry.EntryId, idx)
 		if idx != len(r)-1 {
-			panic.OnErr(m.streamR.Next())
+			panic.OnErr(m.streamC.Next())
 		} else {
-			panic.OnErr(m.streamR.Reset())
+			panic.OnErr(m.streamC.Reset())
 		}
 	}
 	return r, nil
@@ -393,14 +389,14 @@ func (m *streamStorage) UpdateGapStart(entryId int64) {
 		m.gapStartIdG.Set(0)
 		m.gapEndIdG.Set(0)
 		panic.OnErr(m.sess.TxBegin())
-		panic.OnErr(m.metaW.Insert(m.mkGapStartId, make([]byte, 8)))
-		panic.OnErr(m.metaW.Insert(m.mkGapEndId, make([]byte, 8)))
+		panic.OnErr(m.metaC.Insert(m.mkGapStartId, make([]byte, 8)))
+		panic.OnErr(m.metaC.Insert(m.mkGapEndId, make([]byte, 8)))
 		panic.OnErr(m.sess.TxCommit())
 	} else {
 		m.gapStartId.Store(entryId)
 		m.gapStartIdG.Set(float64(entryId))
 		binary.BigEndian.PutUint64(m.buf8, uint64(entryId))
-		panic.OnErr(m.metaW.Insert(m.mkGapStartId, m.buf8))
+		panic.OnErr(m.metaC.Insert(m.mkGapStartId, m.buf8))
 	}
 }
 
@@ -441,13 +437,13 @@ func (m *streamStorage) commitEntry(entryId int64, entryXX uint64, newGap bool) 
 			m.gapStartId.Store(gapStartId)
 			m.gapStartIdG.Set(float64(gapStartId))
 			binary.BigEndian.PutUint64(m.buf8, uint64(gapStartId))
-			panic.OnErr(m.metaW.Insert(m.mkGapStartId, m.buf8))
+			panic.OnErr(m.metaC.Insert(m.mkGapStartId, m.buf8))
 		}
 
 		m.gapEndId.Store(entryId)
 		m.gapEndIdG.Set(float64(entryId))
 		binary.BigEndian.PutUint64(m.buf8, uint64(entryId))
-		panic.OnErr(m.metaW.Insert(m.mkGapEndId, m.buf8))
+		panic.OnErr(m.metaC.Insert(m.mkGapEndId, m.buf8))
 	}
 
 	m.committed.Store(entryId)
@@ -455,7 +451,7 @@ func (m *streamStorage) commitEntry(entryId int64, entryXX uint64, newGap bool) 
 	close(m.commitNotify.Load().(chan struct{}))
 	m.commitNotify.Store(make(chan struct{})) // commitNotify must be updated after committedId.
 	binary.BigEndian.PutUint64(m.buf8, uint64(entryId))
-	panic.OnErr(m.metaW.Insert(m.mkCommittedId, m.buf8))
+	panic.OnErr(m.metaC.Insert(m.mkCommittedId, m.buf8))
 	return nil
 }
 
@@ -588,13 +584,13 @@ func (m *streamStorage) readEntry(entryId int64) *walleapi.Entry {
 		return m.tailEntry
 	}
 	binary.BigEndian.PutUint64(m.buf8, uint64(entryId))
-	err := m.streamR.Search(m.buf8)
+	err := m.streamC.Search(m.buf8)
 	if err != nil {
 		panic.OnNotOk(wt.ErrCode(err) == wt.ErrNotFound, err.Error())
 		return nil
 	}
-	entry := unmarshalValue(m.streamURI, m.committed.Load(), m.streamR)
-	panic.OnErr(m.streamR.Reset())
+	entry := unmarshalValue(m.streamURI, m.committed.Load(), m.streamC)
+	panic.OnErr(m.streamC.Reset())
 	return entry
 }
 func (m *streamStorage) readEntryXX(entryId int64) (uint64, bool) {
@@ -618,14 +614,20 @@ func (m *streamStorage) insertEntry(entry *walleapi.Entry) {
 	binary.BigEndian.PutUint64(m.buf8, uint64(entry.EntryId))
 	n, err := entry.MarshalTo(m.entryBuf)
 	panic.OnErr(err)
-	panic.OnErr(m.streamW.Insert(m.buf8, m.entryBuf[:n]))
+	panic.OnErr(m.streamC.Insert(m.buf8, m.entryBuf[:n]))
 }
 
 // Deletes all entries [entryId...) from storage, and sets new tailEntry afterwards.
 func (m *streamStorage) removeAllEntriesFrom(entryId int64, tailEntry *walleapi.Entry) {
-	for eId := entryId; eId <= m.tailEntry.EntryId; eId++ {
-		binary.BigEndian.PutUint64(m.buf8, uint64(eId))
-		panic.OnErr(m.streamW.Remove(m.buf8))
+	binary.BigEndian.PutUint64(m.buf8, uint64(entryId))
+	panic.OnErr(m.streamC.Search(m.buf8))
+	for {
+		panic.OnErr(m.streamC.Remove())
+		err := m.streamC.Next()
+		if wt.ErrCode(err) == wt.ErrNotFound {
+			break
+		}
+		panic.OnErr(err)
 	}
 	m.updateTailEntry(tailEntry)
 }

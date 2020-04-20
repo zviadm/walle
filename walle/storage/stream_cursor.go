@@ -30,11 +30,10 @@ func (m *streamStorage) ReadFrom(entryId int64) (Cursor, error) {
 		cursorNextsC: m.cursorNextsC,
 		committedId:  committedId,
 	}
-	cursor0, err := m.sessRO.Scan(
-		streamDS(m.streamURI), wt.ScanCfg{ReadOnce: wt.True})
+	cfg := wt.CursorCfg{ReadOnce: wt.True, Readonly: wt.True}
+	cursor0, err := m.sessRO.OpenCursor(streamDS(m.streamURI), cfg)
 	panic.OnErr(err)
-	cursor1, err := m.sessRO.Scan(
-		streamBackfillDS(m.streamURI), wt.ScanCfg{ReadOnce: wt.True})
+	cursor1, err := m.sessRO.OpenCursor(streamBackfillDS(m.streamURI), cfg)
 	panic.OnErr(err)
 	cursors := []*wtCursor{{c: cursor0}, {c: cursor1}}
 	for _, c := range cursors {
@@ -69,7 +68,7 @@ type streamCursor struct {
 }
 
 type wtCursor struct {
-	c         *wt.Scanner
+	c         *wt.Cursor
 	needsNext bool
 	finished  bool
 }
@@ -144,11 +143,10 @@ func (m *streamCursor) Entry() *walleapi.Entry {
 	return entry
 }
 
-// Helper function to unmarshal value that scanner is currently pointing at. Scanner
-// must be pointing at a valid record.
+// Helper function to unmarshal value that cursor is currently pointing at.
 // streamURI & committedId are only needed to produce more detailed `panic` message if
 // bug or data corruption has occured and entry can't be unmarshalled.
-func unmarshalValue(streamURI string, committedId int64, c *wt.Scanner) *walleapi.Entry {
+func unmarshalValue(streamURI string, committedId int64, c *wt.Cursor) *walleapi.Entry {
 	unsafeV, err := c.UnsafeValue() // This is safe because Unmarshal call makes a copy.
 	panic.OnErr(err)
 	entry := new(walleapi.Entry)
