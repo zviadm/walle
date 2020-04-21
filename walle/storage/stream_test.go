@@ -33,12 +33,8 @@ func TestStreamStorage(t *testing.T) {
 			// Entries starting at idx:3 have new writerId
 			writerId = MakeWriterId()
 		}
-		entry := &walleapi.Entry{
-			EntryId:  int64(idx),
-			WriterId: writerId,
-			Data:     []byte("entry " + strconv.Itoa(idx)),
-		}
-		entry.ChecksumXX = wallelib.CalculateChecksumXX(entries[idx-1].ChecksumXX, entry.Data)
+		entry := makeEntry(entries[idx-1], []byte("entry "+strconv.Itoa(idx)))
+		entry.WriterId = writerId
 		entries = append(entries, entry)
 	}
 
@@ -136,14 +132,7 @@ func TestStreamStorageRaces(t *testing.T) {
 	}
 	entry := Entry0
 	for idx := 1; idx <= 50; idx++ {
-		data := []byte("entry " + strconv.Itoa(idx))
-		checksum := wallelib.CalculateChecksumXX(entry.ChecksumXX, data)
-		entry = &walleapi.Entry{
-			EntryId:    int64(idx),
-			WriterId:   entry.WriterId,
-			Data:       data,
-			ChecksumXX: checksum,
-		}
+		entry = makeEntry(entry, []byte("entry "+strconv.Itoa(idx)))
 		_, err := ss.PutEntry(entry, true)
 		require.NoError(t, err)
 	}
@@ -169,12 +158,8 @@ func TestStreamCursorWithGap(t *testing.T) {
 	_, err = ss.UpdateWriter(writerId, "", 0)
 	require.NoError(t, err)
 	for idx := 1; idx <= 10; idx++ {
-		entry := &walleapi.Entry{
-			EntryId:  int64(idx),
-			WriterId: writerId,
-			Data:     []byte("entry " + strconv.Itoa(idx)),
-		}
-		entry.ChecksumXX = wallelib.CalculateChecksumXX(entries[idx-1].ChecksumXX, entry.Data)
+		entry := makeEntry(entries[idx-1], []byte("entry "+strconv.Itoa(idx)))
+		entry.WriterId = writerId
 		entries = append(entries, entry)
 	}
 
@@ -218,6 +203,16 @@ func TestStreamCursorWithGap(t *testing.T) {
 	for idx, entry := range entriesR {
 		require.EqualValues(t, entries[idx], entry)
 	}
+}
+
+func makeEntry(prevEntry *walleapi.Entry, data []byte) *walleapi.Entry {
+	r := &walleapi.Entry{
+		EntryId:  prevEntry.EntryId + 1,
+		WriterId: prevEntry.WriterId,
+		Data:     data,
+	}
+	r.ChecksumXX = wallelib.CalculateChecksumXX(prevEntry.ChecksumXX, r.Data)
+	return r
 }
 
 func streamReadAll(t *testing.T, ss Stream, entryId int64) []*walleapi.Entry {

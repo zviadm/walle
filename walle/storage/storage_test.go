@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/zviadm/walle/proto/walleapi"
-	"github.com/zviadm/walle/wallelib"
 )
 
 func TestStorageOpen(t *testing.T) {
@@ -93,13 +92,7 @@ func benchmarkPutEntry(b *testing.B, committed bool) {
 	var entries []*walleapi.Entry
 	entry := Entry0
 	for i := 0; i < b.N+1; i++ {
-		checksum := wallelib.CalculateChecksumXX(entry.ChecksumXX, entry.Data)
-		entry = &walleapi.Entry{
-			EntryId:    entry.EntryId + 1,
-			WriterId:   entry.WriterId,
-			ChecksumXX: checksum,
-			Data:       entry.Data,
-		}
+		entry = makeEntry(entry, entry.Data)
 		entries = append(entries, entry)
 	}
 	cgoCalls0 := runtime.NumCgoCall()
