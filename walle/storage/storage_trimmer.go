@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"time"
 
+	"github.com/zviadm/stats-go/metrics"
 	"github.com/zviadm/walle/walle/panic"
 	"github.com/zviadm/wt"
 )
@@ -40,11 +41,15 @@ func (m *storage) trimStreamTo(
 	s *wt.Session,
 	streamURI string,
 	trimToEntryId int64) {
+	metricsKV := metrics.KV{"stream_uri": streamURI}
+	trimsC := trimsCounter.V(metricsKV)
+	trimTotalMsC := trimTotalMsCounter.V(metricsKV)
 	tables := []string{streamDS(streamURI), streamBackfillDS(streamURI)}
 	for _, table := range tables {
 		c, err := s.OpenCursor(table)
 		panic.OnErr(err)
 		for ctx.Err() == nil {
+			t0 := time.Now()
 			err = c.Next()
 			if wt.ErrCode(err) == wt.ErrNotFound {
 				break
@@ -57,6 +62,8 @@ func (m *storage) trimStreamTo(
 				break
 			}
 			panic.OnErr(c.Remove())
+			trimsC.Count(1)
+			trimTotalMsC.Count(time.Now().Sub(t0).Seconds() * 1000.0)
 		}
 		panic.OnErr(c.Close())
 	}
