@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"sort"
+	"strconv"
 	"strings"
 
 	topomgr_pb "github.com/zviadm/walle/proto/topomgr"
@@ -24,6 +25,7 @@ var _CMDs = map[string]cmdFunc{
 	"crupdate": cmdCrupdate,
 	"bench":    cmdBench,
 	"scan":     cmdScan,
+	"trim":     cmdTrim,
 }
 
 func main() {
@@ -127,6 +129,31 @@ func cmdCrupdate(
 		})
 	exitOnErr(err)
 	fmt.Printf("stream: %s, members: %s\n", streamURI, serverIds)
+}
+func cmdTrim(
+	ctx context.Context,
+	rootPb *walleapi.Topology,
+	clusterURI string,
+	args []string) {
+	if len(args) != 2 {
+		fmt.Println("must provide stream_uri and entry_id to trim!")
+		os.Exit(1)
+	}
+	streamURI := args[0]
+	entryId, err := strconv.Atoi(args[1])
+	exitOnErr(err)
+
+	root, err := wallelib.NewClientFromRootPb(ctx, rootPb, rootPb.RootUri)
+	exitOnErr(err)
+	topoMgr := topolib.NewClient(root)
+	_, err = topoMgr.TrimStream(
+		ctx, &topomgr_pb.TrimStreamRequest{
+			ClusterUri: clusterURI,
+			StreamUri:  streamURI,
+			EntryId:    int64(entryId),
+		})
+	exitOnErr(err)
+	fmt.Printf("stream: %s, trimmed to: %d\n", streamURI, entryId)
 }
 
 func exitOnErr(err error) {
