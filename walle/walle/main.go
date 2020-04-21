@@ -96,9 +96,10 @@ func main() {
 	ballastSize := *targetMemMB * 1024 * 1024 * 4 / 10 / 2
 
 	zlog.Infof("initializing storage: %s...", dbPath)
-	// Apply 0-10% jitter to checkpoint frequency to make sure nodes can't get into
+	// Apply +/-10% jitter to checkpoint frequency to make sure nodes can't get into
 	// unfortunate lock step with each other and always checkpoint at the same time.
-	checkpointFreq := (*checkpointFrequency) + time.Duration(mrand.Int63n(int64(*checkpointFrequency/10)))
+	checkpointJitter := int64(*checkpointFrequency / 10)
+	checkpointFreq := (*checkpointFrequency) + time.Duration(-checkpointJitter+mrand.Int63n(2*checkpointJitter))
 	ss, err := storage.Init(dbPath, storage.InitOpts{
 		Create:              true,
 		CacheSizeMB:         cacheSizeMB,

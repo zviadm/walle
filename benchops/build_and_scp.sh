@@ -27,5 +27,6 @@ for i in $(seq 0 $N); do
 	gcloud compute ssh --zone $ZONE wnode-$i -- "sudo systemctl stop walle" || true
 	gcloud compute scp --zone $ZONE $HOME/.tt_cache/goroot/bin/walle wnode-$i:
 	(test -z $COPYONLY) && gcloud compute ssh --zone $ZONE wnode-$i -- "sudo systemctl start walle"
+	(test -z $COPYONLY) && sleep "30s"
 done
 exit 0
