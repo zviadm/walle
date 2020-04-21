@@ -203,12 +203,12 @@ func (m *Manager) TrimStream(
 	if err != nil {
 		return nil, err
 	}
-	if entry.ChecksumXX != req.EntryXX {
+	if entry.EntryId != req.EntryId {
 		return nil, status.Errorf(
-			codes.FailedPrecondition, "stream: %s:%d entryXX mismatch: %d != %d",
-			req.StreamUri, req.EntryId, entry.ChecksumXX, req.EntryXX)
+			codes.Internal, "stream: %s entryId mismatch: %d != %d",
+			req.StreamUri, req.EntryId, entry.EntryId)
 	}
-	putCtx, err := m.trimStream(ctx, req)
+	putCtx, err := m.trimStream(ctx, req, entry.ChecksumXX)
 	if err := resolvePutCtx(ctx, putCtx, err); err != nil {
 		return nil, err
 	}
@@ -217,7 +217,8 @@ func (m *Manager) TrimStream(
 
 func (m *Manager) trimStream(
 	ctx context.Context,
-	req *topomgr.TrimStreamRequest) (*wallelib.PutCtx, error) {
+	req *topomgr.TrimStreamRequest,
+	entryXX uint64) (*wallelib.PutCtx, error) {
 	c, unlock, err := m.clusterMX(req.ClusterUri)
 	if err != nil {
 		return nil, err
@@ -235,7 +236,7 @@ func (m *Manager) trimStream(
 	topology := proto.Clone(c.topology).(*walleapi.Topology)
 	topology.Streams[req.StreamUri].Version += 1
 	topology.Streams[req.StreamUri].FirstEntryId = req.EntryId
-	topology.Streams[req.StreamUri].FirstEntryXX = req.EntryXX
+	topology.Streams[req.StreamUri].FirstEntryXX = entryXX
 	putCtx, err := c.commitTopology(topology)
 	return putCtx, err
 }
