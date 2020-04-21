@@ -5,8 +5,10 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/zviadm/walle/proto/walleapi"
@@ -43,10 +45,11 @@ type storage struct {
 
 // InitOpts contains initialization options for Init call.
 type InitOpts struct {
-	Create          bool   // create database if it doesn't exist.
-	ServerId        string // use provided serverId. only needed in testing.
-	CacheSizeMB     int
-	MaxLocalStreams int // maximum number of local streams supported.
+	Create              bool   // create database if it doesn't exist.
+	ServerId            string // use provided serverId. only needed in testing.
+	CacheSizeMB         int
+	CheckpointFrequency time.Duration
+	MaxLocalStreams     int // maximum number of local streams supported.
 	// If True, will leak memory when closing. This speed up close, and can be safe
 	// if process is about to exit anyways.
 	LeakMemoryOnClose bool
@@ -71,6 +74,9 @@ func Init(dbPath string, opts InitOpts) (Storage, error) {
 
 		// Statistics:    []wt.Statistics{wt.StatsFast},
 		// StatisticsLog: "wait=30,source=table:",
+	}
+	if opts.CheckpointFrequency > 0 {
+		cfg.Checkpoint = "wait=" + strconv.Itoa(int(opts.CheckpointFrequency.Seconds()))
 	}
 	c, err := wt.Open(dbPath, cfg)
 	if err != nil {

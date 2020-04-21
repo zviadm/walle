@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	mrand "math/rand"
 	"net"
 	"net/http"
 	"net/http/pprof"
@@ -12,6 +13,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"syscall"
+	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/zviadm/stats-go/exporters/datadog"
@@ -49,6 +51,11 @@ func main() {
 		"walle.target_mem_mb", 200, "Target maximum total memory usage. Recommended to be set at 60% of total memory size.")
 	var maxLocalStreams = flag.Int(
 		"walle.max_local_streams", 100, "Maximum number of streams that this server can handle.")
+	var checkpointFrequency = flag.Duration(
+		"walle.storage.checkpoint_frequency", 5*time.Minute,
+		"Frequency at which internal WiredTiger storage engine checkpoints. "+
+			"Longer checkpoint duration means longer recovery time if a crash occurs, "+
+			"and also more disk space usage by WiredTiger log.")
 
 	// Profiling/Debugging flags.
 	var debugAddr = flag.String(
@@ -89,11 +96,15 @@ func main() {
 	ballastSize := *targetMemMB * 1024 * 1024 * 4 / 10 / 2
 
 	zlog.Infof("initializing storage: %s...", dbPath)
+	// Apply 0-10% jitter to checkpoint frequency to make sure nodes can't get into
+	// unfortunate lock step with each other and always checkpoint at the same time.
+	checkpointFreq := (*checkpointFrequency) + time.Duration(mrand.Int63n(int64(*checkpointFrequency/10)))
 	ss, err := storage.Init(dbPath, storage.InitOpts{
-		Create:            true,
-		CacheSizeMB:       cacheSizeMB,
-		MaxLocalStreams:   *maxLocalStreams,
-		LeakMemoryOnClose: true,
+		Create:              true,
+		CacheSizeMB:         cacheSizeMB,
+		CheckpointFrequency: checkpointFreq,
+		MaxLocalStreams:     *maxLocalStreams,
+		LeakMemoryOnClose:   true,
 	})
 	fatalOnErr(err)
 	zlog.Infof("initialized storage: %s", ss.ServerId())
