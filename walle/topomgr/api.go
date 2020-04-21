@@ -234,6 +234,7 @@ func (m *Manager) trimStream(
 			req.StreamUri, streamT.FirstEntryId, req.EntryId)
 	}
 	topology := proto.Clone(c.topology).(*walleapi.Topology)
+	topology.Version += 1
 	topology.Streams[req.StreamUri].Version += 1
 	topology.Streams[req.StreamUri].FirstEntryId = req.EntryId
 	topology.Streams[req.StreamUri].FirstEntryXX = entryXX

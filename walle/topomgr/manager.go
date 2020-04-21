@@ -146,6 +146,10 @@ func (m *Manager) clusterMX(clusterURI string) (c *clusterData, unlock func(), e
 }
 
 func (c *clusterData) commitTopology(t *walleapi.Topology) (*wallelib.PutCtx, error) {
+	if t.Version != c.topology.Version+1 {
+		return nil, status.Errorf(
+			codes.Internal, "topology version mismatch: %d != %d + 1", t.Version, c.topology.Version)
+	}
 	topologyB, err := t.Marshal()
 	if err != nil {
 		return nil, err
