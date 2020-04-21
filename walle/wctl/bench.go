@@ -17,8 +17,10 @@ import (
 
 	"github.com/zviadm/stats-go/exporters/datadog"
 	"github.com/zviadm/stats-go/metrics"
+	"github.com/zviadm/walle/proto/topomgr"
 	"github.com/zviadm/walle/proto/walleapi"
 	"github.com/zviadm/walle/wallelib"
+	"github.com/zviadm/walle/wallelib/topolib"
 	"github.com/zviadm/zlog"
 )
 
@@ -47,6 +49,9 @@ func cmdBench(
 	throughputKBs := f.Int("kbs", 10, "Target total throughput in KB per second.")
 	dist := f.String("dist", "log_normal", "Entry size distribution. Options are: log_normal, uniform.")
 	totalTime := f.Duration("time", 0, "Total bench duration. If 0, will run forever.")
+	totalMaxEntries := f.Int(
+		"max_entries", 10*1000*1000,
+		"Maximum number of entries, across all benchmarking streams. Will trim periodically to keep at the limit.")
 	f.Parse(args)
 
 	metrics.SetInstanceName("wctl")
@@ -92,7 +97,11 @@ func cmdBench(
 		defer cancel()
 	}
 	wg := sync.WaitGroup{}
-	wg.Add(len(ws))
+	wg.Add(len(ws) + 1)
+	go func() {
+		benchStreamTrimmer(ctx, rootPb, clusterURI, *uriPrefix, *nStreams, *totalMaxEntries)
+		wg.Done()
+	}()
 	for idx, w := range ws {
 		go func(idx int, w *wallelib.Writer) {
 			putBatch(ctx, idx, w, *qps/len(ws), sDist)
@@ -230,4 +239,53 @@ func resolvePuts(
 		}
 	}
 	printProgress(nil)
+}
+
+func benchStreamTrimmer(
+	ctx context.Context,
+	rootPb *walleapi.Topology,
+	clusterURI string,
+	uriPrefix string,
+	nStreams int,
+	totalMaxEntries int) {
+
+	root, err := wallelib.NewClientFromRootPb(ctx, rootPb, rootPb.RootUri)
+	exitOnErr(err)
+	topoMgr := topolib.NewClient(root)
+	cli, err := wallelib.NewClientFromRootPb(ctx, rootPb, clusterURI)
+	exitOnErr(err)
+	maxEntriesPerStream := totalMaxEntries / nStreams
+	for ctx.Err() == nil {
+		for idx := 0; idx < nStreams; idx++ {
+			streamURI := path.Join(uriPrefix, strconv.Itoa(idx))
+			c, err := cli.ForStream(streamURI)
+			exitOnErr(err)
+			resp, err := c.PollStream(ctx, &walleapi.PollStreamRequest{StreamUri: streamURI})
+			if err != nil {
+				zlog.Errorf("[trimmer] err - %s", err)
+				continue
+			}
+			trimTo := resp.EntryId - int64(maxEntriesPerStream)
+			if trimTo <= 0 {
+				continue
+			}
+			_, err = topoMgr.TrimStream(ctx, &topomgr.TrimStreamRequest{
+				ClusterUri: clusterURI,
+				StreamUri:  streamURI,
+				EntryId:    trimTo,
+			})
+			if err != nil {
+				zlog.Errorf("[trimmer] err - %s", err)
+				continue
+			}
+			zlog.Infof("[trimmer] trimmed: %s, to: %d", streamURI, trimTo)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(5 * time.Minute):
+			// Trimming every 5 minutes is very aggressive, but do it anyways to make benchmark
+			// more aggressive than real world scenarios.
+		}
+	}
 }
