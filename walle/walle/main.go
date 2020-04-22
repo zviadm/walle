@@ -52,7 +52,7 @@ func main() {
 	var maxLocalStreams = flag.Int(
 		"walle.max_local_streams", 100, "Maximum number of streams that this server can handle.")
 	var checkpointFrequency = flag.Duration(
-		"walle.storage.checkpoint_frequency", 5*time.Minute,
+		"walle.storage.checkpoint_frequency", 30*time.Minute,
 		"Frequency at which internal WiredTiger storage engine checkpoints. "+
 			"Longer checkpoint duration means longer recovery time if a crash occurs, "+
 			"and also more disk space usage by WiredTiger log.")
