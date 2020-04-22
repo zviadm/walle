@@ -53,6 +53,9 @@ func (m *storage) trimStreamTo(
 	trimsC := trimsCounter.V(metricsKV)
 	trimTotalMsC := trimTotalMsCounter.V(metricsKV)
 	tables := []string{streamDS(streamURI), streamBackfillDS(streamURI)}
+
+	ticker := time.NewTicker(5 * time.Millisecond)
+	defer ticker.Stop()
 	for _, table := range tables {
 		c, err := s.OpenCursor(table)
 		panic.OnErr(err)
@@ -80,7 +83,7 @@ func (m *storage) trimStreamTo(
 			}
 			select {
 			case <-ctx.Done():
-			case <-time.After(5 * time.Millisecond):
+			case <-ticker.C:
 			}
 		}
 		panic.OnErr(c.Close())
