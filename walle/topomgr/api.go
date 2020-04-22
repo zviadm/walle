@@ -185,7 +185,16 @@ func (m *Manager) TrimStream(
 		return nil, err
 	}
 	topology := c.topology
+	putCtx := c.putCtx
 	unlock()
+
+	if topology.Streams[req.StreamUri].GetFirstEntryId() >= req.EntryId {
+		if err := resolvePutCtx(ctx, putCtx, err); err != nil {
+			return nil, err
+		}
+		return &walleapi.Empty{}, nil
+	}
+
 	cc, err := wallelib.NewClient(
 		ctx, &wallelib.StaticDiscovery{T: topology}).ForStream(req.StreamUri)
 	if err != nil {
@@ -208,7 +217,7 @@ func (m *Manager) TrimStream(
 			codes.Internal, "stream: %s entryId mismatch: %d != %d",
 			req.StreamUri, req.EntryId, entry.EntryId)
 	}
-	putCtx, err := m.trimStream(ctx, req, entry.ChecksumXX)
+	putCtx, err = m.trimStream(ctx, req, entry.ChecksumXX)
 	if err := resolvePutCtx(ctx, putCtx, err); err != nil {
 		return nil, err
 	}
