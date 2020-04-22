@@ -7,12 +7,12 @@ still show case what is actually possible, and find an upper bound of sorts on p
 ## Setup
 
 Benchmarks were setup with 1 dedicated benchmarking client node and 3 WALLE nodes. Nodes were setup in
-GCP, each node in different availability zone of the same region. Janky scripts that were used to setup
-up benchmarks are located in [./benchops](./benchops) folder.
+GCP. Each node was setup in different availability zone of the same region. Janky scripts that were used to
+setup up benchmarks are located in [./benchops](./benchops) folder.
 
 Hardware:
 * WCTL benchmarking node:
-	- n1-highcpu-2
+	- n1-highcpu-4
 * WALLE nodes:
 	- n1-highcpu-4
 	- Local SSD, mounted with `nobarrier` flag
@@ -21,15 +21,16 @@ Hardware:
 
 Steady state, with occasional node restarts:
 * Push 10k QPS, 10MB/s with 1 stream.
-* Push 10k QPS, 10MB/s with 10 stream.
-* Push 10k QPS, 10MB/s with 30 stream.
+* Push 10k QPS, 10MB/s with 10 streams.
+* Push 10k QPS, 10MB/s with 30 streams.
 * Push 10k QPS, 50MB/s with 1 stream. (high BW)
 
 Full node replacement:
 * Push 10k QPS, 10MB/s with 30 streams, while backfilling 100GB of data on one node.
 
-Steady state, with active data trimming (TODO(zviadm)):
-* Data trimming isn't implemented thus no benchmark yet.
+Steady state, with active data trimming:
+* Push 10k QPS, 10MB/s with 30 streams.
+* Trimming periodically to keep maximum 100 million entries total (~70GB compressed size)
 
 ## Results
 
@@ -52,6 +53,13 @@ In this experiment, after nodes were filled up to ~100GB of data, one of the nod
 fully wiped and replaced with a clean node.
 * p999 latencies went from ~50ms to ~100ms. Still very stable.
 * Full backfill finished in <45 minutes. Backfilled at a rate of 65-70 MB/s.
+
+### Steady state, with trimming
+
+This experiment was run for 24hr time period to make sure performance would be stable
+even with large datasets that continue to be periodically trimmed.
+Periodic trimming of old data is pretty cheap and doesn't have noticeable effects on
+either throughput or tail latencies.
 
 # Performance considerations
 
