@@ -3,12 +3,10 @@ package topomgr
 import (
 	"context"
 	"strings"
-	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/zviadm/walle/proto/topomgr"
 	"github.com/zviadm/walle/proto/walleapi"
-	"github.com/zviadm/walle/walle/broadcast"
 	"github.com/zviadm/walle/walle/storage"
 	"github.com/zviadm/walle/wallelib"
 	"github.com/zviadm/zlog"
@@ -89,91 +87,21 @@ func (m *Manager) CrUpdateStream(
 	if err != nil {
 		return nil, err
 	}
-
-	// First make sure majority of current members are at the latest version.
-	// TODO(zviad): Need to also make sure that there are no GAPs that can lead to data loss
-	// when removing serverIds from a member list.
-	if err := m.waitForStreamVersion(ctx, topology, req.StreamUri); err != nil {
-		return nil, err
-	}
+	topologyNew := c.topology.Streams[req.StreamUri]
 	if changed {
-		prevServerIds := topology.Streams[req.StreamUri].GetServerIds()
-		topology := proto.Clone(c.topology).(*walleapi.Topology)
-		topology.Version += 1
-		streamT := topology.Streams[req.StreamUri]
-		if streamT == nil {
-			streamT = &walleapi.StreamTopology{}
-			if topology.Streams == nil {
-				topology.Streams = make(map[string]*walleapi.StreamTopology, 1)
-			}
-			topology.Streams[req.StreamUri] = streamT
+		if topologyNew == nil {
+			topologyNew = &walleapi.StreamTopology{}
+		} else {
+			topologyNew = proto.Clone(topologyNew).(*walleapi.StreamTopology)
 		}
-		streamT.ServerIds = req.ServerIds
-		if len(prevServerIds) != 1 {
-			// Other than special case of going from 1 -> 2 nodes, it is important
-			// to make sure that majority in new member set are also at the latest version
-			// already.
-			if err := m.waitForStreamVersion(ctx, topology, req.StreamUri); err != nil {
-				return nil, err
-			}
-		}
-		streamT.Version += 1
-
-		putCtx, err := m.crUpdateStream(
-			ctx, req.ClusterUri, req.StreamUri, topology)
-		if err := resolvePutCtx(ctx, putCtx, err); err != nil {
-			return nil, err
-		}
-		if err := m.waitForStreamVersion(ctx, topology, req.StreamUri); err != nil {
-			return nil, err
-		}
-		zlog.Infof(
-			"[tm] updated members: %s : %s -> %s", req.StreamUri, prevServerIds, req.ServerIds)
+		topologyNew.Version += 1
+		topologyNew.ServerIds = req.ServerIds
+	}
+	if err := m.updateStreamTopology(
+		ctx, req.ClusterUri, req.StreamUri, topology, topologyNew); err != nil {
+		return nil, err
 	}
 	return &walleapi.Empty{}, nil
-}
-
-func (m *Manager) waitForStreamVersion(
-	ctx context.Context, t *walleapi.Topology, streamURI string) error {
-	streamVersion := t.Streams[streamURI].GetVersion()
-	nServerIds := len(t.Streams[streamURI].GetServerIds())
-	if streamVersion == 0 || nServerIds == 0 {
-		return nil
-	}
-	serverId := t.Streams[streamURI].ServerIds[0]
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	c := wallelib.NewClient(ctx, &wallelib.StaticDiscovery{T: t})
-	return wallelib.KeepTryingWithBackoff(ctx, wallelib.LeaseMinimum, time.Second,
-		func(retryN uint) (bool, bool, error) {
-			wInfo, err := broadcast.WriterInfo(ctx, c, serverId, streamURI, t.Streams[streamURI])
-			if err != nil {
-				return (retryN >= 2), false, err
-			}
-			if wInfo.StreamVersion != streamVersion {
-				return (retryN >= 2), false, status.Errorf(codes.Unavailable,
-					"servers for %s don't have up-to-date stream version: %d < %d",
-					streamURI, wInfo.StreamVersion, streamVersion)
-			}
-			return true, false, nil
-		})
-}
-
-func (m *Manager) crUpdateStream(
-	ctx context.Context,
-	clusterURI string,
-	streamURI string,
-	topologyNew *walleapi.Topology) (*wallelib.PutCtx, error) {
-	c, unlock, err := m.clusterMX(clusterURI)
-	if err != nil {
-		return nil, err
-	}
-	defer unlock()
-	if c.topology.Streams[streamURI].GetVersion() != topologyNew.Streams[streamURI].GetVersion()-1 {
-		return nil, status.Errorf(codes.Aborted, "conflict with concurrent topology update for: %s", streamURI)
-	}
-	putCtx, err := c.commitTopology(topologyNew)
-	return putCtx, err
 }
 
 // TrimStream implements topomgr.TopoManagerServer interface.
@@ -185,68 +113,45 @@ func (m *Manager) TrimStream(
 		return nil, err
 	}
 	topology := c.topology
-	putCtx := c.putCtx
 	unlock()
 
-	if topology.Streams[req.StreamUri].GetFirstEntryId() >= req.EntryId {
-		if err := resolvePutCtx(ctx, putCtx, err); err != nil {
+	topologyNew := topology.Streams[req.StreamUri]
+	if topologyNew.GetVersion() == 0 {
+		return nil, status.Errorf(codes.NotFound, "stream: %s not found", req.StreamUri)
+	}
+	if topologyNew.FirstEntryId < req.EntryId {
+		cc, err := wallelib.NewClient(
+			ctx, &wallelib.StaticDiscovery{T: topology}).ForStream(req.StreamUri)
+		if err != nil {
 			return nil, err
 		}
-		return &walleapi.Empty{}, nil
+		stream, err := cc.StreamEntries(ctx, &walleapi.StreamEntriesRequest{
+			StreamUri:    req.StreamUri,
+			StartEntryId: req.EntryId,
+			EndEntryId:   req.EntryId + 1,
+		})
+		if err != nil {
+			return nil, err
+		}
+		entry, err := stream.Recv()
+		if err != nil {
+			return nil, err
+		}
+		if entry.EntryId != req.EntryId {
+			return nil, status.Errorf(
+				codes.Internal, "stream: %s entryId mismatch: %d != %d",
+				req.StreamUri, req.EntryId, entry.EntryId)
+		}
+
+		topologyNew = proto.Clone(topologyNew).(*walleapi.StreamTopology)
+		topologyNew.Version += 1
+		topologyNew.FirstEntryId = req.EntryId
+		topologyNew.FirstEntryXX = entry.ChecksumXX
 	}
 
-	cc, err := wallelib.NewClient(
-		ctx, &wallelib.StaticDiscovery{T: topology}).ForStream(req.StreamUri)
-	if err != nil {
-		return nil, err
-	}
-	stream, err := cc.StreamEntries(ctx, &walleapi.StreamEntriesRequest{
-		StreamUri:    req.StreamUri,
-		StartEntryId: req.EntryId,
-		EndEntryId:   req.EntryId + 1,
-	})
-	if err != nil {
-		return nil, err
-	}
-	entry, err := stream.Recv()
-	if err != nil {
-		return nil, err
-	}
-	if entry.EntryId != req.EntryId {
-		return nil, status.Errorf(
-			codes.Internal, "stream: %s entryId mismatch: %d != %d",
-			req.StreamUri, req.EntryId, entry.EntryId)
-	}
-	putCtx, err = m.trimStream(ctx, req, entry.ChecksumXX)
-	if err := resolvePutCtx(ctx, putCtx, err); err != nil {
+	if err := m.updateStreamTopology(
+		ctx, req.ClusterUri, req.StreamUri, topology, topologyNew); err != nil {
 		return nil, err
 	}
 	return &walleapi.Empty{}, nil
-}
-
-func (m *Manager) trimStream(
-	ctx context.Context,
-	req *topomgr.TrimStreamRequest,
-	entryXX uint64) (*wallelib.PutCtx, error) {
-	c, unlock, err := m.clusterMX(req.ClusterUri)
-	if err != nil {
-		return nil, err
-	}
-	defer unlock()
-	streamT := c.topology.Streams[req.StreamUri]
-	if streamT.FirstEntryId == req.EntryId {
-		return nil, nil
-	}
-	if streamT.FirstEntryId > req.EntryId {
-		return nil, status.Errorf(
-			codes.FailedPrecondition, "stream: %s is already trimmed to: %d > %d",
-			req.StreamUri, streamT.FirstEntryId, req.EntryId)
-	}
-	topology := proto.Clone(c.topology).(*walleapi.Topology)
-	topology.Version += 1
-	topology.Streams[req.StreamUri].Version += 1
-	topology.Streams[req.StreamUri].FirstEntryId = req.EntryId
-	topology.Streams[req.StreamUri].FirstEntryXX = entryXX
-	putCtx, err := c.commitTopology(topology)
-	return putCtx, err
 }
