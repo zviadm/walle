@@ -920,11 +920,14 @@ type WalleApiClient interface {
 	ClaimWriter(ctx context.Context, in *ClaimWriterRequest, opts ...grpc.CallOption) (*ClaimWriterResponse, error)
 	WriterStatus(ctx context.Context, in *WriterStatusRequest, opts ...grpc.CallOption) (*WriterStatusResponse, error)
 	PutEntry(ctx context.Context, in *PutEntryRequest, opts ...grpc.CallOption) (*PutEntryResponse, error)
-	// PollStream polls stream for last committed entry. This rpc can be used as
-	// a long poll to wait for changes on the stream. If no changes happen within
-	// deadline, will exit early and return OutOfRange error instead of timing out
-	// and hitting DeadlineExceeded error. This is to make it easy to distinguish
-	// between real timeout errors and just long poll expiring.
+	// PollStream polls stream for a single committed entry. This rpc can be used as a
+	// long poll to wait for changes on the stream. If no changes happen within deadline,
+	// will exit early and return OutOfRange error instead of timing out and hitting
+	// DeadlineExceeded error. This is to make it easy to distinguish between real timeout
+	// errors and just long poll expiring.
+	// NOTE: Entry returned by PollStream is guaranteed to be >=poll_entry_id, but may not
+	// always be true latest committed entry. In general, only exclusive writer knows what the
+	// true last committed entry is.
 	PollStream(ctx context.Context, in *PollStreamRequest, opts ...grpc.CallOption) (*Entry, error)
 	// StreamEntries streams committed entries in a given range: [start_id...end_id).
 	// If given entry ids aren't yet committed, will wait for them to appear and stream
@@ -1016,11 +1019,14 @@ type WalleApiServer interface {
 	ClaimWriter(context.Context, *ClaimWriterRequest) (*ClaimWriterResponse, error)
 	WriterStatus(context.Context, *WriterStatusRequest) (*WriterStatusResponse, error)
 	PutEntry(context.Context, *PutEntryRequest) (*PutEntryResponse, error)
-	// PollStream polls stream for last committed entry. This rpc can be used as
-	// a long poll to wait for changes on the stream. If no changes happen within
-	// deadline, will exit early and return OutOfRange error instead of timing out
-	// and hitting DeadlineExceeded error. This is to make it easy to distinguish
-	// between real timeout errors and just long poll expiring.
+	// PollStream polls stream for a single committed entry. This rpc can be used as a
+	// long poll to wait for changes on the stream. If no changes happen within deadline,
+	// will exit early and return OutOfRange error instead of timing out and hitting
+	// DeadlineExceeded error. This is to make it easy to distinguish between real timeout
+	// errors and just long poll expiring.
+	// NOTE: Entry returned by PollStream is guaranteed to be >=poll_entry_id, but may not
+	// always be true latest committed entry. In general, only exclusive writer knows what the
+	// true last committed entry is.
 	PollStream(context.Context, *PollStreamRequest) (*Entry, error)
 	// StreamEntries streams committed entries in a given range: [start_id...end_id).
 	// If given entry ids aren't yet committed, will wait for them to appear and stream

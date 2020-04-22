@@ -62,6 +62,8 @@ message TailEntriesRequest {
 	string stream_uri = 2;
 	int64 stream_version = 3;
 	string from_server_id = 4;
+	// n is number of tail entries to return. 0 means return all.
+	int64 n = 5;
 }
 
 message ReadEntriesRequest {

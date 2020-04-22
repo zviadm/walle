@@ -261,7 +261,7 @@ func (s *Server) TailEntries(
 		return err
 	}
 	defer s.inflightReqs.Add(-1)
-	entries, err := ss.TailEntries(0)
+	entries, err := ss.TailEntries(int(req.N))
 	if err != nil {
 		return err
 	}

@@ -7,6 +7,7 @@ import (
 
 	walle_pb "github.com/zviadm/walle/proto/walle"
 	"github.com/zviadm/walle/proto/walleapi"
+	"github.com/zviadm/walle/walle/storage"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -27,20 +28,14 @@ func (s *Server) PollStream(
 		defer cancel()
 	}
 	for {
+		checkForLease, err := s.checkForLease(ss)
+		if err != nil {
+			return nil, err
+		}
 		notify := ss.CommitNotify()
 		committedId := ss.CommittedId()
 		if committedId >= req.PollEntryId {
 			break
-		}
-		_, writerAddr, _, remainingLease := ss.WriterInfo()
-		minimumLease := time.Duration(0)
-		if isInternalWriter(writerAddr) {
-			minimumLease = -reResolveTimeout
-		}
-		checkForLease := remainingLease - minimumLease
-		if checkForLease < 0 {
-			return nil, status.Errorf(codes.Unavailable,
-				"writer: %s lease expired for streamURI: %s", writerAddr, req.StreamUri)
 		}
 		select {
 		case <-s.rootCtx.Done():
@@ -78,10 +73,15 @@ func (s *Server) StreamEntries(
 		if committed >= startId {
 			break
 		}
+		checkForLease, err := s.checkForLease(ss)
+		if err != nil {
+			return err
+		}
 		select {
 		case <-stream.Context().Done():
 			return stream.Context().Err()
 		case <-notify:
+		case <-time.After(checkForLease):
 		}
 	}
 	for {
@@ -104,13 +104,38 @@ func (s *Server) StreamEntries(
 			if committed >= endId {
 				break
 			}
+			checkForLease, err := s.checkForLease(ss)
+			if err != nil {
+				return err
+			}
 			select {
 			case <-stream.Context().Done():
 				return stream.Context().Err()
 			case <-notify:
+			case <-time.After(checkForLease):
 			}
 		}
 	}
+}
+
+// checkForLease checks if writer for a given stream is still active and heartbeating.
+// If heartbeats aren't coming in, server will start rejecting reads to make sure clients
+// aren't blocked for too long.
+func (s *Server) checkForLease(ss storage.Stream) (time.Duration, error) {
+	_, writerAddr, _, remainingLease := ss.WriterInfo()
+	if writerAddr == "" {
+		return 0, status.Errorf(codes.Unavailable, "%s: not initialized", ss.StreamURI())
+	}
+	minimumLease := -writerTimeoutToResolve
+	if isInternalWriter(writerAddr) {
+		minimumLease = -reResolveTimeout
+	}
+	checkForLease := remainingLease - minimumLease
+	if checkForLease < 0 {
+		return 0, status.Errorf(
+			codes.Unavailable, "%s: writer: %s lease expired", ss.StreamURI(), writerAddr)
+	}
+	return checkForLease, nil
 }
 
 // ReadEntries implements WalleServer interface.
