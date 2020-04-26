@@ -91,9 +91,8 @@ func main() {
 	// Memory allocation:
 	// 60% goes to WT Cache. (non-GO memory)
 	// 40% goes to (Static heap + Memory ballast) + GC overhead.
-	debug.SetGCPercent(100) // GOGC=100, make it predictable and not tuneable.
-	cacheSizeMB := *targetMemMB * 6 / 10
-	ballastSize := *targetMemMB * 1024 * 1024 * 4 / 10 / 2
+	cacheSizeMB := (*targetMemMB * 6 / 10)
+	targetGoMem := (*targetMemMB * 4 / 10) * 1024 * 1024
 
 	zlog.Infof("initializing storage: %s...", dbPath)
 	// Apply +/-10% jitter to checkpoint frequency to make sure nodes can't get into
@@ -129,10 +128,18 @@ func main() {
 	// statically allocated heap size that storage module is using.
 	var memstats runtime.MemStats
 	runtime.ReadMemStats(&memstats)
-	ballastSize -= int(memstats.HeapAlloc)
+	targetHeapSize := targetGoMem / 5
+	ballastSize := targetHeapSize - int(memstats.HeapAlloc)
 	if ballastSize > 0 {
 		memBallast = make([]byte, ballastSize)
+	} else {
+		targetHeapSize = int(memstats.HeapAlloc)
 	}
+	GOGC := ((targetGoMem / targetHeapSize) - 1) * 100
+	if GOGC < 100 {
+		GOGC = 100
+	}
+	debug.SetGCPercent(GOGC) // Set GOGC manually to reach target memory usage.
 
 	rootPb, err := wallelib.TopologyFromFile(rootFile)
 	fatalOnErr(err)
